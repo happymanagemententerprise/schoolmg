@@ -1,0 +1,111 @@
+Act as a senior software architect and technical writer. Please explain this project extensively and clearly.
+
+Project context:
+This is a front-end school management dashboard called "Happy Man Academy." It is a demo/prototype web app for managing school operations, student performance, attendance, class reports, timetable generation, school setup, and role-based access for administrators, teachers, students, and parents.
+
+Use the project files as the source of truth, especially the HTML, CSS, and JavaScript structure. Explain the project in detail from both a product and technical perspective.
+
+Please cover the following:
+
+1. Project overview
+- What the app is( secondary school)
+- Who it is for
+- The main purpose of the system
+- The business/problem domain it addresses
+
+2. Features and functionality
+- Role-based dashboard access
+- Administrator features
+- Class teacher features
+- Subject teacher features
+- HOD features
+- Student features
+- Parent features
+- Student reports and promotion logic
+- Attendance tracking
+- Timetable generation
+- Analytics and subject/class comparisons
+- People directory and user management
+- School setup and session configuration
+- Login screen and demo account behavior
+
+3. Key business rules
+- Promotion rule: Math and English above 50%, plus at least three other subjects above 50%
+- How class reports are evaluated
+- How score periods work
+- HOD restrictions and subject ownership rules
+- What is real vs what is demo behavior
+
+4. Architecture and code structure
+- Explain how the project is organized
+- Describe the relationship between HTML, CSS, and JavaScript
+- Explain what the main sections of the page represent
+- Identify the key logic blocks in the JavaScript file
+- Explain how the app renders different views and dashboards
+- Explain the role-switching behavior and page navigation
+
+5. Data model
+- Describe the main arrays and objects used in the app
+- Explain students, subjects, classes, people, assignments, score periods, sessions, and calendar events
+- Explain how data is stored and reused
+- Describe the use of localStorage for persistence
+
+6. User experience and UI
+- Describe the overall design style
+- Explain the dashboard layout and responsive behavior
+- Describe forms, drawers, modals, tables, cards, and panels
+- Explain what the visual system indicates (colors, statuses, badges, alerts)
+
+7. State management and flows
+- Explain how the login system works
+- Explain how the selected role determines visible content
+- Explain how reports are displayed in drawers and popups
+- Explain how actions such as updating upload periods or assigning teachers work
+- Explain how data updates are saved
+
+8. Strengths of the project
+- Why this is a useful prototype
+- What it demonstrates well
+- What makes it easy to understand for a beginner
+
+9. Limitations and gaps
+- No real backend
+- No real authentication
+- No true database persistence
+- No production-grade authorization
+- No server-side validation or security
+- No complex API integrations
+- No actual spreadsheet syncing or real file processing
+- This is a prototype, not a full production system
+
+10. Improvement suggestions
+- How to turn this into a real production app
+- Recommended backend stack
+- Suggested database design
+- Authentication strategy
+- Access control and permissions
+- API design
+- Data validation and testing plan
+- Scalability ideas
+
+11. How to run and test it
+- Explain how a developer can open the app locally
+- Mention that it is a static front-end prototype
+- Explain how to use the demo login accounts
+- Mention the browser-only execution model
+
+12. Final summary
+Provide a concise conclusion explaining:
+- what the project is
+- why it matters
+- where it fits in the education technology space
+- what makes it a strong prototype and what still needs to be built
+
+Tone:
+- Clear and educational
+- Suitable for beginners and technical readers
+- Use simple explanations but still be detailed
+- Be precise and insightful
+- Avoid speculation beyond what is supported by the code
+
+Please format the answer with headings and bullet points, and keep it detailed but readable.

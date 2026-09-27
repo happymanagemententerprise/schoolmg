@@ -3,111 +3,1050 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Northstar Academy school management dashboard">
-  <title>Northstar Academy | School Management</title>
+  <meta name="description" content="Happy Man Academy — School Management Dashboard">
+  <title>Happy Man Academy</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">N</div>
-        <div><strong>northstar</strong><span>academy</span></div>
-      </div>
-      <div class="school-year"><span class="pulse"></span>2024 / 2025 session</div>
-      <nav class="nav" aria-label="Primary navigation">
-        <p class="nav-label">Workspace</p>
-        <button class="nav-item active" data-page="Overview"><span class="nav-icon">O</span>Overview</button>
-        <button class="nav-item" data-page="Students"><span class="nav-icon">S</span>Students</button>
-        <button class="nav-item" data-page="Results"><span class="nav-icon">R</span>Results</button>
-        <button class="nav-item" data-page="Attendance"><span class="nav-icon">A</span>Attendance</button>
-        <button class="nav-item" data-page="Learning"><span class="nav-icon">+</span>Learning</button>
-        <p class="nav-label secondary-label">Management</p>
-        <button class="nav-item" data-page="Reports"><span class="nav-icon">↗</span>School reports</button>
-        <button class="nav-item" data-page="Settings"><span class="nav-icon">◎</span>Settings</button>
-      </nav>
-      <div class="sidebar-footer">
-        <div class="help-card"><span class="help-icon">?</span><div><strong>Need a hand?</strong><small>Open the help centre</small></div><span class="arrow">↗</span></div>
-        <div class="user-row"><div class="avatar coral">AM</div><div><strong>Amara Mensah</strong><small>Administrator</small></div><button class="more" aria-label="Account menu">•••</button></div>
-      </div>
-    </aside>
 
-    <main class="main-content">
-      <header class="topbar">
-        <button class="mobile-menu" aria-label="Open navigation">☰</button>
-        <div class="crumb"><span>Workspace</span><b>/</b><strong id="page-title">Overview</strong></div>
-        <div class="top-actions"><button class="icon-button" aria-label="Notifications">♢<i></i></button><div class="role-switcher"><span>Viewing as</span><select id="role-select" aria-label="Select role"><option>Administrator</option><option>Teacher · Class</option><option>Teacher · Subject</option><option>Student</option><option>Parent</option></select></div></div>
-      </header>
+<!-- ══════════════════════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════════════════════ -->
+<div id="login-screen" class="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-logo">H</div>
+      <div>
+        <strong>Happy Man Academy</strong>
+        <span>School Management System</span>
+      </div>
+    </div>
 
-      <div class="page-wrap" id="dashboard-view">
-        <section class="welcome-row">
-          <div><p class="eyebrow" id="date-label">Monday, 17 September 2024</p><h1 id="welcome-title">Good morning, Amara.</h1><p class="subcopy" id="welcome-copy">Here is what is happening across Northstar Academy today.</p></div>
-          <div class="term-control"><label for="term-select">Current term</label><select id="term-select"><option value="1">Term 1</option><option value="2">Term 2</option><option value="3" selected>Term 3</option></select><span class="live-dot"></span></div>
-        </section>
+    <h1 class="login-title">Welcome back.</h1>
+    <p class="login-sub">Sign in to access your dashboard.</p>
 
-        <section class="stat-grid" aria-label="School summary">
-          <article class="stat-card accent-coral"><div class="stat-top"><span class="stat-label">Total students</span><span class="stat-icon">S</span></div><strong>1,284</strong><div class="stat-trend up">↗ 8.2% <span>vs last term</span></div></article>
-          <article class="stat-card accent-blue"><div class="stat-top"><span class="stat-label">Average attendance</span><span class="stat-icon">A</span></div><strong>94.6%</strong><div class="stat-trend up">↗ 2.4% <span>vs last term</span></div></article>
-          <article class="stat-card accent-yellow"><div class="stat-top"><span class="stat-label">On track to promote</span><span class="stat-icon">✓</span></div><strong>87.3%</strong><div class="stat-trend down">↘ 1.1% <span>vs last term</span></div></article>
-          <article class="stat-card accent-green"><div class="stat-top"><span class="stat-label">Assignments due</span><span class="stat-icon">+</span></div><strong>38</strong><div class="stat-trend neutral">11 <span>due this week</span></div></article>
-        </section>
+    <form id="login-form" novalidate>
+      <div class="form-group">
+        <label for="login-email">Email address</label>
+        <input id="login-email" type="email" placeholder="you@happyman.edu" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="login-password">Password</label>
+        <div class="password-wrap">
+          <input id="login-password" type="password" placeholder="Enter password" autocomplete="current-password">
+          <button type="button" id="toggle-pw" class="toggle-pw" aria-label="Show password">&#128065;</button>
+        </div>
+      </div>
+      <p id="login-error" class="login-error" hidden>Incorrect email or password. Try a demo account below.</p>
+      <button type="submit" class="btn-primary login-btn">Sign in</button>
+    </form>
 
-        <section class="dashboard-grid">
-          <article class="panel performance-panel"><div class="panel-heading"><div><p class="eyebrow">Academic health</p><h2>Term performance</h2></div><button class="text-button" id="view-school-report">View full report <span>↗</span></button></div><div class="chart-key"><span><i class="key-dot coral-dot"></i>Average score</span><span><i class="key-line"></i>Promotion benchmark</span></div><div class="bar-chart" aria-label="Average scores by subject"><div class="chart-y"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div><div class="bars"><div class="bar-group"><div class="bar-value">78%</div><div class="bar coral-bar" style="height:78%"></div><small>English</small></div><div class="bar-group"><div class="bar-value">74%</div><div class="bar coral-bar" style="height:74%"></div><small>Math</small></div><div class="bar-group"><div class="bar-value">81%</div><div class="bar coral-bar" style="height:81%"></div><small>Science</small></div><div class="bar-group"><div class="bar-value">68%</div><div class="bar coral-bar" style="height:68%"></div><small>History</small></div><div class="bar-group"><div class="bar-value">86%</div><div class="bar coral-bar" style="height:86%"></div><small>French</small></div><div class="bar-group"><div class="bar-value">72%</div><div class="bar coral-bar" style="height:72%"></div><small>ICT</small></div></div></div><div class="benchmark"><span></span><b>50% minimum per core subject</b></div></article>
-          <article class="panel attendance-panel"><div class="panel-heading"><div><p class="eyebrow">This month</p><h2>Attendance</h2></div><button class="round-button" aria-label="Attendance options">•••</button></div><div class="attendance-ring"><div class="ring-inner"><strong>94.6%</strong><span>present</span></div></div><div class="attendance-list"><div><span class="attendance-icon green-bg">✓</span><span>Present</span><b>1,215 <em>94.6%</em></b></div><div><span class="attendance-icon yellow-bg">!</span><span>Late</span><b>42 <em>3.3%</em></b></div><div><span class="attendance-icon coral-bg">×</span><span>Absent</span><b>27 <em>2.1%</em></b></div></div><button class="outline-button" data-page-link="Attendance">Open attendance register <span>↗</span></button></article>
-        </section>
-
-        <section class="lower-grid">
-          <article class="panel table-panel"><div class="panel-heading"><div><p class="eyebrow">Needs attention</p><h2>Student progress</h2></div><div class="table-actions"><div class="search"><span>⌕</span><input id="student-search" type="search" placeholder="Search student" aria-label="Search student"></div><button class="filter-button">Filter <span>≡</span></button></div></div><div class="table-wrap"><table><thead><tr><th>Student</th><th>Class</th><th>Term average</th><th>Attendance</th><th>Promotion</th><th></th></tr></thead><tbody id="student-table"></tbody></table></div><button class="table-footer" data-page-link="Students">View all students <span>↗</span></button></article>
-          <article class="panel deadlines-panel"><div class="panel-heading"><div><p class="eyebrow">Coming up</p><h2>Key dates</h2></div><button class="round-button" aria-label="Calendar options">•••</button></div><div class="timeline"><div class="timeline-item"><time>18 <small>SEP</small></time><div><strong>Term 3 results close</strong><span>All teachers · 4:00 PM</span></div></div><div class="timeline-item"><time>23 <small>SEP</small></time><div><strong>Parent conference day</strong><span>Main hall · 9:00 AM</span></div></div><div class="timeline-item"><time>30 <small>SEP</small></time><div><strong>New session begins</strong><span>2025 / 2026 session</span></div></div></div><button class="outline-button">Open calendar <span>↗</span></button></article>
-        </section>
+    <div class="demo-section">
+      <p class="demo-label">Demo accounts</p>
+      <div class="demo-grid">
+        <button class="demo-btn" data-email="admin@happyman.edu"   data-pw="admin123">Administrator</button>
+        <button class="demo-btn" data-email="class@happyman.edu"   data-pw="class123">Class Teacher</button>
+        <button class="demo-btn" data-email="subject@happyman.edu" data-pw="subject123">Subject Teacher</button>
+        <button class="demo-btn" data-email="hod@happyman.edu"     data-pw="hod123">HOD</button>
+        <button class="demo-btn" data-email="ama.osei@happyman.edu" data-pw="student123">Student</button>
+        <button class="demo-btn" data-email="parent@happyman.edu"  data-pw="parent123">Parent</button>
       </div>
-      <div class="student-page" id="student-view" hidden>
-        <section class="welcome-row student-welcome">
-          <div><p class="eyebrow">Student portal · ID 1024</p><h1>Welcome back, Ama.</h1><p class="subcopy">Here is your Term 3 progress at a glance.</p></div>
-          <div class="student-profile"><div class="avatar avatar-blue">AO</div><div><strong>Ama Osei</strong><span>Class 7B · 2024 / 2025</span></div></div>
-        </section>
-        <section class="student-stat-grid">
-          <article class="student-stat coral-stat"><span>Term 3 average</span><strong>78%</strong><small>+6% from Term 2 ↗</small></article>
-          <article class="student-stat green-stat"><span>Attendance</span><strong>98%</strong><small>Excellent record</small></article>
-          <article class="student-stat yellow-stat"><span>Assignments</span><strong>4</strong><small>Due this week</small></article>
-          <article class="student-stat blue-stat"><span>Promotion status</span><strong>On track</strong><small>All requirements met</small></article>
-        </section>
-        <section class="student-grid-top">
-          <article class="panel result-panel"><div class="panel-heading"><div><p class="eyebrow">Latest report</p><h2>Term 3 results</h2></div><button class="text-button" id="student-report-button">View report <span>↗</span></button></div><div class="student-score-row"><div class="student-score"><span>Overall score</span><strong>78%</strong><small>Term 1 74% · Term 2 76% · Term 3 78%</small></div><div class="mini-progress"><div class="mini-progress-track"><span style="width:78%"></span></div><small>Above 50% benchmark</small></div></div><div class="subject-results"><div><span>English</span><b>82%</b><i><em style="width:82%"></em></i></div><div><span>Mathematics</span><b>76%</b><i><em style="width:76%"></em></i></div><div><span>Science</span><b>84%</b><i><em style="width:84%"></em></i></div><div><span>History</span><b>71%</b><i><em style="width:71%"></em></i></div><div><span>French</span><b>79%</b><i><em style="width:79%"></em></i></div><div><span>ICT</span><b>76%</b><i><em style="width:76%"></em></i></div></div><button class="primary-button student-download" id="student-download">Download report <span>↓</span></button></article>
-          <article class="panel promotion-panel"><div class="panel-heading"><div><p class="eyebrow">Promotion tracker</p><h2>You're on track</h2></div><span class="check-badge">✓</span></div><div class="promotion-circle"><strong>5/5</strong><span>requirements</span></div><div class="requirement-list"><div><span class="requirement-check">✓</span><span>English above 50%</span><b>82%</b></div><div><span class="requirement-check">✓</span><span>Mathematics above 50%</span><b>76%</b></div><div><span class="requirement-check">✓</span><span>Three other subjects above 50%</span><b>4 / 4</b></div></div></article>
-        </section>
-        <section class="student-grid-bottom">
-          <article class="panel assignments-panel"><div class="panel-heading"><div><p class="eyebrow">Keep moving</p><h2>Upcoming assignments</h2></div><span class="read-only-badge">View only</span></div><p class="assignment-note">Due dates are set by each subject teacher.</p><div class="assignment-list"><div class="assignment-item"><span class="assignment-type coral-bg">EN</span><div><strong>Persuasive essay</strong><small>English · Ms. Addo</small></div><time class="due-soon">Due tomorrow</time></div><div class="assignment-item"><span class="assignment-type blue-bg">MA</span><div><strong>Algebra practice set</strong><small>Mathematics · Mr. Owusu</small></div><time>20 Sep</time></div><div class="assignment-item"><span class="assignment-type green-bg">SC</span><div><strong>Energy lab reflection</strong><small>Science · Mrs. Boateng</small></div><time>24 Sep</time></div><div class="assignment-item"><span class="assignment-type yellow-bg">FR</span><div><strong>Conversation recording</strong><small>French · Mr. Kofi</small></div><time>27 Sep</time></div></div></article>
-          <article class="panel monthly-attendance-panel"><div class="panel-heading"><div><p class="eyebrow">September 2024</p><h2>Monthly attendance</h2></div><span class="attendance-number">98%</span></div><div class="attendance-month-bars"><div><i style="height:92%"></i><small>W1</small></div><div><i style="height:100%"></i><small>W2</small></div><div><i style="height:96%"></i><small>W3</small></div><div><i style="height:100%"></i><small>W4</small></div></div><div class="attendance-summary"><span><i class="present-dot"></i>Present <b>20 days</b></span><span><i class="late-dot"></i>Late <b>1 day</b></span></div></article>
-        </section>
-      </div>
-      <div class="role-page" id="class-teacher-view" hidden>
-        <section class="welcome-row role-welcome"><div><p class="eyebrow">Class teacher portal · Class 7B</p><h1>Good morning, Mr. Owusu.</h1><p class="subcopy">Your class attendance and end-of-term feedback are ready.</p></div><button class="primary-button role-action">+ Add feedback</button></section>
-        <section class="student-stat-grid"><article class="student-stat coral-stat"><span>Class students</span><strong>32</strong><small>16 girls · 16 boys</small></article><article class="student-stat green-stat"><span>Class attendance</span><strong>96%</strong><small>+2.1% this term ↗</small></article><article class="student-stat yellow-stat"><span>Feedback pending</span><strong>8</strong><small>Due before 18 Sep</small></article><article class="student-stat blue-stat"><span>Class average</span><strong>74%</strong><small>Above school average</small></article></section>
-        <section class="role-grid"><article class="panel role-table-panel"><div class="panel-heading"><div><p class="eyebrow">Term 3 close-out</p><h2>Attendance and feedback</h2></div><span class="read-only-badge">Class view</span></div><div class="role-table"><div class="role-table-head"><span>Student</span><span>Attendance</span><span>Feedback</span><span></span></div><div class="role-table-row"><span class="student"><span class="student-avatar avatar-blue">AO</span>Ama Osei</span><strong>98%</strong><span class="status promoted">Complete</span><button class="row-menu">•••</button></div><div class="role-table-row"><span class="student"><span class="student-avatar avatar-yellow">KM</span>Kojo Mensah</span><strong>91%</strong><span class="status review">Pending</span><button class="row-menu">•••</button></div><div class="role-table-row"><span class="student"><span class="student-avatar avatar-green">EB</span>Esi Boateng</span><strong>96%</strong><span class="status promoted">Complete</span><button class="row-menu">•••</button></div><div class="role-table-row"><span class="student"><span class="student-avatar avatar-coral">YA</span>Yaw Asante</span><strong>87%</strong><span class="status review">Pending</span><button class="row-menu">•••</button></div></div><button class="outline-button">Open full class register <span>↗</span></button></article><article class="panel role-side-panel"><div class="panel-heading"><div><p class="eyebrow">Class health</p><h2>Needs support</h2></div><span class="check-badge">4</span></div><p class="role-muted">Students who need a note or follow-up before reports close.</p><div class="support-item"><span class="support-icon coral-bg">!</span><div><strong>Attendance below 90%</strong><small>Yaw Asante · 9C</small></div><span>↗</span></div><div class="support-item"><span class="support-icon yellow-bg">✎</span><div><strong>Feedback not submitted</strong><small>Kojo Mensah · 7B</small></div><span>↗</span></div><button class="outline-button">View class insights <span>↗</span></button></article></section>
-      </div>
-      <div class="role-page" id="subject-teacher-view" hidden>
-        <section class="welcome-row role-welcome"><div><p class="eyebrow">Subject teacher portal · English</p><h1>Good morning, Ms. Addo.</h1><p class="subcopy">Upload scores and manage deadlines for your English classes.</p></div><button class="primary-button role-action" id="upload-spreadsheet">Upload spreadsheet <span>↑</span></button></section>
-        <section class="student-stat-grid"><article class="student-stat coral-stat"><span>Subject</span><strong>English</strong><small>3 classes · 96 students</small></article><article class="student-stat green-stat"><span>Results uploaded</span><strong>88%</strong><small>84 of 96 students</small></article><article class="student-stat yellow-stat"><span>Assignments active</span><strong>6</strong><small>2 due this week</small></article><article class="student-stat blue-stat"><span>Subject average</span><strong>78%</strong><small>+4% from Term 2 ↗</small></article></section>
-        <section class="role-grid"><article class="panel upload-panel"><div class="panel-heading"><div><p class="eyebrow">Results entry</p><h2>Upload student scores</h2></div><span class="read-only-badge">Teacher only</span></div><div class="upload-zone"><span class="upload-symbol">↑</span><strong>Drop spreadsheet here</strong><small>Use Student ID to match CA and exam scores</small><button class="outline-button" id="choose-spreadsheet">Choose spreadsheet</button><input id="spreadsheet-input" type="file" accept=".csv,.xlsx,.xls" hidden></div><div class="upload-helper"><span>✓</span><span>Accepted: .xlsx, .xls, .csv</span><span>Required columns: Student ID, CA, Exam</span></div></article><article class="panel role-side-panel"><div class="panel-heading"><div><p class="eyebrow">Teacher-owned dates</p><h2>Assignments</h2></div><button class="text-button">Manage <span>↗</span></button></div><div class="teacher-assignment"><div><strong>Persuasive essay</strong><small>7B · 24 students assigned</small></div><time>Due 18 Sep</time></div><div class="teacher-assignment"><div><strong>Reading response</strong><small>8A · 31 students assigned</small></div><time>Due 23 Sep</time></div><div class="teacher-assignment"><div><strong>Vocabulary quiz</strong><small>9C · 28 students assigned</small></div><time>Due 27 Sep</time></div><button class="primary-button role-action">+ Create assignment</button></article></section>
-      </div>
-      <div class="role-page" id="parent-view" hidden>
-        <section class="welcome-row role-welcome"><div><p class="eyebrow">Parent portal · 2 children linked</p><h1>Good morning, Mrs. Osei.</h1><p class="subcopy">Follow your children’s results, attendance and school updates.</p></div><button class="outline-button parent-action">+ Link another child</button></section>
-        <section class="student-stat-grid"><article class="student-stat coral-stat"><span>Children</span><strong>2</strong><small>Ama · Kofi Osei</small></article><article class="student-stat green-stat"><span>Combined attendance</span><strong>96%</strong><small>Excellent this month</small></article><article class="student-stat yellow-stat"><span>New results</span><strong>2</strong><small>Term 3 reports ready</small></article><article class="student-stat blue-stat"><span>Upcoming dates</span><strong>3</strong><small>School events this month</small></article></section>
-        <section class="role-grid"><article class="panel children-panel"><div class="panel-heading"><div><p class="eyebrow">My children</p><h2>Progress overview</h2></div><span class="read-only-badge">Parent view</span></div><div class="child-card"><div class="student-profile"><div class="avatar avatar-blue">AO</div><div><strong>Ama Osei</strong><span>Class 7B · Student ID 1024</span></div></div><div class="child-metrics"><span><small>Term average</small><b>78%</b></span><span><small>Attendance</small><b>98%</b></span><span class="status promoted">Promoted</span><button class="text-button">View report ↗</button></div></div><div class="child-card"><div class="student-profile"><div class="avatar avatar-green">KO</div><div><strong>Kofi Osei</strong><span>Class 4A · Student ID 0872</span></div></div><div class="child-metrics"><span><small>Term average</small><b>84%</b></span><span><small>Attendance</small><b>94%</b></span><span class="status promoted">Promoted</span><button class="text-button">View report ↗</button></div></div></article><article class="panel role-side-panel"><div class="panel-heading"><div><p class="eyebrow">School updates</p><h2>Coming up</h2></div></div><div class="parent-event"><time>23 <small>SEP</small></time><div><strong>Parent conference day</strong><span>Main hall · 9:00 AM</span></div></div><div class="parent-event"><time>30 <small>SEP</small></time><div><strong>New session begins</strong><span>2025 / 2026 session</span></div></div><button class="outline-button">Open school calendar <span>↗</span></button></article></section>
-      </div>
-      <div class="learning-page" id="learning-view" hidden>
-        <section class="welcome-row learning-welcome"><div><p class="eyebrow">Learning centre · Term 3</p><h1>Keep learning, Ama.</h1><p class="subcopy">Pick up where you left off across your enrolled courses.</p></div><div class="learning-filter"><label for="course-filter">Show</label><select id="course-filter"><option>All courses</option><option>In progress</option><option>Completed</option></select></div></section>
-        <section class="learning-stat-grid"><article class="learning-stat"><span>Enrolled courses</span><strong>6</strong><small>2 completed this term</small></article><article class="learning-stat"><span>Learning progress</span><strong>72%</strong><small>+8% this month ↗</small></article><article class="learning-stat"><span>Activities due</span><strong>4</strong><small>Next due tomorrow</small></article><article class="learning-stat"><span>Study streak</span><strong>12 days</strong><small>Keep it going</small></article></section>
-        <section class="learning-layout"><div><div class="section-heading"><div><p class="eyebrow">My courses</p><h2>Continue learning</h2></div><button class="text-button">Browse catalogue <span>↗</span></button></div><div class="course-grid"><article class="course-card course-coral" data-course="English Language"><div class="course-banner"><span>EN</span><small>Core course</small></div><div class="course-body"><div class="course-meta"><span>Ms. Addo</span><span>7B</span></div><h3>English Language</h3><p>Reading, writing and persuasive communication.</p><div class="course-progress"><div><span>82% complete</span><b>82%</b></div><i><em style="width:82%"></em></i></div><button class="course-button" data-course-open="English Language">Continue course <span>→</span></button></div></article><article class="course-card course-blue" data-course="Mathematics"><div class="course-banner"><span>MA</span><small>Core course</small></div><div class="course-body"><div class="course-meta"><span>Mr. Owusu</span><span>7B</span></div><h3>Mathematics</h3><p>Algebra, geometry and problem-solving skills.</p><div class="course-progress"><div><span>64% complete</span><b>64%</b></div><i><em style="width:64%"></em></i></div><button class="course-button" data-course-open="Mathematics">Continue course <span>→</span></button></div></article><article class="course-card course-green" data-course="Integrated Science"><div class="course-banner"><span>SC</span><small>Core course</small></div><div class="course-body"><div class="course-meta"><span>Mrs. Boateng</span><span>7B</span></div><h3>Integrated Science</h3><p>Energy, matter and the world around us.</p><div class="course-progress"><div><span>48% complete</span><b>48%</b></div><i><em style="width:48%"></em></i></div><button class="course-button" data-course-open="Integrated Science">Open course <span>→</span></button></div></article><article class="course-card course-yellow" data-course="French"><div class="course-banner"><span>FR</span><small>Elective course</small></div><div class="course-body"><div class="course-meta"><span>Mr. Kofi</span><span>7B</span></div><h3>French</h3><p>Everyday conversation and cultural fluency.</p><div class="course-progress"><div><span>31% complete</span><b>31%</b></div><i><em style="width:31%"></em></i></div><button class="course-button" data-course-open="French">Open course <span>→</span></button></div></article></div></div><aside class="learning-sidebar"><article class="panel activity-panel"><div class="panel-heading"><div><p class="eyebrow">Your week</p><h2>Upcoming activity</h2></div><span class="read-only-badge">4 due</span></div><div class="learning-activity"><span class="activity-icon coral-bg">EN</span><div><strong>Persuasive essay</strong><small>English · Assignment</small></div><time class="due-soon">Tomorrow</time></div><div class="learning-activity"><span class="activity-icon blue-bg">MA</span><div><strong>Algebra practice set</strong><small>Mathematics · Quiz</small></div><time>20 Sep</time></div><div class="learning-activity"><span class="activity-icon green-bg">SC</span><div><strong>Energy lab reflection</strong><small>Science · Assignment</small></div><time>24 Sep</time></div><button class="outline-button">View calendar <span>↗</span></button></article><article class="panel resource-panel"><div class="panel-heading"><div><p class="eyebrow">Quick access</p><h2>Learning resources</h2></div></div><button class="resource-row"><span>▣</span><div><strong>Course handbook</strong><small>PDF · 2.4 MB</small></div><b>↓</b></button><button class="resource-row"><span>◉</span><div><strong>Study planner</strong><small>Template · 2024</small></div><b>↗</b></button><button class="resource-row"><span>▤</span><div><strong>Academic calendar</strong><small>Term 3 dates</small></div><b>↗</b></button></article></aside></section>
-      </div>
-    </main>
+    </div>
   </div>
-  <div class="report-drawer" id="report-drawer" aria-hidden="true"><div class="drawer-backdrop" data-close-drawer></div><aside class="drawer"><button class="close-drawer" data-close-drawer aria-label="Close report">×</button><p class="eyebrow">Term 3 report · 2024 / 2025</p><h2 id="drawer-name">Student report</h2><p class="drawer-meta" id="drawer-meta">Class 7B · Student ID 1024</p><div class="report-score"><div><span>Overall score</span><strong id="drawer-score">78%</strong></div><span class="promotion-badge promoted" id="drawer-status">Promoted</span></div><p class="formula">Overall = (Term 1 + Term 2 + Term 3) / 3</p><div class="report-subjects" id="drawer-subjects"></div><div class="drawer-note"><strong>Promotion rule</strong><p>Math and English must be above 50%, plus three other subjects. Attendance and teacher feedback are included in the downloadable report.</p></div><button class="primary-button" id="download-report">Download report <span>↓</span></button></aside></div>
-  <script src="app.js"></script>
+
+  <div class="login-visual" aria-hidden="true">
+    <div class="login-visual-inner">
+      <div class="lv-stat"><strong>1,284</strong><span>Students enrolled</span></div>
+      <div class="lv-stat"><strong>94.6%</strong><span>Attendance rate</span></div>
+      <div class="lv-stat"><strong>87.3%</strong><span>On track to promote</span></div>
+      <div class="lv-quote">&ldquo;Education is the most powerful weapon which you can use to change the world.&rdquo;</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     APP SHELL
+══════════════════════════════════════════════════════════ -->
+<div id="app-shell" class="app-shell" hidden>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">H</div>
+      <div><strong>happyman</strong><span>academy</span></div>
+    </div>
+    <div class="school-year">
+      <span class="pulse"></span>
+      <span id="sidebar-session">2025 / 2026 &middot; Term 1</span>
+    </div>
+
+    <nav class="nav" id="main-nav" aria-label="Primary navigation">
+      <p class="nav-label">Workspace</p>
+      <!-- nav items injected by JS per role -->
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="help-card">
+        <span class="help-icon">?</span>
+        <div><strong>Need help?</strong><small>Open the help centre</small></div>
+        <span class="arrow">&nearr;</span>
+      </div>
+      <div class="user-row" id="sidebar-user">
+        <div class="avatar coral" id="sidebar-avatar">AM</div>
+        <div>
+          <strong id="sidebar-name">Amara Mensah</strong>
+          <small id="sidebar-role">Administrator</small>
+        </div>
+        <button class="more logout-btn" id="logout-btn" title="Sign out" aria-label="Sign out">&#9211;</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main-content">
+    <header class="topbar">
+      <button class="mobile-menu" id="mobile-menu" aria-label="Open navigation">&#9776;</button>
+      <div class="crumb">
+        <span>Workspace</span><b>/</b>
+        <strong id="page-title">Overview</strong>
+      </div>
+      <div class="top-actions">
+        <button class="icon-button" aria-label="Notifications" id="notif-btn">&#128276;<i></i></button>
+        <div class="topbar-user" id="topbar-user-badge">
+          <span class="avatar sm-avatar coral" id="topbar-avatar">AM</span>
+          <span id="topbar-name">Amara</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── PAGE VIEWS ── -->
+
+    <!-- ┌─────────────────────────────────────────────────────┐ -->
+    <!-- │  ADMINISTRATOR VIEWS                                │ -->
+    <!-- └─────────────────────────────────────────────────────┘ -->
+
+    <!-- Admin: Overview -->
+    <div class="page-wrap" id="view-admin-overview" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div>
+          <p class="eyebrow" id="admin-date-label">Monday, 25 July 2025 &middot; Term 1</p>
+          <h1 id="admin-welcome-title">Good morning, Amara.</h1>
+          <p class="subcopy">Here is what is happening across Happy Man Academy today.</p>
+        </div>
+        <div class="term-badge" id="admin-term-badge"><span class="live-dot"></span>Term 1 &middot; Active</div>
+      </section>
+
+      <section class="stat-grid" aria-label="School summary">
+        <article class="stat-card accent-coral">
+          <div class="stat-top"><span class="stat-label">Total students</span><span class="stat-icon">S</span></div>
+          <strong id="admin-stat-students">&mdash;</strong>
+          <div class="stat-trend up">&#8597; Active enrolment</div>
+        </article>
+        <article class="stat-card accent-blue">
+          <div class="stat-top"><span class="stat-label">Classes</span><span class="stat-icon">C</span></div>
+          <strong id="admin-stat-classes">&mdash;</strong>
+          <div class="stat-trend neutral">This session</div>
+        </article>
+        <article class="stat-card accent-yellow">
+          <div class="stat-top"><span class="stat-label">Staff members</span><span class="stat-icon">T</span></div>
+          <strong id="admin-stat-staff">&mdash;</strong>
+          <div class="stat-trend neutral">Teachers &amp; mentors</div>
+        </article>
+        <article class="stat-card accent-green">
+          <div class="stat-top"><span class="stat-label">Subjects offered</span><span class="stat-icon">+</span></div>
+          <strong id="admin-stat-subjects">&mdash;</strong>
+          <div class="stat-trend neutral">Across all classes</div>
+        </article>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Academic health</p><h2>Class performance</h2></div>
+            <button class="text-button" data-nav="view-admin-analytics">View analytics &nearr;</button>
+          </div>
+          <div id="admin-class-perf-table" class="role-table mt16"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Coming up</p><h2>Key dates</h2></div>
+          </div>
+          <div class="timeline" id="admin-events-list"></div>
+          <button class="outline-button" data-nav="view-admin-setup">Manage calendar &nearr;</button>
+        </article>
+      </section>
+
+      <section class="lower-grid mt16">
+        <article class="panel table-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Needs attention</p><h2>Student progress</h2></div>
+            <div class="table-actions">
+              <div class="search"><span>&#8981;</span><input id="admin-student-search" type="search" placeholder="Search student" aria-label="Search student"></div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Student</th><th>Class</th><th>Term avg</th><th>Attendance</th><th>Status</th><th></th></tr></thead>
+              <tbody id="admin-student-table"></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Score upload</p><h2>Upload periods</h2></div></div>
+          <div class="upload-toggles" id="admin-upload-toggles"></div>
+        </article>
+      </section>
+    </div>
+
+    <!-- Admin: People -->
+    <div class="page-wrap" id="view-admin-people" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Directory</p><h1>People</h1><p class="subcopy">Staff, students, and parents at Happy Man Academy.</p></div>
+        <button class="btn-primary" id="add-user-btn">+ Add person</button>
+      </section>
+      <div class="tab-bar" id="people-tabs">
+        <button class="tab-btn active" data-tab="staff">Staff</button>
+        <button class="tab-btn" data-tab="students-all">Students</button>
+        <button class="tab-btn" data-tab="parents">Parents</button>
+      </div>
+      <div id="people-tab-content" class="panel mt16">
+        <div class="table-wrap" id="people-table-wrap"></div>
+      </div>
+    </div>
+
+    <!-- Admin: Classes -->
+    <div class="page-wrap" id="view-admin-classes" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Management</p><h1>Classes</h1><p class="subcopy">Manage class groups, levels, tracks and class teachers.</p></div>
+        <button class="btn-primary" id="add-class-btn">+ Add class</button>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Roll</p><h2>All classes</h2></div>
+          <span class="read-only-badge">&bull;&bull;&bull; opens the class actions</span>
+        </div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Class</th><th>Year &amp; level</th><th>Track</th><th>Class teacher</th><th>Subjects</th><th>Students</th><th></th></tr></thead>
+            <tbody id="admin-classes-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin: Subjects -->
+    <div class="page-wrap" id="view-admin-subjects" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Management</p><h1>Subjects</h1><p class="subcopy">Nigerian JSS and senior secondary subjects, and who teaches them.</p></div>
+        <button class="btn-primary" id="add-subject-btn">+ Add subject</button>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Curriculum</p><h2>All subjects</h2></div>
+          <div class="form-row tight">
+            <select id="as-filter-level" class="select-inline" aria-label="Filter by level">
+              <option value="ALL">All levels</option>
+              <option value="JSS">Junior (JSS)</option>
+              <option value="SS">Senior (SS)</option>
+              <option value="BOTH">All levels</option>
+            </select>
+            <select id="as-filter-group" class="select-inline" aria-label="Filter by track">
+              <option value="ALL">All tracks</option>
+              <option value="General">General</option>
+              <option value="Science">Science</option>
+              <option value="Commercial">Commercial</option>
+              <option value="Arts">Arts</option>
+            </select>
+            <span class="read-only-badge" id="as-count">&mdash;</span>
+          </div>
+        </div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Subject</th><th>Level</th><th>Track</th><th>Type</th><th>Teachers</th><th>Classes</th></tr></thead>
+            <tbody id="admin-subjects-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin: Timetable -->
+    <div class="page-wrap" id="view-admin-timetable" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Scheduling</p><h1>Timetable</h1>
+          <p class="subcopy">Generate one class, or the whole school in a single pass &mdash; no teacher is double-booked.</p></div>
+      </section>
+      <div class="panel mt16 timetable-gen-panel">
+        <div class="panel-heading"><div><p class="eyebrow">Generator</p><h2>Build timetable</h2></div></div>
+        <div class="form-row mt16">
+          <div class="form-group">
+            <label for="tt-class">Class</label>
+            <select id="tt-class"></select>
+          </div>
+          <div class="form-group">
+            <label for="tt-periods">Periods per day</label>
+            <select id="tt-periods">
+              <option value="5">5 periods</option>
+              <option value="6" selected>6 periods</option>
+              <option value="7">7 periods</option>
+              <option value="8">8 periods</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="tt-start">Start time</label>
+            <select id="tt-start">
+              <option value="7">7:00 AM</option>
+              <option value="8" selected>8:00 AM</option>
+              <option value="9">9:00 AM</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="tt-duration">Period length</label>
+            <select id="tt-duration">
+              <option value="40">40 min</option>
+              <option value="45" selected>45 min</option>
+              <option value="60">60 min</option>
+            </select>
+          </div>
+          <div class="form-group form-group-action">
+            <label>&nbsp;</label>
+            <button class="btn-primary" id="generate-tt-btn">Generate for class &nearr;</button>
+          </div>
+          <div class="form-group form-group-action">
+            <label>&nbsp;</label>
+            <button class="btn-primary" id="generate-tt-all-btn">Generate for ALL classes &nearr;</button>
+          </div>
+        </div>
+        <p class="role-muted">Whole-school generation uses each class's curriculum (JSS common list, or the
+          Science / Commercial / Arts track) and never places one teacher in two classes at the same time.</p>
+      </div>
+      <div id="timetable-output" class="mt16"></div>
+    </div>
+
+    <!-- Admin: Analytics -->
+    <div class="page-wrap" id="view-admin-analytics" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Academic analysis</p><h1>Analytics</h1><p class="subcopy">Max, min, average, and standard deviation per subject and class.</p></div>
+        <div class="form-row tight">
+          <select id="analytics-class" class="select-inline"></select>
+          <select id="analytics-term" class="select-inline">
+            <option value="1">Term 1</option>
+            <option value="2">Term 2</option>
+            <option value="3">Term 3</option>
+          </select>
+        </div>
+      </section>
+      <div class="stat-grid" id="analytics-summary-cards"></div>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Subject breakdown</p><h2>Score distribution</h2></div></div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Subject</th><th>Students</th><th>Average</th><th>Highest</th><th>Lowest</th><th>Std Dev</th><th>Pass rate</th></tr></thead>
+            <tbody id="analytics-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin: Setup -->
+    <div class="page-wrap" id="view-admin-setup" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Configuration</p><h1>School Setup</h1><p class="subcopy">Session settings, term dates, calendar events, and score upload periods.</p></div>
+      </section>
+      <div class="setup-grid">
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Academic year</p><h2>Session settings</h2></div></div>
+          <div class="setup-form" id="session-setup-form">
+            <div class="form-group mt16">
+              <label>Current session</label>
+              <input id="setup-session-name" type="text" placeholder="e.g. 2025 / 2026">
+            </div>
+            <div class="form-group">
+              <label>Current term</label>
+              <select id="setup-term">
+                <option value="1">Term 1</option>
+                <option value="2">Term 2</option>
+                <option value="3">Term 3</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Upload: CA (40) scores</label>
+              <div class="toggle-row">
+                <span id="upload-test-label">Closed</span>
+                <button class="toggle-btn" id="toggle-test-upload" data-type="test">Toggle</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Upload: Exam (60) scores</label>
+              <div class="toggle-row">
+                <span id="upload-exam-label">Open</span>
+                <button class="toggle-btn" id="toggle-exam-upload" data-type="exam">Toggle</button>
+              </div>
+            </div>
+            <button class="btn-primary mt16" id="save-session-btn">Save settings</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Term calendar</p><h2>Term dates</h2></div></div>
+          <p class="role-muted">Read-only here &mdash; term dates are maintained in the database.</p>
+          <div id="term-dates-list" class="mt16"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">School calendar</p><h2>Add event</h2></div></div>
+          <div class="setup-form">
+            <div class="form-group mt16">
+              <label for="ev-title">Event title</label>
+              <input id="ev-title" type="text" placeholder="e.g. Parent Conference Day">
+            </div>
+            <div class="form-group">
+              <label for="ev-date">Date</label>
+              <input id="ev-date" type="date">
+            </div>
+            <div class="form-group">
+              <label for="ev-type">Type</label>
+              <select id="ev-type">
+                <option value="academic">Academic</option>
+                <option value="meeting">Meeting</option>
+                <option value="event">Event</option>
+                <option value="session">Session</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="ev-note">Note</label>
+              <input id="ev-note" type="text" placeholder="e.g. Main hall &middot; 9:00 AM">
+            </div>
+            <button class="btn-primary mt16" id="add-event-btn">Add event</button>
+          </div>
+          <div id="events-list-mini" class="mt16"></div>
+        </article>
+      </div>
+    </div>
+
+    <!-- ┌─────────────────────────────────────────────────────┐ -->
+    <!-- │  CLASS TEACHER VIEWS                                │ -->
+    <!-- └─────────────────────────────────────────────────────┘ -->
+
+    <div class="page-wrap" id="view-class-overview" data-role="Class Teacher" hidden>
+      <section class="welcome-row role-welcome">
+        <div>
+          <p class="eyebrow" id="ct-eyebrow">Class teacher portal</p>
+          <h1 id="ct-welcome">Good morning.</h1>
+          <p class="subcopy">Your class attendance and end-of-term feedback are ready.</p>
+        </div>
+        <button class="btn-primary" id="ct-add-feedback-btn">+ Add feedback</button>
+      </section>
+      <section class="stat-grid">
+        <article class="student-stat coral-stat"><span>Class students</span><strong id="ct-stat-students">&mdash;</strong><small id="ct-stat-gender">&mdash;</small></article>
+        <article class="student-stat green-stat"><span>Class attendance</span><strong id="ct-stat-att">&mdash;</strong><small>This term</small></article>
+        <article class="student-stat blue-stat"><span>Class average</span><strong id="ct-stat-avg">&mdash;</strong><small>This term</small></article>
+        <article class="student-stat yellow-stat"><span>On track to promote</span><strong id="ct-stat-promoted">&mdash;</strong><small id="ct-stat-pending">&mdash;</small></article>
+      </section>
+      <section class="role-grid">
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Term close-out</p><h2>Attendance &amp; feedback</h2></div>
+            <div class="form-row tight">
+              <button class="text-button" id="ct-full-report-btn">Class report &nearr;</button>
+              <button class="text-button" id="ct-open-register-btn">Full register &nearr;</button>
+            </div>
+          </div>
+          <div class="role-table mt16" id="ct-student-table"></div>
+          <p class="role-muted">Tip: the <strong>&#9998;</strong> at the end of a student's row jumps to that
+            student's attendance for the term.</p>
+        </article>
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Class health</p><h2>Needs support</h2></div>
+            <span class="check-badge" id="ct-support-count">0</span>
+          </div>
+          <p class="role-muted">Students who need a note or follow-up before reports close.</p>
+          <div id="ct-support-list"></div>
+          <button class="outline-button mt16" data-nav="view-class-attendance">Open attendance register &nearr;</button>
+        </article>
+      </section>
+    </div>
+
+    <!-- Class teacher: whole-class report (all subjects) -->
+    <div class="page-wrap" id="view-class-report" data-role="Class Teacher" hidden>
+      <section class="welcome-row role-welcome">
+        <div>
+          <p class="eyebrow" id="cr-eyebrow">Class report</p>
+          <h1 id="cr-title">Class report</h1>
+          <p class="subcopy" id="cr-meta">&mdash;</p>
+        </div>
+        <div class="form-row tight">
+          <select id="cr-term" class="select-inline">
+            <option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option>
+          </select>
+          <button class="outline-button" id="cr-register-btn" style="width:auto;margin:0">Full register &nearr;</button>
+          <button class="outline-button" id="cr-feedback-btn" style="width:auto;margin:0">Feedback &nearr;</button>
+          <button class="outline-button" id="cr-download-btn" style="width:auto;margin:0">Download CSV &darr;</button>
+        </div>
+      </section>
+      <section class="stat-grid two">
+        <article class="stat-card accent-blue"><div class="stat-top"><span class="stat-label">Class average</span><span class="stat-icon">A</span></div><strong id="cr-class-average">&mdash;</strong><div class="stat-trend neutral">Term total average</div></article>
+        <article class="stat-card accent-green"><div class="stat-top"><span class="stat-label">On track to promote</span><span class="stat-icon">&check;</span></div><strong id="cr-promoted">&mdash;</strong><div class="stat-trend neutral">English + Maths 50, average 50</div></article>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">CA (40) + Exam (60)</p><h2>All subjects</h2></div>
+          <span class="read-only-badge">Promotion rule: Maths &amp; English 50+, average 50+</span>
+        </div>
+        <div class="table-wrap mt16" id="cr-report-table"></div>
+      </div>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Subject health</p><h2>Subject summary</h2></div></div>
+        <div class="role-table mt16" id="cr-subject-summary"></div>
+      </div>
+    </div>
+
+    <div class="page-wrap" id="view-class-attendance" data-role="Class Teacher" hidden>
+      <section class="welcome-row role-welcome">
+        <div><p class="eyebrow">Attendance register</p><h1>Mark Attendance</h1><p class="subcopy">Weekly attendance summary for your class.</p></div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow" id="att-class-name">&mdash;</p><h2>Attendance record</h2></div></div>
+        <p class="role-muted" style="margin-top:12px">Enter days present per week (max 5). Click <strong>Save</strong> to update.</p>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Student</th><th>Week 1</th><th>Week 2</th><th>Week 3</th><th>Week 4</th><th>Total</th><th>%</th><th></th></tr></thead>
+            <tbody id="ct-attendance-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-wrap" id="view-class-feedback" data-role="Class Teacher" hidden>
+      <section class="welcome-row role-welcome">
+        <div><p class="eyebrow">End-of-term</p><h1>Student feedback</h1><p class="subcopy">Write and submit end-of-term remarks for each student.</p></div>
+      </section>
+      <div id="ct-feedback-list" class="feedback-grid mt16"></div>
+    </div>
+
+    <!-- ┌─────────────────────────────────────────────────────┐ -->
+    <!-- │  SUBJECT TEACHER VIEWS                              │ -->
+    <!-- └─────────────────────────────────────────────────────┘ -->
+
+    <div class="page-wrap" id="view-subject-dashboard" data-role="Subject Teacher" hidden>
+      <section class="welcome-row role-welcome">
+        <div>
+          <p class="eyebrow">Subject teacher portal</p>
+          <h1>Good morning.</h1>
+          <p class="subcopy">Upload scores and manage deadlines for your subjects.</p>
+        </div>
+        <div class="form-row tight">
+          <button class="outline-button" id="st-report-link" style="width:auto;margin:0">Open my report &nearr;</button>
+          <button class="btn-primary" id="st-upload-btn">Upload spreadsheet &uarr;</button>
+        </div>
+      </section>
+      <section class="stat-grid">
+        <article class="student-stat coral-stat"><span>My subjects</span><strong id="st-stat-subjects">&mdash;</strong><small>Allocated this term</small></article>
+        <article class="student-stat blue-stat"><span>My classes</span><strong id="st-stat-classes">&mdash;</strong><small>Across all subjects</small></article>
+        <article class="student-stat green-stat"><span>Scores uploaded</span><strong id="st-stat-uploaded">&mdash;</strong><small>Student / subject pairs</small></article>
+        <article class="student-stat yellow-stat"><span>My mentees</span><strong id="st-stat-mentees">&mdash;</strong><small>Students assigned to you</small></article>
+      </section>
+      <section class="role-grid">
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Teaching allocation</p><h2>What I teach</h2></div><span class="read-only-badge" id="st-stat-assignments">0</span></div>
+          <div id="st-teaching-list" class="mt16"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Score entry</p><h2>Upload student scores</h2></div><span class="read-only-badge">Teacher only</span></div>
+          <div class="upload-zone mt16">
+            <span class="upload-symbol">&uarr;</span>
+            <strong>Drop spreadsheet here</strong>
+            <small>Use Student ID to match CA and exam scores</small>
+            <button class="outline-button" id="st-choose-file">Choose file</button>
+            <input type="file" id="st-file-input" accept=".csv,.xlsx,.xls" hidden>
+          </div>
+          <div class="upload-helper mt16">
+            <span class="green-text">&check;</span>
+            <span>Accepted: .xlsx, .xls, .csv</span>
+            <span>Required columns: Student ID, Test, Exam</span>
+          </div>
+          <button class="outline-button mt16" id="st-download-sheet-btn" style="background:var(--blue-soft);border-color:var(--blue);color:var(--blue)">
+            &darr; Download score sheet (.csv)
+          </button>
+        </article>
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Assignments</p><h2>Your assignments</h2></div>
+            <button class="text-button" id="st-create-assign-btn">+ Create</button>
+          </div>
+          <div id="st-assignments-list" class="mt16"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Mentorship</p><h2>My mentees</h2></div>
+            <button class="text-button" id="st-assign-mentor-btn">+ Assign</button>
+          </div>
+          <div id="st-mentees-list" class="mt16"></div>
+        </article>
+      </section>
+    </div>
+
+    <div class="page-wrap" id="view-subject-scores" data-role="Subject Teacher" hidden>
+      <section class="welcome-row role-welcome">
+        <div><p class="eyebrow">Score management</p><h1>Student scores</h1><p class="subcopy">Only the classes you are allocated to teach &mdash; CA and exam recorded separately.</p></div>
+        <div class="form-row tight">
+          <select id="st-score-subject" class="select-inline" aria-label="Subject"></select>
+          <select id="st-score-class" class="select-inline" aria-label="Class"></select>
+          <select id="st-score-term" class="select-inline" aria-label="Term">
+            <option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option>
+          </select>
+          <button class="outline-button" id="st-download-xls-btn" style="width:auto;margin:0;background:var(--blue-soft);border-color:var(--blue);color:var(--blue)">&darr; Download score sheet</button>
+        </div>
+      </section>
+      <div class="panel mt16">
+        <p class="role-muted" id="st-scores-meta">&mdash;</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Student</th><th>Class</th><th>CA (40)</th><th>Exam (60)</th><th>Total (100)</th><th>Grade</th></tr></thead>
+            <tbody id="st-scores-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ┌─────────────────────────────────────────────────────┐ -->
+    <!-- │  HOD VIEWS                                          │ -->
+    <!-- └─────────────────────────────────────────────────────┘ -->
+
+    <div class="page-wrap" id="view-hod-dashboard" data-role="HOD" hidden>
+      <section class="welcome-row role-welcome">
+        <div>
+          <p class="eyebrow" id="hod-eyebrow">Head of Department</p>
+          <h1 id="hod-welcome">Good morning.</h1>
+          <p class="subcopy">Subject performance overview and teacher assignment controls.</p>
+        </div>
+      </section>
+      <section class="stat-grid">
+        <article class="student-stat coral-stat"><span>Departments</span><strong id="hod-stat-depts">&mdash;</strong><small>Under your oversight</small></article>
+        <article class="student-stat blue-stat"><span>Subjects managed</span><strong id="hod-stat-subjects">&mdash;</strong><small>Across your department</small></article>
+        <article class="student-stat green-stat"><span>Teachers assigned</span><strong id="hod-stat-teachers">&mdash;</strong><small>Subject / class allocations</small></article>
+        <article class="student-stat yellow-stat"><span>School average</span><strong id="hod-stat-avg">&mdash;</strong><small>This term overall</small></article>
+      </section>
+      <section class="role-grid">
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Departments</p><h2>Subject overview</h2></div></div>
+          <div id="hod-dept-list" class="mt16"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Teacher assignment</p><h2>Assign teachers</h2></div></div>
+          <div class="setup-form mt16">
+            <div class="form-group">
+              <label for="hod-assign-teacher">Teacher</label>
+              <select id="hod-assign-teacher"></select>
+            </div>
+            <div class="form-group">
+              <label for="hod-assign-subject">Subject</label>
+              <select id="hod-assign-subject"></select>
+            </div>
+            <div class="form-group">
+              <label for="hod-assign-class">Class</label>
+              <select id="hod-assign-class"></select>
+            </div>
+            <button class="btn-primary mt16" id="hod-assign-btn">Assign teacher</button>
+            <div id="hod-assign-feedback" class="form-feedback mt8"></div>
+          </div>
+        </article>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Department scope</p><h2>Subjects in your department</h2></div>
+          <button class="btn-primary" id="hod-save-dept-btn" style="width:auto;margin:0">Save subjects</button>
+        </div>
+        <p class="role-muted" style="margin-top:10px">Tick the subjects that belong to the department you head. This
+          scope drives the analytics and the class reports below.</p>
+        <div id="hod-dept-subjects" class="dept-check-grid mt16"></div>
+      </div>
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Subject analytics</p><h2>Department performance</h2></div>
+        </div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Subject</th><th>Classes</th><th>Avg score</th><th>Highest</th><th>Lowest</th><th>Pass rate</th></tr></thead>
+            <tbody id="hod-analytics-table"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Department report &middot; every class</p><h2>Class results matrix</h2></div>
+          <select id="hod-report-class" class="select-inline" aria-label="Filter by class"></select>
+        </div>
+        <p class="role-muted" id="hod-report-meta" style="margin-top:10px">&mdash;</p>
+        <div class="table-wrap mt16" id="hod-report-table"></div>
+      </div>
+    </div>
+
+    <!-- ┌─────────────────────────────────────────────────────┐ -->
+    <!-- │  STUDENT VIEWS                                      │ -->
+    <!-- └─────────────────────────────────────────────────────┘ -->
+
+    <div class="page-wrap" id="view-student-dashboard" data-role="Student" hidden>
+      <section class="welcome-row student-welcome">
+        <div>
+          <p class="eyebrow" id="std-eyebrow">Student portal</p>
+          <h1 id="std-welcome">Welcome back.</h1>
+          <p class="subcopy">Here is your term progress at a glance.</p>
+        </div>
+        <div class="student-profile">
+          <div class="avatar avatar-blue" id="std-avatar">AO</div>
+          <div><strong id="std-name">Ama Osei</strong><span id="std-class">&mdash;</span></div>
+        </div>
+      </section>
+      <section class="stat-grid">
+        <article class="student-stat coral-stat"><span>Term average</span><strong id="std-stat-avg">&mdash;</strong><small id="std-stat-avg-note">&mdash;</small></article>
+        <article class="student-stat green-stat"><span>Attendance</span><strong id="std-stat-att">&mdash;</strong><small>This term</small></article>
+        <article class="student-stat yellow-stat"><span>Assignments</span><strong id="std-stat-assigns">&mdash;</strong><small>Due this term</small></article>
+        <article class="student-stat blue-stat"><span>Promotion status</span><strong id="std-stat-status">&mdash;</strong><small>Based on current scores</small></article>
+      </section>
+      <section class="student-grid-top">
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Latest report</p><h2>Term results</h2></div>
+            <button class="text-button" id="std-view-report-btn">View full report &nearr;</button>
+          </div>
+          <div id="std-subject-results" class="subject-results mt16"></div>
+          <button class="btn-primary mt16" id="std-download-btn">Download report &darr;</button>
+        </article>
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Promotion tracker</p><h2 id="std-promo-title">&mdash;</h2></div>
+            <span class="check-badge" id="std-promo-badge">&mdash;</span>
+          </div>
+          <div class="promotion-circle" id="std-promo-circle"><strong>&mdash;</strong><span>requirements</span></div>
+          <div class="requirement-list" id="std-promo-reqs"></div>
+        </article>
+      </section>
+      <section class="student-grid-bottom">
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Keep moving</p><h2>Upcoming assignments</h2></div><span class="read-only-badge">View only</span></div>
+          <div id="std-assignments-list" class="assignment-list mt16"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">My mentor</p><h2>Mentor support</h2></div></div>
+          <div id="std-mentor-card" class="mt16"></div>
+        </article>
+      </section>
+    </div>
+
+    <div class="page-wrap" id="view-student-results" data-role="Student" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Academic record</p><h1 id="std-results-heading">My results</h1><p class="subcopy">Full subject scores for one term &mdash; CA and exam shown separately.</p></div>
+        <select id="std-results-term" class="select-inline">
+          <option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option>
+        </select>
+      </section>
+      <div class="panel mt16">
+        <p class="role-muted" id="std-results-meta" style="margin-bottom:12px">&mdash;</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Subject</th><th>Type</th><th>CA (40)</th><th>Exam (60)</th><th>Total</th><th>Grade</th><th>Status</th></tr></thead>
+            <tbody id="std-results-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ┌─────────────────────────────────────────────────────┐ -->
+    <!-- │  PARENT VIEWS                                       │ -->
+    <!-- └─────────────────────────────────────────────────────┘ -->
+
+    <div class="page-wrap" id="view-parent-dashboard" data-role="Parent" hidden>
+      <section class="welcome-row role-welcome">
+        <div>
+          <p class="eyebrow" id="par-eyebrow">Parent portal</p>
+          <h1 id="par-welcome">Good morning.</h1>
+          <p class="subcopy">Follow your children's results, attendance and school updates.</p>
+        </div>
+      </section>
+      <section class="stat-grid">
+        <article class="student-stat coral-stat"><span>Children</span><strong id="par-stat-children">&mdash;</strong><small id="par-stat-names">&mdash;</small></article>
+        <article class="student-stat green-stat"><span>Combined attendance</span><strong id="par-stat-att">&mdash;</strong><small>This term average</small></article>
+        <article class="student-stat yellow-stat"><span>Term average</span><strong id="par-stat-avg">&mdash;</strong><small>Across children</small></article>
+        <article class="student-stat blue-stat"><span>School events</span><strong id="par-stat-events">&mdash;</strong><small>On the calendar</small></article>
+      </section>
+      <section class="role-grid">
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">My children</p><h2>Progress overview</h2></div><span class="read-only-badge">Parent view</span></div>
+          <div id="par-children-list" class="mt16"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">School updates</p><h2>Upcoming events</h2></div></div>
+          <div id="par-events-list" class="timeline mt16"></div>
+        </article>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Continuous assessment and exam</p><h2>CA &amp; exam by subject</h2></div>
+          <select id="par-child-sel" class="select-inline" aria-label="Select child"></select>
+        </div>
+        <p class="role-muted" id="par-results-meta" style="margin-top:10px">&mdash;</p>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Subject</th><th>CA (40)</th><th>Exam (60)</th><th>Total (100)</th><th>Grade</th><th>Breakdown</th><th>Status</th></tr></thead>
+            <tbody id="par-results-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main><!-- /main-content -->
+</div><!-- /app-shell -->
+
+<!-- ══════════════════════════════════════════════════════════
+     DRAWERS & MODALS
+══════════════════════════════════════════════════════════ -->
+
+<!-- Student report drawer -->
+<div class="report-drawer" id="report-drawer" aria-hidden="true">
+  <div class="drawer-backdrop" data-close-drawer></div>
+  <aside class="drawer">
+    <button class="close-drawer" data-close-drawer aria-label="Close">&times;</button>
+    <p class="eyebrow" id="drawer-eyebrow">Term report</p>
+    <h2 id="drawer-name">Student report</h2>
+    <p class="drawer-meta" id="drawer-meta">&mdash;</p>
+    <div class="report-score">
+      <div><span>Overall score</span><strong id="drawer-score">&mdash;</strong></div>
+      <span class="promotion-badge" id="drawer-status">&mdash;</span>
+    </div>
+    <p class="formula">Score = CA (40) + Exam (60) &middot; Attendance <strong id="drawer-attendance">&mdash;</strong></p>
+    <div class="report-subjects" id="drawer-subjects"></div>
+    <div id="drawer-mentor-chip"></div>
+    <button class="btn-primary mt16" id="drawer-download-btn">Download report &darr;</button>
+  </aside>
+</div>
+
+<!-- Add / edit person modal -->
+<div class="modal-overlay" id="add-user-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3 id="nu-modal-title">Add person</h3><button class="close-modal" data-modal="add-user-modal">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label for="nu-name">Full name</label><input id="nu-name" type="text" placeholder="e.g. Kwame Asante"></div>
+      <div class="form-group"><label for="nu-email">Email</label><input id="nu-email" type="email" placeholder="kwame@happyman.edu"></div>
+      <div class="form-group" id="nu-phone-group" hidden>
+        <label for="nu-phone">Phone number <span class="required-tag" id="nu-phone-required" hidden>required</span></label>
+        <input id="nu-phone" type="tel" placeholder="e.g. 08012345678">
+      </div>
+      <div class="form-group"><label for="nu-role">Role</label>
+        <select id="nu-role">
+          <option>Administrator</option><option>Class Teacher</option><option>Subject Teacher</option>
+          <option>HOD</option><option>Student</option><option>Parent</option>
+        </select>
+      </div>
+
+      <!-- student only -->
+      <div class="form-group" id="nu-class-group" hidden>
+        <label for="nu-class">Class</label>
+        <select id="nu-class"><option value="">&mdash; Select class &mdash;</option></select>
+      </div>
+      <div class="form-group" id="nu-gender-group" hidden>
+        <label for="nu-gender">Gender</label>
+        <select id="nu-gender"><option value="M">Male</option><option value="F">Female</option></select>
+      </div>
+      <div class="form-group" id="nu-admission-group" hidden>
+        <label for="nu-admission">Admission number <small class="muted-cell">(optional)</small></label>
+        <input id="nu-admission" type="text" placeholder="e.g. HMA/2025/012">
+      </div>
+      <div class="form-group" id="nu-mentor-group" hidden>
+        <label for="nu-mentor">Mentor <small class="muted-cell">(optional)</small></label>
+        <select id="nu-mentor"></select>
+        <small class="role-muted">Any teacher can mentor &mdash; the assignment shows on the student and parent portals.</small>
+      </div>
+
+      <!-- staff only -->
+      <label class="dept-check" id="nu-mentor-flag-row" hidden>
+        <input type="checkbox" id="nu-mentor-flag">
+        <span>Make this teacher a designated mentor</span>
+      </label>
+
+      <div class="form-group"><label for="nu-password">Password</label><input id="nu-password" type="text" placeholder="Temporary password"></div>
+      <div id="nu-feedback" class="form-feedback mt8"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button" data-modal="add-user-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="save-user-btn" style="width:auto;margin:0">Add person</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add class modal -->
+<div class="modal-overlay" id="add-class-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3>Add class</h3><button class="close-modal" data-modal="add-class-modal">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label for="nc-name">Class name</label><input id="nc-name" type="text" placeholder="e.g. Grade 7 Gold"></div>
+      <div class="form-group"><label for="nc-level">Level</label>
+        <select id="nc-level">
+          <option value="JSS" selected>Junior secondary &mdash; Grade 7 / 8 / 9</option>
+          <option value="SS">Senior secondary &mdash; Grade 10 / 11 / 12</option>
+        </select>
+      </div>
+      <div class="form-group" id="nc-year-group">
+        <label for="nc-year">Year</label>
+        <select id="nc-year">
+          <option value="7" selected>Year 7 (Grade 7)</option>
+          <option value="8">Year 8 (Grade 8)</option>
+          <option value="9">Year 9 (Grade 9)</option>
+          <option value="10">Year 10 (Grade 10)</option>
+          <option value="11">Year 11 (Grade 11)</option>
+          <option value="12">Year 12 (Grade 12)</option>
+        </select>
+        <small class="role-muted" id="nc-year-hint">Junior secondary classes take the common JSS subject list.</small>
+      </div>
+      <div class="form-group" id="nc-stream-group" hidden>
+        <label for="nc-stream">Track</label>
+        <select id="nc-stream">
+          <option value="Science">Science</option>
+          <option value="Commercial">Commercial</option>
+          <option value="Arts">Arts</option>
+        </select>
+        <small class="role-muted">Senior secondary only. The year decides the class level and the track decides the subject list.</small>
+      </div>
+      <div class="form-group"><label for="nc-teacher">Class teacher</label><select id="nc-teacher"><option value="">&mdash; None assigned &mdash;</option></select></div>
+      <div id="nc-feedback" class="form-feedback mt8"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button" data-modal="add-class-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="save-class-btn" style="width:auto;margin:0">Add class</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign class teacher modal -->
+<div class="modal-overlay" id="class-teacher-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3 id="ct-modal-title">Assign class teacher</h3><button class="close-modal" data-modal="class-teacher-modal">&times;</button></div>
+    <div class="modal-body">
+      <p class="role-muted">A class teacher owns the class attendance, end-of-term feedback and the full
+        class report &mdash; on top of everything they teach as a subject teacher.</p>
+      <div class="form-group"><label for="ct-modal-class">Class</label>
+        <select id="ct-modal-class" disabled></select>
+        <small class="role-muted">Only one class teacher per class.</small>
+      </div>
+      <div class="form-group"><label for="ct-modal-teacher">Class teacher</label><select id="ct-modal-teacher"></select></div>
+      <div id="ct-modal-feedback" class="form-feedback mt8"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button close-modal" data-modal="class-teacher-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="save-class-teacher-btn" style="width:auto;margin:0">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add subject modal -->
+<div class="modal-overlay" id="add-subject-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3>Add subject</h3><button class="close-modal" data-modal="add-subject-modal">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label for="ns-name">Subject name</label><input id="ns-name" type="text" placeholder="e.g. Economics"></div>
+      <div class="form-group"><label for="ns-code">Short code</label><input id="ns-code" type="text" placeholder="e.g. ECO" maxlength="3"></div>
+      <div class="form-group"><label for="ns-level">Level</label>
+        <select id="ns-level">
+          <option value="JSS">Junior secondary only</option>
+          <option value="SS" selected>Senior secondary only</option>
+          <option value="BOTH">Both levels</option>
+        </select>
+      </div>
+      <div class="form-group" id="ns-group-group">
+        <label for="ns-group">Track</label>
+        <select id="ns-group">
+          <option value="General">General &mdash; all senior tracks</option>
+          <option value="Science">Science only</option>
+          <option value="Commercial">Commercial only</option>
+          <option value="Arts">Arts only</option>
+        </select>
+      </div>
+      <div class="form-group"><label for="ns-type">Type</label>
+        <select id="ns-type"><option value="core">Core</option><option value="additional" selected>Elective</option></select>
+      </div>
+      <div id="ns-feedback" class="form-feedback mt8"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button" data-modal="add-subject-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="save-subject-btn" style="width:auto;margin:0">Add subject</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add assignment modal -->
+<div class="modal-overlay" id="add-assignment-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3>Create assignment</h3><button class="close-modal" data-modal="add-assignment-modal">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label for="na-title">Title</label><input id="na-title" type="text" placeholder="e.g. Reading response"></div>
+      <div class="form-group"><label for="na-subject">Subject</label><select id="na-subject"></select></div>
+      <div class="form-group"><label for="na-class">Class</label><select id="na-class"></select></div>
+      <div class="form-group"><label for="na-due">Due date</label><input id="na-due" type="date"></div>
+      <div id="na-feedback" class="form-feedback mt8"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button" data-modal="add-assignment-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="save-assignment-btn" style="width:auto;margin:0">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Class students modal -->
+<div class="modal-overlay" id="class-students-modal" aria-hidden="true" hidden>
+  <div class="modal modal-wide">
+    <div class="modal-header"><h3 id="class-students-title">Class Students</h3><button class="close-modal" data-modal="class-students-modal">&times;</button></div>
+    <div class="modal-body">
+      <div class="table-wrap" id="class-students-table-wrap"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button close-modal" data-modal="class-students-modal" style="width:auto;margin:0">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Full class register modal (CA + exam for every subject) -->
+<div class="modal-overlay" id="class-register-modal" aria-hidden="true" hidden>
+  <div class="modal modal-wide">
+    <div class="modal-header"><h3 id="register-title">Class Register</h3><button class="close-modal" data-modal="class-register-modal">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-row tight" style="margin-bottom:12px">
+        <select id="register-term-sel" class="select-inline" aria-label="Term">
+          <option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option>
+        </select>
+      </div>
+      <div class="table-wrap" id="register-table-wrap" style="overflow-x:auto"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button close-modal" data-modal="class-register-modal" style="width:auto;margin:0">Close</button>
+      <button class="outline-button" id="register-download-btn" style="width:auto;margin:0">Download CSV &darr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign mentor modal -->
+<div class="modal-overlay" id="assign-mentor-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3>Assign Mentor</h3><button class="close-modal" data-modal="assign-mentor-modal">&times;</button></div>
+    <div class="modal-body">
+      <p class="role-muted" id="am-scope">&mdash;</p>
+      <div class="form-group"><label for="am-student">Student</label><select id="am-student"></select></div>
+      <div class="form-group"><label for="am-teacher">Mentor (teacher)</label><select id="am-teacher"></select></div>
+      <div id="am-feedback" class="form-feedback mt8"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button close-modal" data-modal="assign-mentor-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="save-mentor-btn" style="width:auto;margin:0">Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="toast" aria-live="polite" hidden></div>
+
+<script type="module" src="data.js"></script>
+<script defer src="app.js"></script>
 </body>
 </html>
