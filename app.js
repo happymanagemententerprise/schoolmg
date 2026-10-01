@@ -79,6 +79,7 @@ const STATIC_NAV = {
     { page: 'view-admin-progression', label: 'Progression', icon: '⇈' },
     { page: 'view-admin-timetable',  label: 'Timetable',  icon: 'T' },
     { page: 'view-admin-analytics',  label: 'Analytics',  icon: 'A' },
+    { page: 'view-admin-leaderboard', label: 'Leaderboard', icon: '🏆' },
     { page: 'view-admin-recognition', label: 'Recognition', icon: '★' },
     { page: 'view-admin-setup',      label: 'Setup',      icon: '◎' }
   ],
@@ -103,6 +104,19 @@ const STATIC_NAV = {
 
 function navForUser(user) {
   if (isTeacher(user)) return buildTeacherCapabilities(user);
+  if (isStudent(user)) {
+    const nav = [...STATIC_NAV['Student']];
+    // "Choose my path" is only relevant for Grade 9 pool students or newly
+    // promoted Year 10 students waiting for stream placement.
+    const st   = Data.student(user.studentId);
+    const cl   = st ? Data.cls(st.classId) : null;
+    const year = cl?.year ?? null;
+    const showPath = !!(cl && (cl.selectionMode === 'pool' || Progression.isCheckpoint(year)));
+    if (!showPath) {
+      return nav.filter(n => n.page !== 'view-student-pathway');
+    }
+    return nav;
+  }
   return STATIC_NAV[user.role] || [];
 }
 
@@ -125,11 +139,11 @@ function classRank(studentId, term) {
   const s = Data.student(studentId);
   if (!s) return null;
   const peers  = Data.studentsByClass(s.classId).filter(p => p.status !== 'archived');
-  const myAvg  = Academic.sessionAverage(studentId);
+  const myAvg  = Progression.sessionAverage(studentId);
   if (myAvg === null) return null;
   // count how many peers have a strictly higher session average
   const above  = peers.filter(p => {
-    const a = Academic.sessionAverage(p.id);
+    const a = Progression.sessionAverage(p.id);
     return a !== null && a > myAvg;
   }).length;
   return above + 1;
@@ -145,10 +159,10 @@ function yearRank(studentId, term) {
   const sameYear = Data.classes().filter(c => c.level === cl.level && c.year === cl.year);
   const allStudents = sameYear.flatMap(c => Data.studentsByClass(c.id))
     .filter(p => p.status !== 'archived');
-  const myAvg = Academic.sessionAverage(studentId);
+  const myAvg = Progression.sessionAverage(studentId);
   if (myAvg === null) return null;
   const above = allStudents.filter(p => {
-    const a = Academic.sessionAverage(p.id);
+    const a = Progression.sessionAverage(p.id);
     return a !== null && a > myAvg;
   }).length;
   return above + 1;
@@ -160,7 +174,6 @@ function ordinal(n) {
   const s = ['th','st','nd','rd'];
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
 }
 function statusClass(s) {
   return s === 'Promoted' ? 'promoted' : s === 'Review' ? 'review' : 'repeat';
@@ -210,7 +223,6 @@ function openDrawer()   { const d=$('report-drawer'); d.classList.add('open');  
 function closeDrawer()  { const d=$('report-drawer'); d.classList.remove('open'); d.setAttribute('aria-hidden','true'); }
 function closeMenus()    { $all('.row-menu-list').forEach(m => { m.hidden = true; }); }
 
-function downloadCsv(filename, rows) {
 function downloadCsv(filename, rows) {
   // UTF-8 BOM ensures Excel opens the file with correct encoding on all platforms
   const BOM = '\uFEFF';
@@ -464,6 +476,7 @@ function renderView(pageId) {
     'view-admin-progression': renderAdminProgression,
     'view-admin-timetable':  renderAdminTimetable,
     'view-admin-analytics':   renderAdminAnalytics,
+    'view-admin-leaderboard': renderAdminLeaderboard,
     'view-admin-recognition': renderAdminRecognition,
     'view-admin-setup':       renderAdminSetup,
     'view-subject-dashboard': renderSubjectDashboard,
@@ -802,17 +815,19 @@ function renderPeopleTab(tab) {
     bindResetPasswordButtons();
 
   } else if (tab === 'students-all') {
-    wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Class</th><th>Admission no</th><th>Mentor</th><th>Avg</th><th>Status</th><th></th></tr></thead><tbody>` +
+    wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Class</th><th>Admission no</th><th>Mentor</th><th>Avg</th><th>Position</th><th>Status</th><th></th></tr></thead><tbody>` +
       Data.students().map(s => {
         const avg    = Academic.termAverage(s.id, term);
         const status = Academic.promotionStatus(s.id, term);
         const mentor = Data.mentor(s.mentorId);
+        const rank   = classRank(s.id, term);
         return `<tr>
           <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}${s.status === 'archived' ? ' <span class="status repeat">Archived</span>' : ''}</div></td>
           <td>${esc(Data.cls(s.classId)?.name || '—')}</td>
           <td class="muted-cell">${esc(s.admissionNo || '—')}</td>
           <td class="muted-cell">${esc(mentor?.name || 'No mentor')}</td>
           <td><span class="score">${avg}%</span></td>
+          <td class="muted-cell">${rank !== null ? ordinal(rank) : '—'}</td>
           <td><span class="status ${statusClass(status)}">${status}</span></td>
           <td>${studentRowMenu(s.id)}</td>
         </tr>`;
@@ -1013,16 +1028,18 @@ function openClassStudentsModal(classId) {
   const term     = currentTerm();
   $('class-students-title').textContent = `${cl?.name} — Students`;
   $('class-students-table-wrap').innerHTML = students.length
-    ? `<table><thead><tr><th>Student</th><th>Gender</th><th>Mentor</th><th>Avg</th><th>Status</th><th></th></tr></thead><tbody>` +
+    ? `<table><thead><tr><th>Student</th><th>Gender</th><th>Mentor</th><th>Avg</th><th>Position</th><th>Status</th><th></th></tr></thead><tbody>` +
       students.map(s => {
         const avg    = Academic.termAverage(s.id, term);
         const status = Academic.promotionStatus(s.id, term);
         const mentor = Data.mentor(s.mentorId);
+        const rank   = classRank(s.id, term);
         return `<tr>
           <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
           <td class="muted-cell">${s.gender === 'F' ? 'Female' : 'Male'}</td>
           <td class="muted-cell">${esc(mentor?.name || '—')}</td>
           <td><span class="score">${avg}%</span></td>
+          <td class="muted-cell">${rank !== null ? ordinal(rank) : '—'}</td>
           <td><span class="status ${statusClass(status)}">${status}</span></td>
           <td><button class="btn-sm-save" data-student="${s.id}">View report</button></td>
         </tr>`;
@@ -1322,6 +1339,78 @@ function renderAdminAnalytics() {
   draw();
   classSel.onchange = draw;
   $('analytics-term').onchange = draw;
+}
+
+// ── Admin · Leaderboard ──────────────────────────────────────
+function renderAdminLeaderboard() {
+  const term = currentTerm();
+  const topN = 10; // Show top 10 students per class and overall
+  
+  // Get all active students with their averages
+  const allStudents = Data.students()
+    .filter(s => s.status !== 'archived')
+    .map(s => ({
+      ...s,
+      avg: Progression.sessionAverage(s.id),
+      termAvg: Academic.termAverage(s.id, term),
+      className: Data.cls(s.classId)?.name || '—',
+      rank: classRank(s.id, term)
+    }))
+    .filter(s => s.avg !== null); // Only students with scores
+  
+  // Sort by session average descending
+  allStudents.sort((a, b) => (b.avg || 0) - (a.avg || 0));
+  
+  // Top performers overall
+  const topOverall = allStudents.slice(0, topN);
+  
+  // Top performers per class
+  const classes = Data.classes();
+  const topPerClass = classes.map(cl => {
+    const classStudents = allStudents
+      .filter(s => s.classId === cl.id)
+      .slice(0, topN);
+    return { class: cl, students: classStudents };
+  }).filter(c => c.students.length > 0);
+  
+  // Render overall leaderboard
+  $('leaderboard-overall').innerHTML = topOverall.length
+    ? `<table>
+        <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Session Avg</th><th>Term ${term} Avg</th><th>Class Pos.</th></tr></thead>
+        <tbody>` +
+        topOverall.map((s, i) => `<tr>
+          <td><strong class="leaderboard-rank ${i < 3 ? 'top-' + (i + 1) : ''}">${i + 1}</strong></td>
+          <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+          <td>${esc(s.className)}</td>
+          <td><span class="score">${Math.round(s.avg)}%</span></td>
+          <td><span class="score">${s.termAvg}%</span></td>
+          <td class="muted-cell">${s.rank !== null ? ordinal(s.rank) : '—'}</td>
+        </tr>`).join('') +
+        `</tbody></table>`
+    : '<p class="muted-cell" style="padding:16px">No students with scores yet.</p>';
+  
+  // Render per-class leaderboards
+  $('leaderboard-classes').innerHTML = topPerClass.map(c => `
+    <article class="panel">
+      <div class="panel-heading">
+        <div><h3>${esc(c.class.name)}</h3></div>
+        <span class="read-only-badge">${c.students.length} ${c.students.length === 1 ? 'student' : 'students'}</span>
+      </div>
+      <div class="table-wrap mt16">
+        <table>
+          <thead><tr><th>#</th><th>Student</th><th>Session Avg</th><th>Term ${term} Avg</th></tr></thead>
+          <tbody>` +
+          c.students.map((s, i) => `<tr>
+            <td><strong class="leaderboard-rank ${i < 3 ? 'top-' + (i + 1) : ''}">${i + 1}</strong></td>
+            <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+            <td><span class="score">${Math.round(s.avg)}%</span></td>
+            <td><span class="score">${s.termAvg}%</span></td>
+          </tr>`).join('') +
+          `</tbody>
+        </table>
+      </div>
+    </article>
+  `).join('');
 }
 
 // ── Admin · Setup ────────────────────────────────────────────
@@ -1899,7 +1988,7 @@ function renderPassport(studentId) {
       <div class="avatar ${toneClass(s.tone)}">${s.initials}</div>
       <div class="p-id">
         <strong class="p-name">${esc(s.name)}</strong>
-        <span>${esc(cl?.name || '—')} &middot; ${esc(s.admissionNo || s.id)} &middot; System ID ${sid}</span>
+        <span>${esc(cl?.name || '—')} &middot; ${esc(s.admissionNo || '—')}</span>
         <span>Mentor: ${esc(mentor?.name || 'Not assigned')} &middot; Guardian tier: ${s.parentId ? 'Linked' : '—'}</span>
       </div>
       <div class="p-snapshot">
@@ -3293,7 +3382,7 @@ function openStudentReport(studentId, termOverride = null) {
   if (isConsumer && !Data.published(term)) {
     $('drawer-eyebrow').textContent = `Term ${term} report · ${Data.session().name}`;
     $('drawer-name').textContent    = s.name;
-    $('drawer-meta').textContent    = `${cl?.name || '—'} · ID ${studentId} · ${esc(s.admissionNo || '')}`;
+    $('drawer-meta').textContent    = `${cl?.name || '—'} · ${esc(s.admissionNo || '—')}`;
     $('drawer-score').textContent   = '—';
     $('drawer-status').textContent  = 'Locked';
     $('drawer-status').className    = 'promotion-badge review';
@@ -3309,7 +3398,7 @@ function openStudentReport(studentId, termOverride = null) {
 
   $('drawer-eyebrow').textContent = `Term ${term} report · ${Data.session().name}`;
   $('drawer-name').textContent    = s.name;
-  $('drawer-meta').textContent    = `${cl?.name || '—'} · ID ${studentId} · ${esc(s.admissionNo || '')}`;
+  $('drawer-meta').textContent    = `${cl?.name || '—'} · ${esc(s.admissionNo || '—')}`;
   $('drawer-score').textContent   = avg + '%';
   const badge = $('drawer-status');
   badge.textContent = status;

@@ -1403,3 +1403,25 @@ tr.att-focused { background: var(--blue-soft); }
   border-color: #ef4444;
   color: #991b1b;
 }
+
+/* ── Leaderboard ────────────────────────────────────────────── */
+.leaderboard-rank {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.leaderboard-rank.top-1 {
+  color: #FFD700; /* Gold */
+  font-size: 20px;
+}
+
+.leaderboard-rank.top-2 {
+  color: #C0C0C0; /* Silver */
+  font-size: 18px;
+}
+
+.leaderboard-rank.top-3 {
+  color: #CD7F32; /* Bronze */
+  font-size: 18px;
+}

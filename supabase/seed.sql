@@ -437,7 +437,8 @@ select v.name, v.email, 'student123', 'student', v.phone, v.tone, hma_initials(v
     ('Tunde Bakare',    'tunde.bakare@happyman.edu',    '08040000008', 'blue'),
     ('Amina Garba',     'amina.garba@happyman.edu',     '08040000009', 'yellow'),
     ('Tolu Akinwale',   'tolu.akinwale@happyman.edu',   '08040000010', 'coral'),
-    ('Chidinma Eze',    'chidinma.eze@happyman.edu',    '08040000011', 'green')
+    ('Chidinma Eze',    'chidinma.eze@happyman.edu',    '08040000011', 'green'),
+    ('Emeka Okafor',    'emeka.okafor@happyman.edu',    '08040000012', 'blue')
   ) as v(name, email, phone, tone)
 on conflict (email) do update
   set name = excluded.name, phone = excluded.phone, tone = excluded.tone;
@@ -455,7 +456,8 @@ select u.id, c.id, v.admission_no, v.gender, m.id
     ('Tunde Bakare',  'M', 'HMA/2026/008', 'Grade 11 Commercial','commercial@happyman.edu'),
     ('Amina Garba',   'F', 'HMA/2026/009', 'Grade 11 Arts',      'arts@happyman.edu'),
     ('Tolu Akinwale', 'M', 'HMA/2026/010', 'Grade 12 Science',   'science2@happyman.edu'),
-    ('Chidinma Eze',  'F', 'HMA/2026/011', 'Grade 12 Arts',      'arts@happyman.edu')
+    ('Chidinma Eze',  'F', 'HMA/2026/011', 'Grade 12 Arts',      'arts@happyman.edu'),
+    ('Emeka Okafor',  'M', 'HMA/2026/012', 'Grade 8',            'jss@happyman.edu')
   ) as v(name, gender, admission_no, class_name, mentor_email)
   join users   u on u.name  = v.name
   join classes c on c.class_name = v.class_name
@@ -510,6 +512,32 @@ select st.id,
   join cs on cs.class_id = st.class_id
   cross join terms t
  where t.name in ('1st Term', '2nd Term')
+on conflict (student_id, subject_id, term_id) do nothing;
+
+-- ---------------------------------------------------------------------
+-- Emeka Okafor — repeated student with low scores (below promotion threshold)
+-- English: 35/100, Maths: 40/100, Average: ~42% (below 50% requirement)
+-- This demonstrates a student who needs to repeat the year.
+-- ---------------------------------------------------------------------
+insert into grades (student_id, subject_id, term_id, ca_score, exam_score)
+select s.id, sub.id, t.id,
+       case
+         when sub.name = 'English Studies' then 14  -- CA score (out of 40)
+         when sub.name = 'Mathematics'     then 16
+         else least(40, 12 + mod(abs(hashtext(sub.name)), 3) * 4)  -- Other subjects also low
+       end,
+       case
+         when sub.name = 'English Studies' then 21  -- Exam score (out of 60)
+         when sub.name = 'Mathematics'     then 24
+         else least(60, 18 + mod(abs(hashtext(sub.name)), 4) * 5)
+       end
+  from students s
+  join classes c on c.id = s.class_id
+  join subjects sub on sub.level in ('BOTH', c.level)
+                    and (c.level = 'JSS' or c.stream is null or sub.group_name in ('General', c.stream))
+  cross join terms t
+ where s.admission_no = 'HMA/2026/012'
+   and t.name in ('1st Term', '2nd Term')
 on conflict (student_id, subject_id, term_id) do nothing;
 
 -- ---------------------------------------------------------------------
@@ -576,7 +604,8 @@ select s.id, t.id, v.remark
     ('HMA/2026/001', 'Ama Osei is attentive and respectful. She should keep reading widely to improve her comprehension.'),
     ('HMA/2026/002', 'Yaw Boateng works hard in class. More practice with written work will lift his Mathematics.'),
     ('HMA/2026/006', 'Fatima Yusuf is a focused science student. She needs to build more confidence during practicals.'),
-    ('HMA/2026/007', 'Zainab Lawal has excellent attendance. She should participate more in class discussion.')
+    ('HMA/2026/007', 'Zainab Lawal has excellent attendance. She should participate more in class discussion.'),
+    ('HMA/2026/012', 'Emeka Okafor needs to improve his study habits. Extra lessons and homework completion are essential for him to progress.')
   ) as v(admission_no, remark)
   join students s on s.admission_no = v.admission_no
   join terms    t on t.name = '1st Term'

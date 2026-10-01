@@ -1519,7 +1519,15 @@ const Data = {
   },
 
   // ── Classes ───────────────────────────────────────────────
-  classes()  { return _cache.classes; },
+  classes()  {
+    // Always return sorted by year (7→12) so all dropdowns and tables
+    // display Grade 7 before Grade 8 regardless of insertion order.
+    return [..._cache.classes].sort((a, b) => {
+      const ya = a.year ?? 99, yb = b.year ?? 99;
+      if (ya !== yb) return ya - yb;
+      return (a.stream || '').localeCompare(b.stream || '');
+    });
+  },
   cls(id)    { return _cache.classes.find(c => c.id === String(id)) || null; },
   classNameOf(id) { return this.cls(id)?.name || '—'; },
   juniorClasses() { return _cache.classes.filter(c => c.level === 'JSS'); },
@@ -2588,6 +2596,9 @@ const Progression = {
     if (this.exits(year)) {
       return { outcome: 'graduated', reason: 'ss3_completed', year, policy, check: null };
     }
+    // Grade 9 (JSS 3) is a checkpoint year in Nigeria - all students go to the pool
+    // to choose their senior secondary path (Science, Commercial, or Arts) before
+    // being assigned to Grade 10 classes by the admin.
     if (this.isCheckpoint(year)) {
       return { outcome: 'pooled', reason: 'jss3_checkpoint', year, policy, check: null };
     }

@@ -457,6 +457,26 @@
       </div>
     </div>
 
+    <!-- Admin: Leaderboard -->
+    <div class="page-wrap" id="view-admin-leaderboard" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Academic excellence</p><h1>Leaderboard</h1><p class="subcopy">Top performing students school-wide and per class, ranked by session average.</p></div>
+      </section>
+      
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">School-wide</p><h2>Top 10 Overall</h2></div>
+          <span class="read-only-badge">Ranked by session average</span>
+        </div>
+        <div class="table-wrap mt16" id="leaderboard-overall"></div>
+      </div>
+
+      <section class="welcome-row mt16">
+        <div><h2>Top Performers by Class</h2><p class="subcopy">Best students in each class</p></div>
+      </section>
+      <div id="leaderboard-classes" class="mt16" style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(500px,1fr))"></div>
+    </div>
+
     <!-- Admin: Recognition -->
     <div class="page-wrap" id="view-admin-recognition" data-role="Administrator" hidden>
       <section class="welcome-row">
