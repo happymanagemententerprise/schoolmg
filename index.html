@@ -52,6 +52,7 @@
         <button class="demo-btn" data-email="subject@happyman.edu" data-pw="subject123">Subject Teacher</button>
         <button class="demo-btn" data-email="hod@happyman.edu"     data-pw="hod123">HOD</button>
         <button class="demo-btn" data-email="ama.osei@happyman.edu" data-pw="student123">Student</button>
+        <button class="demo-btn" data-email="emeka.okafor@happyman.edu" data-pw="student123">Repeated Student</button>
         <button class="demo-btn" data-email="parent@happyman.edu"  data-pw="parent123">Parent</button>
       </div>
     </div>
@@ -272,6 +273,89 @@
       </div>
     </div>
 
+    <!-- Admin: Progression & placement -->
+    <div class="page-wrap" id="view-admin-progression" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">End-of-session academic flow</p><h1>Progression &amp; Placement</h1><p class="subcopy">Decisions are previewed first, then committed. Pool placement, results publication, positions, approvals, and the school day.</p></div>
+        <button class="btn-primary" id="pr-dryrun-btn">Dry run</button>
+        <button class="btn-primary" id="pr-commit-btn">Commit decisions</button>
+      </section>
+
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow" id="pr-note-eyebrow">Decision preview</p><h2 id="pr-note-title">End-of-session promotion</h2></div>
+          <span class="read-only-badge" id="pr-summary-badge">&mdash;</span>
+        </div>
+        <p class="role-muted" id="pr-note">Nothing is written until you press Commit.</p>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Student</th><th>Class</th><th>EN</th><th>MA</th><th>Avg</th><th>Decision</th><th>Next class</th><th></th></tr></thead>
+            <tbody id="pr-decisions-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="setup-grid mt16">
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Grade 9 checkpoint</p><h2>Grade 10 Pool</h2></div>
+            <button class="outline-button" id="pr-close-pool-btn">Close pool</button>
+          </div>
+          <p class="role-muted">Grade 9 exits to the pool unconditionally at the end of Term 2. Unplaced entrants stay here until streamed; closing the pool marks any that remain as inactive.</p>
+          <div class="table-wrap mt16">
+            <table>
+              <thead><tr><th>Student</th><th>Admission no.</th><th>Placement</th></tr></thead>
+              <tbody id="pr-pool-table"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">Results access</p><h2>Publish</h2></div>
+          </div>
+          <p class="role-muted">A term cannot be published while any class still has an uneentered score cell. Coverage is live below.</p>
+          <div class="setup-form" id="pr-publish-form"></div>
+        </article>
+      </div>
+
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Rankings</p><h2>Positions</h2></div>
+          <select id="pr-pos-term" class="select-inline" aria-label="Positions term">
+            <option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option>
+          </select>
+        </div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Class pos.</th><th>Year pos.</th><th>Term avg</th><th>Session avg</th></tr></thead>
+            <tbody id="pr-positions-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="setup-grid mt16">
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Principal review</p><h2>Approvals</h2></div></div>
+          <div id="pr-approvals-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">School day</p><h2>Day structure</h2></div></div>
+          <p class="role-muted">Changing the day structure invalidates the saved timetable &mdash; regenerate it afterwards.</p>
+          <div class="setup-form">
+            <div class="form-group mt16"><label for="dstr-periods">Periods per day</label><input id="dstr-periods" type="number" min="4" max="9"></div>
+            <div class="form-group"><label for="dstr-start">First bell</label><input id="dstr-start" type="text" placeholder="08:00"></div>
+            <div class="form-group"><label for="dstr-minutes">Period length (min)</label><input id="dstr-minutes" type="number" min="20" max="90"></div>
+            <label class="dept-check mt8"><input type="checkbox" id="dstr-reset-breaks"><span>Restore default breaks (after 3rd period 20&nbsp;min, after 7th 45&nbsp;min)</span></label>
+            <div id="dstr-breaks-editor"></div>
+            <button class="btn-primary mt16" id="save-day-structure-btn">Save day structure</button>
+            <div id="dstr-feedback" class="form-feedback mt8" hidden></div>
+          </div>
+        </article>
+      </div>
+    </div>
+
     <!-- Admin: Timetable -->
     <div class="page-wrap" id="view-admin-timetable" data-role="Administrator" hidden>
       <section class="welcome-row">
@@ -348,6 +432,69 @@
           </table>
         </div>
       </div>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Attendance performance</p><h2>Weekly attendance by student</h2></div>
+          <span class="role-muted">as uploaded by class teachers</span></div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Student</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th><th>%</th><th>Rating</th></tr></thead>
+            <tbody id="analytics-attendance"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Mid-term report</p><h2>CA scores uploaded so far</h2></div>
+          <div class="midterm-actions">
+            <button class="outline-button" id="midterm-download-btn" style="width:auto;margin:0;background:var(--blue-soft);border-color:var(--blue);color:var(--blue)">&darr; Download mid-term report (.xlsx)</button>
+          </div></div>
+        <p class="role-muted">Only the CA test scores subject teachers have uploaded are listed &mdash; exam marks are never included. Mid-term break: <span id="midterm-break-label" class="strong-neutral">&mdash;</span></p>
+        <div class="table-wrap mt16">
+          <table>
+            <thead id="midterm-report-head"></thead>
+            <tbody id="midterm-report-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin: Recognition -->
+    <div class="page-wrap" id="view-admin-recognition" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Educator Recognition Engine</p><h1>Recognition</h1>
+          <p class="subcopy">The staff leaderboard is derived from every mentor note (+10), verified portfolio artifact (+25) and Master Register (+50). Verify student proof-of-work and award honors from here.</p></div>
+      </section>
+      <div class="setup-grid mt16">
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">This session</p><h2>Recognition leaderboard</h2></div></div>
+          <div id="rec-leaderboard" class="rec-leaderboard mt16"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Awards log</p><h2>Honors &amp; engagements</h2></div></div>
+          <div id="rec-log" class="mt16"></div>
+          <div class="setup-form mt16">
+            <div class="form-group"><label for="rec-teacher">Award this teacher</label><select id="rec-teacher"></select></div>
+            <div class="form-group"><label for="rec-kind">Honor type</label>
+              <select id="rec-kind">
+                <option value="master_register">Master Register — full register returned on time</option>
+                <option value="teacher_of_month">Teacher of the Month</option>
+                <option value="honor">General honor</option>
+              </select>
+            </div>
+            <div class="form-group"><label for="rec-note">Note <small class="muted-cell">(optional)</small></label><input id="rec-note" type="text" placeholder="Why is this teacher being recognized?"></div>
+            <button class="btn-primary" id="rec-award-btn">Award honor &nearr;</button>
+          </div>
+        </article>
+      </div>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Student proof-of-work</p><h2>Portfolio &amp; commendations</h2></div></div>
+        <p class="role-muted">Pending artifacts wait for verification. Verified items earn +150 Co-Curricular &amp; STEM XP and unlock the student badges; commendations earn +75 Leadership &amp; Character XP.</p>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Student</th><th>Artifact</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="rec-portfolio"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- Admin: Setup -->
@@ -385,7 +532,22 @@
                 <button class="toggle-btn" id="toggle-exam-upload" data-type="exam">Toggle</button>
               </div>
             </div>
+            <div class="form-row mt16">
+              <div class="form-group" style="flex:1">
+                <label>Mid-term break &mdash; from</label>
+                <input id="setup-break-start" type="date">
+              </div>
+              <div class="form-group" style="flex:1">
+                <label>to</label>
+                <input id="setup-break-end" type="date">
+              </div>
+            </div>
             <button class="btn-primary mt16" id="save-session-btn">Save settings</button>
+            <div class="form-group mt16" style="border-top:1px solid var(--line);padding-top:16px">
+              <label>End of session</label>
+              <p class="role-muted" id="start-session-note">Closing the session needs the final term's results to be published.</p>
+              <button class="btn-primary mt16" id="start-session-btn" disabled style="width:auto">Start new session</button>
+            </div>
           </div>
         </article>
 
@@ -468,6 +630,15 @@
           <button class="outline-button mt16" data-nav="view-class-attendance">Open attendance register &nearr;</button>
         </article>
       </section>
+
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Subject registration</p><h2>Change requests</h2></div>
+          <span class="check-badge" id="ct-approval-count">0</span>
+        </div>
+        <p class="role-muted">Year 11 &amp; 12 students who asked to change their subjects. Approving the request makes the new subject list effective.</p>
+        <div id="ct-approvals-list" class="mt16"></div>
+      </div>
     </div>
 
     <!-- Class teacher: whole-class report (all subjects) -->
@@ -484,17 +655,17 @@
           </select>
           <button class="outline-button" id="cr-register-btn" style="width:auto;margin:0">Full register &nearr;</button>
           <button class="outline-button" id="cr-feedback-btn" style="width:auto;margin:0">Feedback &nearr;</button>
-          <button class="outline-button" id="cr-download-btn" style="width:auto;margin:0">Download CSV &darr;</button>
+          <button class="outline-button" id="cr-download-btn" style="width:auto;margin:0">Download Excel &darr;</button>
         </div>
       </section>
       <section class="stat-grid two">
         <article class="stat-card accent-blue"><div class="stat-top"><span class="stat-label">Class average</span><span class="stat-icon">A</span></div><strong id="cr-class-average">&mdash;</strong><div class="stat-trend neutral">Term total average</div></article>
-        <article class="stat-card accent-green"><div class="stat-top"><span class="stat-label">On track to promote</span><span class="stat-icon">&check;</span></div><strong id="cr-promoted">&mdash;</strong><div class="stat-trend neutral">English + Maths 50, average 50</div></article>
+        <article class="stat-card accent-green"><div class="stat-top"><span class="stat-label">On track to promote</span><span class="stat-icon">&check;</span></div><strong id="cr-promoted">&mdash;</strong><div class="stat-trend neutral">At least 50 in English &amp; Maths, average at least 50</div></article>
       </section>
       <div class="panel mt16">
         <div class="panel-heading">
           <div><p class="eyebrow">CA (40) + Exam (60)</p><h2>All subjects</h2></div>
-          <span class="read-only-badge">Promotion rule: Maths &amp; English 50+, average 50+</span>
+          <span class="read-only-badge">Promotion rule: at least 50% in Maths &amp; English, and overall average at least 50% (exactly 50 passes)</span>
         </div>
         <div class="table-wrap mt16" id="cr-report-table"></div>
       </div>
@@ -506,11 +677,38 @@
 
     <div class="page-wrap" id="view-class-attendance" data-role="Class Teacher" hidden>
       <section class="welcome-row role-welcome">
-        <div><p class="eyebrow">Attendance register</p><h1>Mark Attendance</h1><p class="subcopy">Weekly attendance summary for your class.</p></div>
+        <div><p class="eyebrow">Attendance register</p><h1>Mark Attendance</h1><p class="subcopy">Take the register each school day (Monday&ndash;Friday), then review the weekly summary for your class.</p></div>
       </section>
       <div class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow" id="att-class-name">&mdash;</p><h2>Attendance record</h2></div></div>
-        <p class="role-muted" style="margin-top:12px">Enter days present per week (max 5). Click <strong>Save</strong> to update.</p>
+        <div class="panel-heading"><div><p class="eyebrow">Daily register</p><h2>Upload daily attendance</h2></div>
+          <span class="role-muted">Toggle each student present or absent</span></div>
+        <p class="role-muted" style="margin-top:12px">Take the register one school day at a time (Monday&ndash;Friday). Pick a week and a day, toggle each student to Present or Absent, then <strong>Save day</strong>. The roll-up below, the student, their parent and the admin all see the same record &mdash; a late arrival still counts as present.</p>
+        <div class="att-daily-bar mt16">
+          <label>Week<select id="ct-day-week">
+            <option value="1">Week 1</option><option value="2">Week 2</option>
+            <option value="3">Week 3</option><option value="4">Week 4</option></select></label>
+          <label>Day<select id="ct-day-of-week">
+            <option value="0">Monday</option><option value="1">Tuesday</option>
+            <option value="2">Wednesday</option><option value="3">Thursday</option>
+            <option value="4">Friday</option></select></label>
+          <strong id="ct-daily-title" class="att-day-title">&mdash;</strong>
+          <span class="att-day-count" id="ct-day-count"></span>
+          <span class="att-daily-actions">
+            <button type="button" class="btn-sm-save" id="ct-all-present">Mark all present</button>
+            <button type="button" class="btn-sm-save" id="ct-all-absent" style="background:var(--coral-soft,#fff0ee);color:var(--coral,#e05)">Mark all absent</button>
+            <button type="button" class="btn-primary small" id="ct-save-day">Save day</button>
+          </span>
+        </div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Student</th><th>Status &nbsp;<span class="muted-cell" style="font-weight:400;font-size:11px">Click to set · click again to clear</span></th></tr></thead>
+            <tbody id="ct-daily-list"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow" id="att-class-name">&mdash;</p><h2>Weekly summary</h2></div></div>
+        <p class="role-muted" style="margin-top:12px">Days present per week (max 5), derived from the daily register. Editing a week here also updates its daily marks.</p>
         <div class="table-wrap mt16">
           <table>
             <thead><tr><th>Student</th><th>Week 1</th><th>Week 2</th><th>Week 3</th><th>Week 4</th><th>Total</th><th>%</th><th></th></tr></thead>
@@ -587,6 +785,27 @@
           <div id="st-mentees-list" class="mt16"></div>
         </article>
       </section>
+
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Weekly coverage</p><h2>Weekly topics</h2></div></div>
+        <div class="setup-grid mt16">
+          <article class="panel">
+            <div class="setup-form">
+              <div class="form-group"><label for="wt-subject">Subject</label><select id="wt-subject"></select></div>
+              <div class="form-group"><label for="wt-class">Class</label><select id="wt-class"></select></div>
+              <div class="form-group"><label for="wt-week">Week no.</label><input id="wt-week" type="number" min="1" max="13" value="1"></div>
+              <div class="form-group"><label for="wt-topic">Topic</label><input id="wt-topic" type="text" placeholder="e.g. Quadratic equations"></div>
+              <div class="form-group"><label for="wt-summary">What we covered <small class="muted-cell">(optional)</small></label><textarea id="wt-summary" rows="2" placeholder="Key points, activities, homework…"></textarea></div>
+              <button class="btn-primary mt16" id="wt-add-btn">Add topic</button>
+              <div id="wt-feedback" class="form-feedback mt8" hidden></div>
+            </div>
+          </article>
+          <article class="panel">
+            <p class="role-muted" id="wt-list-meta">&mdash;</p>
+            <div id="wt-list" class="mt16"></div>
+          </article>
+        </div>
+      </div>
     </div>
 
     <div class="page-wrap" id="view-subject-scores" data-role="Subject Teacher" hidden>
@@ -610,6 +829,84 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <div class="page-wrap" id="view-teacher-lessons" data-role="Subject Teacher" hidden>
+      <section class="welcome-row role-welcome">
+        <div>
+          <p class="eyebrow">Learning management</p>
+          <h1>Lessons</h1>
+          <p class="subcopy">Publish weekly lessons for the classes you teach.</p>
+        </div>
+        <div class="form-row tight">
+          <select id="ls-pick" class="select-inline" aria-label="Subject and class"></select>
+          <span class="count-badge" id="ls-count">0</span>
+        </div>
+      </section>
+      <section class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">New lesson</p><h2>Write a lesson</h2></div></div>
+        <div class="form-group mt8"><label for="ls-title">Title</label><input id="ls-title" type="text" placeholder="e.g. Nouns and pronouns" maxlength="200"></div>
+        <div class="form-group"><label for="ls-content">Lesson content</label><textarea id="ls-content" rows="6" placeholder="The body of the lesson — paste notes, exercises or instructions."></textarea></div>
+        <button class="btn-primary" id="ls-submit" style="width:auto;margin:0">Publish lesson</button>
+        <div id="ls-msg" class="form-feedback mt8" hidden></div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Published</p><h2>Your lessons</h2></div></div>
+        <div id="ls-list" class="mt8"></div>
+      </div>
+      <div id="ls-detail" class="mt16"></div>
+    </div>
+
+    <div class="page-wrap" id="view-teacher-quizzes" data-role="Subject Teacher" hidden>
+      <section class="welcome-row role-welcome">
+        <div>
+          <p class="eyebrow">Learning management</p>
+          <h1>Quizzes</h1>
+          <p class="subcopy">Create quick quizzes and see how each class performs.</p>
+        </div>
+        <div class="form-row tight">
+          <select id="qz-pick" class="select-inline" aria-label="Subject and class"></select>
+        </div>
+      </section>
+      <section class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">New quiz</p><h2>Start a quiz</h2></div></div>
+        <div class="form-row tight">
+          <div class="form-group"><label for="qz-title">Title</label><input id="qz-title" type="text" placeholder="e.g. Parts of speech" maxlength="200"></div>
+          <div class="form-group"><label for="qz-desc">Description <small class="muted-cell" style="font-weight:400">(optional)</small></label><input id="qz-desc" type="text" placeholder="e.g. Quick check on nouns and verbs"></div>
+        </div>
+        <button class="btn-primary" id="qz-create" style="width:auto;margin:0">Create quiz &nbsp;+ Add questions</button>
+        <div id="qz-msg" class="form-feedback mt8" hidden></div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Your quizzes</p><h2>All quizzes</h2></div><span class="count-badge" id="qz-count">0</span></div>
+        <div id="qz-list" class="mt8"></div>
+      </div>
+      <div id="qz-detail" class="mt16"></div>
+    </div>
+
+    <div class="page-wrap" id="view-teacher-discussions" data-role="Subject Teacher" hidden>
+      <section class="welcome-row role-welcome">
+        <div>
+          <p class="eyebrow">Learning management</p>
+          <h1>Discussions</h1>
+          <p class="subcopy">Open a discussion thread for a class and join the conversation.</p>
+        </div>
+        <div class="form-row tight">
+          <select id="td-pick" class="select-inline" aria-label="Subject and class"></select>
+        </div>
+      </section>
+      <section class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">New thread</p><h2>Open a discussion</h2></div></div>
+        <div class="form-group mt8"><label for="td-title">Topic</label><input id="td-title" type="text" placeholder="e.g. Why do you like reading?" maxlength="200"></div>
+        <div class="form-group"><label for="td-body">Opening post <small class="muted-cell" style="font-weight:400">(optional)</small></label><textarea id="td-body" rows="3" placeholder="Your first message to the class…"></textarea></div>
+        <button class="btn-primary" id="td-open" style="width:auto;margin:0">Open discussion</button>
+        <div id="td-msg" class="form-feedback mt8" hidden></div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Your threads</p><h2>Discussions</h2></div></div>
+        <div id="td-list" class="mt8"></div>
+      </div>
+      <div id="td-thread" class="mt16"></div>
     </div>
 
     <!-- ┌─────────────────────────────────────────────────────┐ -->
@@ -735,6 +1032,51 @@
           <div id="std-mentor-card" class="mt16"></div>
         </article>
       </section>
+
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Subject registration</p><h2>My subjects</h2></div>
+          <button class="btn-primary" id="std-subjects-btn" style="width:auto;margin:0" hidden>Choose subjects</button>
+        </div>
+        <p class="role-muted" id="std-subjects-note">&mdash;</p>
+        <div id="std-subjects-list" class="subject-results mt16"></div>
+      </div>
+
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Growth &amp; Mastery</p><h2 id="std-xp-heading">My growth</h2></div>
+          <span class="read-only-badge" id="std-rank-badge">&mdash;</span>
+        </div>
+        <p class="role-muted" id="std-xp-note">XP builds from your attendance, your term-on-term improvements, verified portfolio work and mentor commendations &mdash; nothing is gamed.</p>
+        <div id="std-xp-breakdown" class="xp-breakdown mt16"></div>
+        <div class="badge-grid mt16" id="std-badges"></div>
+        <div class="setup-grid mt16">
+          <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Proof of work</p><h2>Portfolio artifacts</h2></div></div>
+            <div id="std-artifacts" class="mt8"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">New artifact</p><h2>Submit proof</h2></div></div>
+            <div class="setup-form mt8">
+              <div class="form-group">
+                <label for="std-art-kind">Category</label>
+                <select id="std-art-kind">
+                  <option value="code">Code &amp; STEM</option>
+                  <option value="debate">Debate &amp; oracy</option>
+                  <option value="sport">Sport</option>
+                  <option value="leadership">Leadership</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="form-group"><label for="std-art-title">Title</label><input id="std-art-title" type="text" placeholder="e.g. Scratch rover project"></div>
+              <div class="form-group"><label for="std-art-note">What did you do? <small class="muted-cell">(optional)</small></label><input id="std-art-note" type="text" placeholder="One sentence your mentor can verify."></div>
+              <button class="btn-primary" id="std-art-submit" style="width:auto;margin:0">Submit for verification &nearr;</button>
+              <small class="role-muted" id="std-art-feedback" style="display:block;margin-top:8px"></small>
+            </div>
+          </article>
+        </div>
+        <button class="btn-primary mt16" id="std-passport-btn" style="width:auto;margin-top:16px">Open my Student Achievement Passport &nearr;</button>
+      </div>
     </div>
 
     <div class="page-wrap" id="view-student-results" data-role="Student" hidden>
@@ -753,6 +1095,75 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <div class="page-wrap" id="view-student-pathway" data-role="Student" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">My future</p><h1 id="stu-path-heading">Choose my path</h1><p class="subcopy">At the Grade 9 checkpoint and in placement pools the school asks you to pick the stream you want &mdash; Science, Commercial or Arts.</p></div>
+      </section>
+      <div id="stu-path-body" class="mt16"></div>
+    </div>
+
+    <div class="page-wrap" id="view-student-lessons" data-role="Student" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Learning</p><h1>My lessons</h1><p class="subcopy">Lessons your teachers have published for your class.</p></div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Lesson library</p><h2>Newest first</h2></div></div>
+        <div id="stu-less-list" class="mt8"></div>
+      </div>
+      <div id="stu-less-detail" class="mt16"></div>
+    </div>
+
+    <div class="page-wrap" id="view-student-quizzes" data-role="Student" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Learning</p><h1>My quizzes</h1><p class="subcopy">Quizzes published for your class &mdash; each attempt is one shot, so check your answers before submitting.</p></div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Available</p><h2>Quizzes</h2></div></div>
+        <div id="sq-list" class="mt8"></div>
+      </div>
+      <div id="sq-body" class="mt16"></div>
+    </div>
+
+    <div class="page-wrap" id="view-student-discussions" data-role="Student" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Learning</p><h1>Discussions</h1><p class="subcopy">Class discussion threads &mdash; jump in and share your thoughts.</p></div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Open threads</p><h2>Discussions for your class</h2></div></div>
+        <div id="sd-list" class="mt8"></div>
+      </div>
+      <div id="sd-thread" class="mt16"></div>
+    </div>
+
+    <div class="page-wrap" id="view-student-attendance" data-role="Student" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">My record</p><h1>My attendance</h1><p class="subcopy">Days present for each week of the term, as marked by your class teacher.</p></div>
+        <select id="stu-att-term" class="select-inline" aria-label="Term"></select>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow" id="stu-att-meta">&mdash;</p><h2>Weekly attendance</h2></div></div>
+        <div id="stu-att-grid" class="mt16"></div>
+      </div>
+    </div>
+
+    <div class="page-wrap" id="view-student-assignments" data-role="Student" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">My work</p><h1>Assignments</h1><p class="subcopy">Homework and assignments set for your class, nearest due date first.</p></div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow" id="stu-assign-meta">&mdash;</p><h2>Assigned work</h2></div></div>
+        <div id="stu-assign-list" class="mt8"></div>
+      </div>
+    </div>
+
+    <div class="page-wrap" id="view-student-timetable" data-role="Student" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Weekly plan</p><h1>My timetable</h1><p class="subcopy">The weekly schedule the school has generated for your class. Timetables are set by the school.</p></div>
+      </section>
+      <p class="role-muted" id="stu-tt-meta">&mdash;</p>
+      <div id="stu-tt-grid" class="mt16"></div>
     </div>
 
     <!-- ┌─────────────────────────────────────────────────────┐ -->
@@ -796,6 +1207,51 @@
           </table>
         </div>
       </div>
+      <div class="panel mt16">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Engaged Guardian Tier</p><h2 id="par-guard-heading">My guardian badges</h2></div>
+          <span class="read-only-badge" id="par-guard-count">&mdash;</span>
+        </div>
+        <p class="role-muted" id="par-guard-note">The more you engage &mdash; logging in, acknowledging results, attending PTA &mdash; the more school support your child unlocks.</p>
+        <div class="badge-grid mt16" id="par-guard-badges"></div>
+        <div class="guardian-stats mt16" id="par-guard-stats"></div>
+        <div class="form-row mt16">
+          <button class="btn-primary" id="par-ack-btn">Acknowledge this term's results &nearr;</button>
+          <button class="outline-button" id="par-pta-btn">Record PTA attendance &nearr;</button>
+        </div>
+        <small class="role-muted" style="display:block;margin-top:8px">Acknowledging results within 48 hours and PTA attendance build the 3-Term Active Guardian badge; an early-payment engagement earns the Pacesetter Parent badge (priority seats and a fee discount).</small>
+      </div>
+    </div>
+
+    <div class="page-wrap" id="view-parent-attendance" data-role="Parent" hidden>
+      <section class="welcome-row role-welcome">
+        <div><p class="eyebrow">My children</p><h1>Attendance</h1><p class="subcopy">Weekly attendance for each child, as recorded by their class teacher.</p></div>
+        <select id="par-att-child" class="select-inline" aria-label="Select child"></select>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow" id="par-att-meta">&mdash;</p><h2>Weekly attendance</h2></div></div>
+        <div id="par-att-grid" class="mt16"></div>
+      </div>
+    </div>
+
+    <div class="page-wrap" id="view-parent-assignments" data-role="Parent" hidden>
+      <section class="welcome-row role-welcome">
+        <div><p class="eyebrow">My children</p><h1>Assignments</h1><p class="subcopy">Homework and assignments set for each child, nearest due date first.</p></div>
+        <select id="par-assign-child" class="select-inline" aria-label="Select child"></select>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow" id="par-assign-meta">&mdash;</p><h2>Assigned work</h2></div></div>
+        <div id="par-assign-list" class="mt8"></div>
+      </div>
+    </div>
+
+    <div class="page-wrap" id="view-parent-timetable" data-role="Parent" hidden>
+      <section class="welcome-row role-welcome">
+        <div><p class="eyebrow">My children</p><h1>Timetable</h1><p class="subcopy">Weekly schedule for each child &mdash; view only, set by the school.</p></div>
+        <select id="par-tt-child" class="select-inline" aria-label="Select child"></select>
+      </section>
+      <p class="role-muted" id="par-tt-meta">&mdash;</p>
+      <div id="par-tt-grid" class="mt16"></div>
     </div>
 
   </main><!-- /main-content -->
@@ -820,7 +1276,10 @@
     <p class="formula">Score = CA (40) + Exam (60) &middot; Attendance <strong id="drawer-attendance">&mdash;</strong></p>
     <div class="report-subjects" id="drawer-subjects"></div>
     <div id="drawer-mentor-chip"></div>
-    <button class="btn-primary mt16" id="drawer-download-btn">Download report &darr;</button>
+    <div class="form-row tight mt16" style="align-items:stretch">
+      <button class="btn-primary" id="drawer-download-btn" style="margin:0">Download report &darr;</button>
+      <button class="outline-button" id="drawer-pdf-btn" style="margin:0">Print / PDF &nearr;</button>
+    </div>
   </aside>
 </div>
 
@@ -867,12 +1326,116 @@
         <span>Make this teacher a designated mentor</span>
       </label>
 
-      <div class="form-group"><label for="nu-password">Password</label><input id="nu-password" type="text" placeholder="Temporary password"></div>
+      <div class="form-group"><label for="nu-password">Password</label><input id="nu-password" type="text" placeholder="Leave blank to keep the current one">
+        <small class="muted-cell">Only the account's holder is given the password — it is stored hashed, never shown again.</small></div>
       <div id="nu-feedback" class="form-feedback mt8"></div>
     </div>
     <div class="modal-footer">
       <button class="outline-button" data-modal="add-user-modal" style="width:auto;margin:0">Cancel</button>
       <button class="btn-primary" id="save-user-btn" style="width:auto;margin:0">Add person</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reset password modal -->
+<div class="modal-overlay" id="reset-password-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3 id="rp-title">Reset password</h3><button class="close-modal" data-modal="reset-password-modal">&times;</button></div>
+    <div class="modal-body">
+      <p class="role-muted" id="rp-eyebrow" style="margin-top:0"></p>
+      <p class="rp-name" id="rp-sub"></p>
+      <div class="form-group">
+        <label for="rp-password">New password</label>
+        <input id="rp-password" type="text" placeholder="New password" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label for="rp-confirm">Repeat it</label>
+        <input id="rp-confirm" type="text" placeholder="Same password again" autocomplete="off">
+      </div>
+      <button class="outline-button" id="rp-generate-btn" style="width:auto;margin:0 0 8px">Suggest a strong password</button>
+      <div id="rp-feedback" class="form-feedback mt8"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button" data-modal="reset-password-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="save-reset-btn" style="width:auto;margin:0">Reset password</button>
+    </div>
+  </div>
+</div>
+
+<!-- Student Achievement Passport (printable) -->
+<div class="modal-overlay" id="passport-modal" aria-hidden="true" hidden>
+  <div class="modal passport-modal">
+    <div class="modal-header">
+      <h3>Student Achievement Passport</h3>
+      <span class="role-muted">Print this A4 sheet &mdash; it travels with the student.</span>
+      <span style="flex:1"></span>
+      <button class="btn-primary" id="passport-print-btn" style="width:auto;margin:0">Print &nearr;</button>
+      <button class="close-modal" data-modal="passport-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="passport-sheet" class="passport-sheet"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" id="passport-download-btn" style="width:auto;margin:0">&darr; Save as PDF</button>
+      <button class="outline-button" data-modal="passport-modal" style="width:auto;margin:0">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sensitive action confirm (password gate for progression changes) -->
+<div class="modal-overlay" id="sensitive-confirm-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3 id="sc-title">Confirm</h3><button class="close-modal" data-modal="sensitive-confirm-modal">&times;</button></div>
+    <div class="modal-body">
+      <p class="role-muted" id="sc-message" style="margin-top:0"></p>
+      <div class="form-group">
+        <label for="sc-password">Your password</label>
+        <input id="sc-password" type="password" placeholder="Confirm your password" autocomplete="off">
+      </div>
+      <div id="sc-feedback" class="form-feedback mt8" hidden></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button" data-modal="sensitive-confirm-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="sc-confirm-btn" style="width:auto;margin:0">Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pool placement modal -->
+<div class="modal-overlay" id="place-student-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3>Place pool entrant</h3><button class="close-modal" data-modal="place-student-modal">&times;</button></div>
+    <div class="modal-body">
+      <p class="rp-name" id="pl-student"></p>
+      <p class="role-muted" id="pl-eyebrow" style="margin-top:0"></p>
+      <div class="form-group"><label for="pl-class">Senior track class</label><select id="pl-class"></select></div>
+      <div class="form-group"><label for="pl-note">Reason note <small class="muted-cell">(optional)</small></label><input id="pl-note" type="text" placeholder="e.g. chose Science"></div>
+      <div class="form-group">
+        <label for="pl-password">Your password</label>
+        <input id="pl-password" type="password" placeholder="Confirm to place" autocomplete="off">
+      </div>
+      <div id="pl-feedback" class="form-feedback mt8" hidden></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button" data-modal="place-student-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="pl-save-btn" style="width:auto;margin:0">Place student</button>
+    </div>
+  </div>
+</div>
+
+<!-- Subject choice modal -->
+<div class="modal-overlay" id="choose-subjects-modal" aria-hidden="true" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3>Choose subjects</h3><button class="close-modal" data-modal="choose-subjects-modal">&times;</button></div>
+    <div class="modal-body">
+      <p class="role-muted" id="cs-eyebrow" style="margin-top:0">&mdash;</p>
+      <div id="cs-rules" class="mt16"></div>
+      <div id="cs-list" class="dept-check-grid mt16"></div>
+      <div id="cs-feedback" class="form-feedback mt8" hidden></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button" data-modal="choose-subjects-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="cs-save-btn" style="width:auto;margin:0">Save subjects</button>
     </div>
   </div>
 </div>
@@ -1021,7 +1584,7 @@
     </div>
     <div class="modal-footer">
       <button class="outline-button close-modal" data-modal="class-register-modal" style="width:auto;margin:0">Close</button>
-      <button class="outline-button" id="register-download-btn" style="width:auto;margin:0">Download CSV &darr;</button>
+      <button class="outline-button" id="register-download-btn" style="width:auto;margin:0">Download Excel &darr;</button>
     </div>
   </div>
 </div>

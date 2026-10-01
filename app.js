@@ -48,6 +48,12 @@ function buildTeacherCapabilities(user) {
     { page: 'view-subject-dashboard', label: 'Dashboard', icon: 'D' },
     { page: 'view-subject-scores',    label: 'Scores',    icon: '✎' }
   ];
+  // And the classroom / learning pages
+  nav.push(
+    { page: 'view-teacher-lessons',     label: 'Lessons',     icon: 'L' },
+    { page: 'view-teacher-quizzes',     label: 'Quizzes',     icon: 'Q' },
+    { page: 'view-teacher-discussions', label: 'Discussions', icon: '◇' }
+  );
   // A class teacher is in charge of a class
   if (hasClass(user)) {
     nav.push(
@@ -70,16 +76,28 @@ const STATIC_NAV = {
     { page: 'view-admin-people',     label: 'People',     icon: 'P' },
     { page: 'view-admin-classes',    label: 'Classes',    icon: 'C' },
     { page: 'view-admin-subjects',   label: 'Subjects',   icon: 'S' },
+    { page: 'view-admin-progression', label: 'Progression', icon: '⇈' },
     { page: 'view-admin-timetable',  label: 'Timetable',  icon: 'T' },
     { page: 'view-admin-analytics',  label: 'Analytics',  icon: 'A' },
+    { page: 'view-admin-recognition', label: 'Recognition', icon: '★' },
     { page: 'view-admin-setup',      label: 'Setup',      icon: '◎' }
   ],
   'Student': [
-    { page: 'view-student-dashboard', label: 'Dashboard',  icon: 'D' },
-    { page: 'view-student-results',   label: 'My Results', icon: 'R' }
+    { page: 'view-student-dashboard',   label: 'Dashboard',      icon: 'D' },
+    { page: 'view-student-results',     label: 'My Results',     icon: 'R' },
+    { page: 'view-student-pathway',     label: 'Choose my path', icon: '⇈' },
+    { page: 'view-student-lessons',     label: 'My Lessons',     icon: 'L' },
+    { page: 'view-student-quizzes',     label: 'My Quizzes',     icon: 'Q' },
+    { page: 'view-student-discussions', label: 'Discussions',    icon: '◇' },
+    { page: 'view-student-attendance',  label: 'My Attendance',  icon: 'A' },
+    { page: 'view-student-assignments', label: 'Assignments',    icon: '✎' },
+    { page: 'view-student-timetable',   label: 'Timetable',      icon: 'T' }
   ],
   'Parent': [
-    { page: 'view-parent-dashboard',  label: 'Dashboard',  icon: 'D' }
+    { page: 'view-parent-dashboard',   label: 'Dashboard',  icon: 'D' },
+    { page: 'view-parent-attendance',  label: 'Attendance', icon: 'A' },
+    { page: 'view-parent-assignments', label: 'Assignments', icon: '✎' },
+    { page: 'view-parent-timetable',   label: 'Timetable',  icon: 'T' }
   ]
 };
 
@@ -98,6 +116,51 @@ function gradeLabel(score) {
 }
 function toneClass(t) {
   return { blue:'avatar-blue', coral:'avatar-coral', green:'avatar-green', yellow:'avatar-yellow' }[t] || 'avatar-blue';
+}
+
+// ── Student position helpers ─────────────────────────────────
+// Returns 1-based rank of studentId within their class for a given term.
+// Students with the same session average share the same rank (dense rank).
+function classRank(studentId, term) {
+  const s = Data.student(studentId);
+  if (!s) return null;
+  const peers  = Data.studentsByClass(s.classId).filter(p => p.status !== 'archived');
+  const myAvg  = Academic.sessionAverage(studentId);
+  if (myAvg === null) return null;
+  // count how many peers have a strictly higher session average
+  const above  = peers.filter(p => {
+    const a = Academic.sessionAverage(p.id);
+    return a !== null && a > myAvg;
+  }).length;
+  return above + 1;
+}
+
+// Returns 1-based rank of studentId across ALL classes in the same year/level.
+function yearRank(studentId, term) {
+  const s = Data.student(studentId);
+  if (!s) return null;
+  const cl = Data.cls(s.classId);
+  if (!cl) return null;
+  // same year = same level + same year number
+  const sameYear = Data.classes().filter(c => c.level === cl.level && c.year === cl.year);
+  const allStudents = sameYear.flatMap(c => Data.studentsByClass(c.id))
+    .filter(p => p.status !== 'archived');
+  const myAvg = Academic.sessionAverage(studentId);
+  if (myAvg === null) return null;
+  const above = allStudents.filter(p => {
+    const a = Academic.sessionAverage(p.id);
+    return a !== null && a > myAvg;
+  }).length;
+  return above + 1;
+}
+
+// Ordinal suffix: 1st, 2nd, 3rd, 4th…
+function ordinal(n) {
+  if (n === null || n === undefined) return '—';
+  const s = ['th','st','nd','rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
 }
 function statusClass(s) {
   return s === 'Promoted' ? 'promoted' : s === 'Review' ? 'review' : 'repeat';
@@ -148,12 +211,153 @@ function closeDrawer()  { const d=$('report-drawer'); d.classList.remove('open')
 function closeMenus()    { $all('.row-menu-list').forEach(m => { m.hidden = true; }); }
 
 function downloadCsv(filename, rows) {
+function downloadCsv(filename, rows) {
+  // UTF-8 BOM ensures Excel opens the file with correct encoding on all platforms
+  const BOM = '\uFEFF';
   const csv  = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
+  const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
+}
+
+// ── Excel (.xlsx) export — small dependency-free workbook writer ──
+// Builds a single-sheet OpenXML package with a STORED (uncompressed) zip,
+// so no external library is needed. Numbers become real numeric cells;
+// everything else is an inline string (avoids sharedStrings.xml).
+const _xlsxXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+const _xlsxCol = (() => { const cache = {}; return n => {
+  if (cache[n] !== undefined) return cache[n];
+  let s = '', m = n + 1;
+  while (m > 0) { const d = (m - 1) % 26; s = String.fromCharCode(65 + d) + s; m = Math.floor((m - 1) / 26); }
+  cache[n] = s; return s;
+}; })();
+const _xlsxEscape = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function xlsxSheetXml(rows) {
+  const body = rows.map((r, i) => {
+    const rowN = i + 1;
+    const cells = r.map((v, j) => {
+      const ref = _xlsxCol(j) + rowN;
+      // Numbers: real numeric cell
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        return `<c r="${ref}"${i === 0 ? ' s="1"' : ''}><v>${v}</v></c>`;
+      }
+      // Strings: use t="str" which is universally supported by Excel/LibreOffice
+      const safe = _xlsxEscape(v ?? '');
+      return `<c r="${ref}" t="str"${i === 0 ? ' s="1"' : ''}><v>${safe}</v></c>`;
+    }).join('');
+    return `<row r="${rowN}">${cells}</row>`;
+  }).join('');
+  return _xlsxXml +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetData>' + body + '</sheetData></worksheet>';
+}
+const _xlsxContentTypes = _xlsxXml +
+  '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+  '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+  '<Default Extension="xml" ContentType="application/xml"/>' +
+  '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+  '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+  '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+  '</Types>';
+const _xlsxRootRels = _xlsxXml +
+  '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+  '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+  '</Relationships>';
+const _xlsxWorkbookRels = _xlsxXml +
+  '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+  '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+  '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+  '</Relationships>';
+const _xlsxStyles = _xlsxXml +
+  '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+  '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+  '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
+  '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+  '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+  '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>' +
+  '</styleSheet>';
+
+const _crcTable = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; }
+  return t;
+})();
+function _crc32(u8) { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = (c >>> 8) ^ _crcTable[(c ^ u8[i]) & 0xff]; return (c ^ 0xffffffff) >>> 0; }
+function zipStore(parts) {
+  const enc = new TextEncoder();
+  const now = new Date();
+  const time = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)) & 0xffff;
+  const date = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xffff;
+  const locals = [];
+  const chunks = [];
+  let offset = 0;
+  for (const p of parts) {
+    const name = enc.encode(p.name);
+    const data = typeof p.data === 'string' ? enc.encode(p.data) : p.data;
+    const crc  = _crc32(data);
+    const hdr  = new DataView(new ArrayBuffer(30));
+    hdr.setUint32(0, 0x04034b50, true); hdr.setUint16(4, 20, true); hdr.setUint16(6, 0, true);
+    hdr.setUint16(8, 0, true); hdr.setUint16(10, time, true); hdr.setUint16(12, date, true);
+    hdr.setUint32(14, crc, true); hdr.setUint32(18, data.length, true); hdr.setUint32(22, data.length, true);
+    hdr.setUint16(26, name.length, true); hdr.setUint16(28, 0, true);
+    locals.push({ name, data, crc, localOffset: offset });
+    chunks.push(new Uint8Array(hdr.buffer), name, data);
+    offset += 30 + name.length + data.length;
+  }
+  const dirStart = offset;
+  for (const c of locals) {
+    const hdr = new DataView(new ArrayBuffer(46));
+    hdr.setUint32(0, 0x02014b50, true); hdr.setUint16(4, 20, true); hdr.setUint16(6, 20, true);
+    hdr.setUint16(8, 0, true); hdr.setUint16(10, 0, true); hdr.setUint16(12, time, true); hdr.setUint16(14, date, true);
+    hdr.setUint32(16, c.crc, true); hdr.setUint32(20, c.data.length, true); hdr.setUint32(24, c.data.length, true);
+    hdr.setUint16(28, c.name.length, true); hdr.setUint16(30, 0, true); hdr.setUint16(32, 0, true);
+    hdr.setUint16(34, 0, true); hdr.setUint16(36, 0, true); hdr.setUint32(38, c.localOffset, true);
+    chunks.push(new Uint8Array(hdr.buffer), c.name);
+    offset += 46 + c.name.length;
+  }
+  const eocd = new DataView(new ArrayBuffer(22));
+  eocd.setUint32(0, 0x06054b50, true); eocd.setUint16(4, 0, true); eocd.setUint16(6, 0, true);
+  eocd.setUint16(8, locals.length, true); eocd.setUint16(10, locals.length, true);
+  eocd.setUint32(12, offset - dirStart, true); eocd.setUint32(16, dirStart, true); eocd.setUint16(20, 0, true);
+  chunks.push(new Uint8Array(eocd.buffer));
+  const len = chunks.reduce((a, c) => a + c.length, 0);
+  const out = new Uint8Array(len);
+  let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out;
+}
+function xlsxBlob(sheetName, rows) {
+  const parts = [
+    { name: '[Content_Types].xml', data: _xlsxContentTypes },
+    { name: '_rels/.rels',         data: _xlsxRootRels },
+    { name: 'xl/workbook.xml',     data: _xlsxXml +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheets><sheet name="' + _xlsxEscape(sheetName) + '" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', data: _xlsxWorkbookRels },
+    { name: 'xl/worksheets/sheet1.xml',   data: xlsxSheetXml(rows) },
+    { name: 'xl/styles.xml',              data: _xlsxStyles }
+  ];
+  return new Blob([zipStore(parts)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+function downloadXlsx(filename, rows, sheetName = 'Sheet1') {
+  const name = filename.endsWith('.xlsx') ? filename : filename + '.xlsx';
+  const url  = URL.createObjectURL(xlsxBlob(sheetName, rows));
+  const a    = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── PDF export — the browser's print dialog with "Save as PDF" ──
+// Only the open report drawer prints (see the printing-report rules in
+// styles.css); the app chrome and dashboard panels are hidden.
+function printReportPdf() {
+  document.body.classList.add('printing-report');
+  const done = () => { document.body.classList.remove('printing-report'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
 }
 
 // ── Login ────────────────────────────────────────────────────
@@ -172,9 +376,26 @@ function initLogin() {
 
   $('login-form').addEventListener('submit', e => {
     e.preventDefault();
-    const user = Data.userByEmail(emailI.value.trim().toLowerCase());
-    if (user && user.password === pwI.value) { err.hidden = true; login(user); }
-    else err.hidden = false;
+    const email = emailI.value.trim().toLowerCase();
+    const user  = Data.userByEmail(email);
+    if (user && Data.passwordMatches(user, pwI.value)) {
+      if (Data.accountBlocked(user)) {
+        err.textContent = 'This account has been archived and can no longer sign in. Contact the school office.';
+        err.hidden = false; return;
+      }
+      err.hidden = true; login(user); return;
+    }
+    // "Incorrect email or password" on its own is misleading when the real
+    // cause is a stale page, so say which of the two it actually was.
+    if (!user && Data.users().length) {
+      err.textContent = 'No account with that email. This page may be showing ' +
+                        'out-of-date data - reload it, then try again.';
+    } else if (user) {
+      err.textContent = 'That password is not right for ' + user.name + '.';
+    } else {
+      err.textContent = 'Incorrect email or password.';
+    }
+    err.hidden = false;
   });
 }
 
@@ -240,8 +461,10 @@ function renderView(pageId) {
     'view-admin-people':      renderAdminPeople,
     'view-admin-classes':     renderAdminClasses,
     'view-admin-subjects':    renderAdminSubjects,
-    'view-admin-timetable':   renderAdminTimetable,
+    'view-admin-progression': renderAdminProgression,
+    'view-admin-timetable':  renderAdminTimetable,
     'view-admin-analytics':   renderAdminAnalytics,
+    'view-admin-recognition': renderAdminRecognition,
     'view-admin-setup':       renderAdminSetup,
     'view-subject-dashboard': renderSubjectDashboard,
     'view-subject-scores':    renderSubjectScores,
@@ -250,9 +473,22 @@ function renderView(pageId) {
     'view-class-attendance':  renderClassAttendance,
     'view-class-feedback':    renderClassFeedback,
     'view-hod-dashboard':     renderHODDashboard,
+    'view-teacher-lessons':     renderTeacherLessons,
+    'view-teacher-quizzes':     renderTeacherQuizzes,
+    'view-teacher-discussions': renderTeacherDiscussions,
     'view-student-dashboard': renderStudentDashboard,
     'view-student-results':   renderStudentResults,
-    'view-parent-dashboard':  renderParentDashboard
+    'view-student-pathway':     renderStudentPathway,
+    'view-student-lessons':     renderStudentLessons,
+    'view-student-quizzes':     renderStudentQuizzes,
+    'view-student-discussions': renderStudentDiscussions,
+    'view-student-attendance':  renderStudentAttendance,
+    'view-student-assignments': renderStudentAssignments,
+    'view-student-timetable':   renderStudentTimetable,
+    'view-parent-dashboard':  renderParentDashboard,
+    'view-parent-attendance':   renderParentAttendance,
+    'view-parent-assignments':  renderParentAssignments,
+    'view-parent-timetable':    renderParentTimetable
   })[pageId]?.();
 }
 
@@ -320,26 +556,34 @@ function renderAdminStudentTable(query = '') {
         const cl     = Data.cls(s.classId);
         const avg    = Academic.termAverage(s.id, term);
         const status = Academic.promotionStatus(s.id, term);
+        const cPos   = classRank(s.id, term);
+        const yPos   = yearRank(s.id, term);
+        const posStr = cPos !== null ? `${ordinal(cPos)}<span class="muted-cell"> (${ordinal(yPos)})</span>` : '—';
         return `<tr>
           <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
           <td>${esc(cl?.name || '—')}</td>
           <td><span class="score">${avg}%</span></td>
           <td class="muted-cell">${Academic.attendancePct(s.id)}</td>
+          <td>${posStr}</td>
           <td><span class="status ${statusClass(status)}">${status}</span></td>
           <td>${studentRowMenu(s.id)}</td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="6" class="muted-cell">No students match.</td></tr>';
+    : '<tr><td colspan="7" class="muted-cell">No students match.</td></tr>';
 
   bindStudentRowMenus();
 }
 
 function studentRowMenu(sid) {
+  const s = Data.student(sid);
+  const archived = !!(s && s.status === 'archived');
   return `<div class="row-menu-wrap">
     <button class="row-menu" data-menu-toggle aria-label="Student actions">•••</button>
     <div class="row-menu-list" hidden>
       <button data-student="${sid}">Open full report</button>
       <button data-student-mentor="${sid}">Assign mentor</button>
+      <button data-student-reset="${sid}">Reset password</button>
+      <button data-student-archive="${sid}">${archived ? 'Restore student' : 'Archive student'}</button>
     </div>
   </div>`;
 }
@@ -357,6 +601,25 @@ function bindStudentRowMenus() {
   }));
   $all('[data-student-mentor]').forEach(btn => btn.addEventListener('click', () => {
     closeMenus(); openMentorModal(btn.dataset.studentMentor);
+  }));
+  $all('[data-student-reset]').forEach(btn => btn.addEventListener('click', () => {
+    closeMenus(); openResetPasswordModal(btn.dataset.studentReset);
+  }));
+  $all('[data-student-archive]').forEach(btn => btn.addEventListener('click', () => {
+    closeMenus();
+    const sid = btn.dataset.studentArchive;
+    const s = Data.student(sid);
+    const archived = !!(s && s.status === 'archived');
+    askSensitiveConfirm(
+      archived ? 'Restore student' : 'Archive student',
+      archived
+        ? `${s.name} will be able to sign in again. Their records stay in the database.`
+        : `${s.name} will no longer be able to sign in, but their academic records are kept — you can still open every past report.`,
+      async () => {
+        await Data.setStudentStatus(sid, archived ? 'active' : 'archived', archived ? null : 'archived', { userId: currentUser.id });
+        renderPeopleTab($q('#people-tabs .tab-btn.active')?.dataset.tab || 'staff');
+        toast(archived ? `${s.name} restored.` : `${s.name} archived.`);
+      });
   }));
 }
 
@@ -445,8 +708,18 @@ async function saveUserFromForm() {
   const pw    = $('nu-password').value.trim();
   const phone = $('nu-phone').value.trim();
 
-  if (!name || !email || !pw) {
-    feedback.textContent = 'Name, email and password are required.';
+  if (!name || !email) {
+    feedback.textContent = 'Name and email are required.';
+    feedback.className = 'form-feedback error mt8';
+    return;
+  }
+  if (!_editingUserId && !pw) {
+    feedback.textContent = 'A password is required for a new account.';
+    feedback.className = 'form-feedback error mt8';
+    return;
+  }
+  if (pw && pw.length < 6) {
+    feedback.textContent = 'Use at least 6 characters for the password.';
     feedback.className = 'form-feedback error mt8';
     return;
   }
@@ -461,7 +734,7 @@ async function saveUserFromForm() {
     return;
   }
   if (_editingUserId) {
-    const done = Data.updateUser(_editingUserId, { name, phone, role, password: pw });
+    const done = Data.updateUser(_editingUserId, { name, phone, role, ...(pw ? { password: pw } : {}) });
     closeModal('add-user-modal');
     toast(`${name} updated.`);
     renderPeopleTab($q('#people-tabs .tab-btn.active')?.dataset.tab || 'staff');
@@ -513,7 +786,7 @@ function renderPeopleTab(tab) {
 
   if (tab === 'staff') {
     const staff = Data.users().filter(isTeacher);
-    wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Subjects</th><th>ID</th></tr></thead><tbody>` +
+    wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Subjects</th><th>ID</th><th></th></tr></thead><tbody>` +
       staff.map(u => {
         const subs = [...new Set(myTeacherSubjectsOf(u.id).map(ts => Data.subject(ts.subjectId)?.code).filter(Boolean))];
         return `<tr>
@@ -523,8 +796,10 @@ function renderPeopleTab(tab) {
           <td class="muted-cell">${esc(u.email)}</td>
           <td class="muted-cell">${esc(subs.slice(0, 3).join(', ') || '—')}${subs.length > 3 ? ` +${subs.length - 3}` : ''}</td>
           <td class="muted-cell">${u.id}</td>
+          <td><button class="btn-sm-save" data-reset-pw="${u.id}">Reset password</button></td>
         </tr>`;
       }).join('') + '</tbody></table>';
+    bindResetPasswordButtons();
 
   } else if (tab === 'students-all') {
     wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Class</th><th>Admission no</th><th>Mentor</th><th>Avg</th><th>Status</th><th></th></tr></thead><tbody>` +
@@ -533,7 +808,7 @@ function renderPeopleTab(tab) {
         const status = Academic.promotionStatus(s.id, term);
         const mentor = Data.mentor(s.mentorId);
         return `<tr>
-          <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+          <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}${s.status === 'archived' ? ' <span class="status repeat">Archived</span>' : ''}</div></td>
           <td>${esc(Data.cls(s.classId)?.name || '—')}</td>
           <td class="muted-cell">${esc(s.admissionNo || '—')}</td>
           <td class="muted-cell">${esc(mentor?.name || 'No mentor')}</td>
@@ -562,12 +837,65 @@ function renderPeopleTab(tab) {
       $('nu-name').value = p.name;
       $('nu-email').value = p.email;
       $('nu-phone').value = p.phone || '';
-      $('nu-password').value = p.password || '';
+      $('nu-password').value = ''; // hashed — leave blank to keep the current one
       $('nu-role').value = p.role;
       syncPersonForm();
       openModal('add-user-modal');
     }));
   }
+}
+
+// ── Password reset ───────────────────────────────────────────
+// Who may reset: an Administrator resets staff (or anyone); a Class
+// Teacher resets students in their own class. Data.resetPassword
+// enforces the same rule.
+let _resetUserId = null;
+
+function bindResetPasswordButtons() {
+  $all('[data-reset-pw]').forEach(btn => btn.addEventListener('click', () => {
+    openResetPasswordModal(btn.dataset.resetPw);
+  }));
+}
+
+function openResetPasswordModal(userId) {
+  const user = Data.user(userId);
+  if (!user) return;
+  _resetUserId = userId;
+  $('rp-eyebrow').textContent    = user.role;
+  $('rp-title').textContent      = `Reset password · ${user.name}`;
+  $('rp-sub').textContent        = `You can safely make up a new password — the old one stops working immediately.`;
+  $('rp-feedback').textContent   = '';
+  $('rp-password').value = '';
+  $('rp-confirm').value = '';
+  openModal('reset-password-modal');
+  setTimeout(() => $('rp-password').focus(), 0);
+}
+
+function bindResetPasswordModal() {
+  $('rp-generate-btn').addEventListener('click', () => {
+    const pw = Data.generateTempPassword();
+    $('rp-password').value = pw;
+    $('rp-confirm').value  = pw;
+    $('rp-feedback').textContent = '';
+  });
+  $('save-reset-btn').addEventListener('click', async () => {
+    const pw1  = $('rp-password').value.trim();
+    const pw2  = $('rp-confirm').value.trim();
+    const fb   = $('rp-feedback');
+    fb.textContent = '';
+    if (!pw1) { fb.textContent = 'Enter a new password.';                 fb.className = 'form-feedback error mt8'; return; }
+    if (pw1.length < 6) { fb.textContent = 'Use at least 6 characters.'; fb.className = 'form-feedback error mt8'; return; }
+    if (pw1 !== pw2) { fb.textContent = 'The passwords do not match.';    fb.className = 'form-feedback error mt8'; return; }
+    const target = Data.user(_resetUserId);
+    const result = await Data.resetPassword(_resetUserId, pw1, currentUser);
+    if (!result) {
+      fb.textContent = 'You do not have permission to reset this account.';
+      fb.className = 'form-feedback error mt8';
+      return;
+    }
+    closeModal('reset-password-modal');
+    toast(`Password reset for ${target?.name || 'that account'}.`);
+  });
 }
 
 function myTeacherSubjectsOf(teacherId) {
@@ -681,7 +1009,7 @@ function syncClassForm() {
 
 function openClassStudentsModal(classId) {
   const cl       = Data.cls(classId);
-  const students = Data.studentsByClass(classId);
+  const students = Data.studentsByClass(classId).filter(s => s.status !== 'archived');
   const term     = currentTerm();
   $('class-students-title').textContent = `${cl?.name} — Students`;
   $('class-students-table-wrap').innerHTML = students.length
@@ -726,7 +1054,14 @@ function openClassTeacherModal(classId) {
       return;
     }
     closeModal('class-teacher-modal');
-    toast(teacherId ? `${Data.user(teacherId)?.name} is now the class teacher of ${klass.name}.` : 'Class teacher removed.');
+    const freed = teacherId
+      ? Data.classes().find(c => c.id !== klass.id && String(c.classTeacherId) === String(teacherId))
+      : null;
+    toast(teacherId
+      ? (freed
+          ? `${Data.user(teacherId)?.name} now leads ${klass.name} (was the teacher of ${freed.name}).`
+          : `${Data.user(teacherId)?.name} is now the class teacher of ${klass.name}.`)
+      : 'Class teacher removed.');
     renderAdminClasses();
     // The local cache is updated synchronously; the database write
     // settles in the background.
@@ -844,7 +1179,7 @@ function renderAdminTimetable(preselectClassId = null) {
        </div>
        <p class="role-muted" style="margin-top:10px">Generated without booking any teacher into two classes at the same period.</p>
        ${result.schedules.map(s => `<div class="tt-class-block">
-            <div class="tt-class-head"><strong>${esc(s.name)}</strong> ${levelTag(s.level)} ${streamTag(s.stream)}</div>
+            <div class="tt-class-head"><strong>${esc(s.name)}</strong> ${levelTag(s.level)} ${streamTag(s.stream)}<span class="muted-cell" style="margin-left:8px;font-size:12px">📍 ${esc(s.room || '—')}</span></div>
             ${timetableTable(s)}
           </div>`).join('')}
         ${result.absent.length ? `<p class="form-feedback error mt8">No teacher is allocated to any subject for: ${esc(result.absent.join(', '))}</p>` : ''}
@@ -854,9 +1189,9 @@ function renderAdminTimetable(preselectClassId = null) {
            </div>` : ''}
        </div>`;
     $('tt-download-all').onclick = () => {
-      const rows = [['Class', 'Day', 'Period', 'Time', 'Subject', 'Teacher']];
+      const rows = [['Class', 'Room', 'Day', 'Period', 'Time', 'Subject', 'Teacher']];
       result.schedules.forEach(s => s.days.forEach(d => d.periods.forEach(p => {
-        rows.push([s.name, d.day, p.period, p.time, p.subject, p.teacher]);
+        rows.push([s.name, s.room || '—', d.day, p.period, p.time, p.subject, p.teacher]);
       })));
       downloadCsv(`school_timetable_term${currentTerm()}.csv`, rows);
     };
@@ -940,6 +1275,49 @@ function renderAdminAnalytics() {
         <td><span class="status ${rc}">${rate}%</span></td>
       </tr>`;
     }).join('');
+
+    // Attendance performance — the daily marks uploaded by a class teacher
+    $('analytics-attendance').innerHTML = students.map(s => {
+      const wks   = Data.studentAttendance(s.id, term);
+      const cells = ['W1', 'W2', 'W3', 'W4'].map(w => `<td>${Number(wks[w]) || 0}/5</td>`).join('');
+      const pct   = +Academic.attendancePct(s.id, term);
+      const rating = pct >= 90 ? 'Excellent' : pct >= 75 ? 'Good' : pct >= 60 ? 'Fair' : 'At risk';
+      const rc     = pct >= 90 ? 'promoted' : pct >= 75 ? 'review' : 'repeat';
+      return `<tr>
+        <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+        ${cells}<td><strong>${pct}%</strong></td>
+        <td><span class="status ${rc}">${rating}</span></td>
+      </tr>`;
+    }).join('');
+
+    // Mid-term report — only the CA test scores actually uploaded appear;
+    // exam marks and unpublished gaps are never guessed.
+    const mb = Data.session().midtermBreak || {};
+    $('midterm-break-label').textContent = (mb.start || mb.end)
+      ? `${mb.start ? formatDate(mb.start) : '—'} → ${mb.end ? formatDate(mb.end) : '—'}`
+      : 'not set';
+    const subs  = Academic.classSubjects(classId);
+    const mrows = students.map(s => {
+      const sc   = Data.studentScores(s.id);
+      const cas  = subs.map(sub => { const e = sc[sub.id]?.[term]; return (e && Number.isFinite(e.test)) ? e.test : ''; });
+      const nums = cas.filter(v => v !== '');
+      const avg  = nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : '';
+      return { s, cas, avg };
+    });
+    $('midterm-report-head').innerHTML =
+      `<tr><th>Student</th>${subs.map(sub => `<th>${esc(sub.name)}</th>`).join('')}<th>Avg (CA)</th></tr>`;
+    $('midterm-report-body').innerHTML = mrows.map(r => `<tr>
+      <td><div class="student"><span class="student-avatar ${toneClass(r.s.tone)}">${r.s.initials}</span>${esc(r.s.name)}</div></td>
+      ${r.cas.map(c => `<td>${c === '' ? '<span class="muted-cell">—</span>' : c}</td>`).join('')}
+      <td><strong>${r.avg === '' ? '—' : r.avg + ' / 40'}</strong></td>
+    </tr>`).join('');
+    $('midterm-download-btn').onclick = () => {
+      const rows = [[`Happy Man Academy — ${cl?.name || ''} mid-term report · Term ${term}`],
+                    ['Student ID', 'Student', ...subs.map(x => x.name), 'Avg (CA only)']];
+      mrows.forEach(r => rows.push([r.s.id, r.s.name, ...r.cas, r.avg]));
+      downloadXlsx(`midterm_${cl?.name.replace(/\s+/g, '_') || 'class'}_term${term}.xlsx`, rows, `Mid-term · Term ${term}`);
+      toast('Mid-term report downloaded.');
+    };
   }
   draw();
   classSel.onchange = draw;
@@ -951,6 +1329,8 @@ function renderAdminSetup() {
   const sess = Data.session();
   $('setup-session-name').value = sess.name;
   $('setup-term').value = sess.currentTerm;
+  $('setup-break-start').value = sess.midtermBreak?.start || '';
+  $('setup-break-end').value   = sess.midtermBreak?.end   || '';
   updateUploadLabels(sess);
   renderSetupEventsList();
 
@@ -960,6 +1340,10 @@ function renderAdminSetup() {
     const s = Data.session();
     s.name = $('setup-session-name').value.trim() || s.name;
     s.currentTerm = +$('setup-term').value;
+    s.midtermBreak = {
+      start: $('setup-break-start').value || s.midtermBreak?.start || null,
+      end:   $('setup-break-end').value   || s.midtermBreak?.end   || null
+    };
     Data.saveSession(s);
     $('sidebar-session').textContent = `${s.name} · Term ${s.currentTerm}`;
     const termBadge = $('admin-term-badge');
@@ -975,6 +1359,19 @@ function renderAdminSetup() {
     renderSetupEventsList();
     toast('Event added.');
   };
+
+  // End of session — only when the final term's results are published.
+  const gate = Data.promotionsGate();
+  const ssBtn = $('start-session-btn'), ssNote = $('start-session-note');
+  if (gate.open) {
+    ssNote.textContent = `Close ${sess.name} and open ${Data.nextSessionLabel()}. Final promotion records are written for all active students, then a fresh session with three empty terms starts. This cannot be undone.`;
+    ssBtn.disabled = false;
+    ssBtn.onclick = () => askSensitiveConfirm('Start the next academic session',
+      `Close ${sess.name} (Term ${gate.term} results are published) and open ${Data.nextSessionLabel()}. Promotion records for every active student are written, the session is marked closed, and a new session with three empty terms begins. This cannot be undone.`,
+      runStartNewSession);
+  } else {
+    ssNote.textContent = gate.reason;
+  }
 
   // Term dates are read-only here; they are maintained in the database.
   $('term-dates-list').innerHTML = sess.terms.map(t =>
@@ -1000,6 +1397,613 @@ function renderSetupEventsList() {
       <span class="event-dot event-${ev.type}"></span>
       <div><strong>${esc(ev.title)}</strong><small>${formatDate(ev.date)} · ${esc(ev.note || '')}</small></div>
     </div>`).join('') || '<p class="muted-cell">No events yet.</p>';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ADMIN · PROGRESSION & PLACEMENT
+//  Decisions are always previewed first; committing, placing and
+//  closing the pool go through a password check. Everything is a
+//  best-effort client write mirroring the usual app pattern.
+// ══════════════════════════════════════════════════════════════
+let _prRows = [];          // last dry-run decision rows
+let _sensitiveRun = null;  // action queued behind the password confirm
+let _placementId = null;   // student id being placed from the pool
+
+function prDecisionRows() {
+  return Data.students()
+    .filter(s => s.status === 'active')
+    .map(s => {
+      const d = Progression.decision(s.id);
+      const cls = Data.cls(s.classId);
+      const next = d.outcome === 'pooled'
+        ? Progression.poolClassName()
+        : d.outcome === 'promoted'
+          ? (Progression.classAfter(s.classId) ? Data.classNameOf(Progression.classAfter(s.classId)) : '—')
+        : d.outcome === 'graduated'
+          ? '— (graduates)'
+        : d.outcome === 'repeat'
+          ? `Repeats ${cls?.name || 'year'}`
+        : '—';
+      return { id: s.id, name: s.name, classId: s.classId, className: cls?.name || '—', decision: d, next };
+    });
+}
+
+function renderProgressionDecisions() {
+  const gate = Data.promotionsGate();
+  if (!gate.open) {
+    _prRows = [];
+    $('pr-summary-badge').textContent = '—';
+    $('pr-note').textContent = gate.reason;
+    $('pr-decisions-table').innerHTML =
+      `<tr><td colspan="7" class="muted-cell">${esc(termNameOf(gate.term))} results have to be published before any student is marked promoted. Publish them above to close the session and unlock the decisions.</td></tr>`;
+    return;
+  }
+  const rows = prDecisionRows();
+  _prRows = rows;
+  const counts = {};
+  rows.forEach(r => { counts[r.decision.outcome] = (counts[r.decision.outcome] || 0) + 1; });
+  $('pr-summary-badge').textContent = rows.length
+    ? `${rows.length} students · ${counts.promoted || 0} promote · ${counts.pooled || 0} to pool · ${counts.graduated || 0} graduate · ${counts.repeat || 0} repeat`
+    : 'No active students';
+  $('pr-note').textContent = rows.length
+    ? 'Preview only. Commit writes the promotion records and moves pooled students into the Grade 10 Pool.'
+    : 'Nothing to evaluate yet — add students and enter scores first.';
+  $('pr-decisions-table').innerHTML = rows.map(r => {
+    const d = r.decision, ch = d.check || {};
+    const chip = d.outcome === 'promoted' ? '<span class="status promoted">Promote</span>'
+      : d.outcome === 'pooled' ? '<span class="status review">Pool</span>'
+      : d.outcome === 'graduated' ? '<span class="status promoted">Graduate</span>'
+      : '<span class="status repeat">Repeat</span>';
+    const hint = d.outcome === 'repeat' && d.reason === 'no_marks' ? '<small class="muted-cell"> no marks</small>' : '';
+    const override = Progression.overrideOf(r.id);
+    const overrideTag = override
+      ? `<small class="muted-cell">admin → ${override.decision}</small>`
+      : '';
+    return `<tr>
+      <td><strong>${esc(r.name)}</strong></td>
+      <td>${esc(r.className)}</td>
+      <td>${ch.english ?? '—'}</td>
+      <td>${ch.maths ?? '—'}</td>
+      <td>${ch.avg ?? '—'}</td>
+      <td>${chip}${hint}${overrideTag}</td>
+      <td>${esc(r.next)}</td>
+      <td class="role-row-actions" style="white-space:nowrap">
+        ${override
+          ? `<button class="btn-sm-outline" data-clear-override="${r.id}" title="Revert to the rule">↩ Clear</button>`
+          : `<button class="btn-sm-save" data-override="${r.id}" ${d.outcome === 'repeat' || d.outcome === 'promoted' ? '' : 'disabled'} title="Manually promote a student below the line">Manual</button>`}
+        <button class="btn-sm-outline" data-passport="${r.id}" title="Print the Student Achievement Passport">Passport</button>
+      </td>
+    </tr>`;
+  }).join('');
+  $all('#pr-decisions-table [data-override]').forEach(btn => btn.addEventListener('click', () => {
+    const row = _prRows.find(x => x.id === btn.dataset.override); if (!row) return;
+    askSensitiveConfirm('Manually promote this student?',
+      `${row.name} fell below the 50-mark line, but as Administrator you can still promote them. The manual decision overrides the automatic rule for this session. Confirm with your password.`,
+      () => runSetOverride(row.id, 'promoted', 'Manual promotion by admin'));
+  }));
+  $all('#pr-decisions-table [data-clear-override]').forEach(btn => btn.addEventListener('click', () => {
+    const row = _prRows.find(x => x.id === btn.dataset.clearOverride); if (!row) return;
+    askSensitiveConfirm('Revert to the automatic rule?',
+      `${row.name}'s manual decision will be removed and the ${passMark()}-mark rule will apply again for this session.`,
+      () => runClearOverride(row.id));
+  }));
+  $all('#pr-decisions-table [data-passport]').forEach(btn => btn.addEventListener('click', () => {
+    renderPassport(btn.dataset.passport);
+  }));
+}
+
+async function runSetOverride(studentId, decision, reason) {
+  await Progression.setOverride(studentId, decision, reason, currentUser.id);
+  renderProgressionDecisions();
+  toast('Manual decision recorded — the override wins for this session.');
+}
+
+async function runClearOverride(studentId) {
+  await Progression.clearOverride(studentId);
+  renderProgressionDecisions();
+  toast('Override removed.');
+}
+
+async function runProgressionCommit() {
+  const gate = Data.promotionsGate();
+  if (!gate.open) { toast(gate.reason, 'error'); return; }
+  if (!_prRows.length) renderProgressionDecisions();
+  const rows = _prRows;
+  const poolId = Progression.poolClass()?.id || null;
+  for (const r of rows) {
+    const d = r.decision, ch = d.check || {};
+    await Progression.snapshotPromotions([{
+      studentId: r.id, fromClassId: r.classId,
+      toClassId: d.outcome === 'pooled' ? poolId : d.outcome === 'promoted' ? Progression.classAfter(r.classId) : null,
+      outcome:   d.outcome,
+      avg:       ch.avg ?? null, en: ch.english ?? null, ma: ch.maths ?? null
+    }]);
+    if (d.outcome === 'pooled' && poolId) {
+      await Progression.assignClass(r.id, poolId, { reason: 'pool_placement', note: 'End-of-session promotion', userId: currentUser.id });
+    } else if (d.outcome === 'promoted') {
+      const next = Progression.classAfter(r.classId);
+      if (next) await Progression.assignClass(r.id, next, { reason: 'promotion', note: 'Met the promotion rule', userId: currentUser.id });
+    }
+  }
+  renderProgressionDecisions();
+  renderProgressionPool();
+  toast('Promotion decisions committed.');
+}
+
+function renderProgressionPool() {
+  const entrants = Progression.poolEntrants();
+  $('pr-pool-table').innerHTML = entrants.length ? entrants.map(s => `
+    <tr>
+      <td><strong>${esc(s.name)}</strong></td>
+      <td>${esc(s.admissionNo || '—')}</td>
+      <td><button class="outline-button" data-place="${s.id}">Place in track</button></td>
+    </tr>`).join('')
+    : `<tr><td colspan="3" class="muted-cell">${Progression.poolClass() ? 'No entrants in the pool right now.' : 'No pool class configured yet (set one class to selection mode "pool").'}</td></tr>`;
+  $all('#pr-pool-table [data-place]').forEach(btn => btn.addEventListener('click', () => openPlacementModal(btn.dataset.place)));
+  const closeBtn = $('pr-close-pool-btn');
+  closeBtn.disabled = !entrants.length;
+}
+
+function openPlacementModal(studentId) {
+  const s = Data.student(studentId); if (!s) return;
+  _placementId = String(studentId);
+  let targets = Data.classes().filter(c => c.level === 'SS' && c.year === 10 && c.stream && c.selectionMode !== 'pool');
+  if (!targets.length) targets = Data.classes().filter(c => c.level === 'SS' && c.stream && c.selectionMode !== 'pool');
+  $('pl-student').textContent = `${s.name} · ${Data.cls(s.classId)?.name || 'Grade 10 Pool'}`;
+  $('pl-eyebrow').textContent = `Picks the senior subject list of the chosen track.`;
+  $('pl-class').innerHTML = targets.length
+    ? targets.map(c => `<option value="${c.id}">${esc(c.name)} · ${esc(c.stream)}</option>`).join('')
+    : '<option value="">— No track classes available —</option>';
+  $('pl-note').value = ''; $('pl-password').value = '';
+  const f = $('pl-feedback'); f.textContent = ''; f.hidden = true;
+  openModal('place-student-modal');
+}
+
+async function runPlacement() {
+  const f = $('pl-feedback');
+  if (!Data.passwordMatches(currentUser, $('pl-password').value)) {
+    f.textContent = 'That password is not right for this account.'; f.hidden = false; return;
+  }
+  const to = $('pl-class').value;
+  if (!to) { f.textContent = 'Choose a target class first.'; f.hidden = false; return; }
+  closeModal('place-student-modal');
+  await Progression.assignClass(Data.student(_placementId).id, to, {
+    reason: 'pool_placement', note: $('pl-note').value.trim(), userId: currentUser.id });
+  toast('Student placed in their track class.');
+  renderProgressionDecisions(); renderProgressionPool();
+}
+
+async function runClosePool() {
+  const n = await Progression.closePool(currentUser.id);
+  renderProgressionPool(); renderProgressionDecisions();
+  toast(n ? `${n} unplaced entrant(s) marked inactive.` : 'Nothing to close.');
+}
+
+async function runStartNewSession() {
+  const next = await Data.startNewSession({ userId: currentUser.id });
+  if (!next) { toast('Publish the final term results before starting the next session.', 'error'); return; }
+  toast(`Started ${next.name}. Reloading…`);
+  setTimeout(() => location.reload(), 600);
+}
+
+function termCoverageProgression(term) {
+  const cov = Progression.coverage(term);
+  let entered = 0, total = 0;
+  Object.values(cov).forEach(cl => cl.subjects.forEach(s => { entered += s.entered; total += s.total; }));
+  return total ? Math.round(entered / total * 100) : 100;
+}
+
+function termNameOf(term) {
+  return Data.session().terms.find(t => t.term === Number(term))?.name || `Term ${term}`;
+}
+function resultsLockedNote(term) {
+  return `<span class="status review">Locked</span> &nbsp;${esc(termNameOf(term))} results have not been released yet — check back after the school publishes them.`;
+}
+
+function renderProgressionPublish() {
+  const el = $('pr-publish-form');
+  el.innerHTML = Data.session().terms.map(t => {
+    const pct  = termCoverageProgression(t.term);
+    const isPub = Data.published(t.term);
+    const state = isPub ? 'Published' : pct >= 100 ? 'Ready to publish' : `Waiting on ${Math.min(100, 100 - pct)}% of classes`;
+    return `<div class="form-group">
+      <label>${esc(t.name)}</label>
+      <div class="toggle-row">
+        <span class="${isPub ? 'open-label' : pct >= 100 ? 'closed-label' : 'closed-label'}">${state}</span>
+        <button class="btn-primary" data-publish="${t.term}" ${isPub ? 'data-unpublish=""' : ''} ${isPub || pct >= 100 ? '' : 'disabled'}>${isPub ? 'Unpublish' : 'Publish'}</button>
+      </div>
+    </div>`;
+  }).join('');
+  $all('#pr-publish-form [data-publish]').forEach(btn => btn.addEventListener('click', async () => {
+    const term = +btn.dataset.publish;
+    const on = !('unpublish' in btn.dataset);
+    await Progression.setTermPublished(term, on, currentUser.id);
+    renderProgressionPublish();
+    toast(on ? `Term ${term} results published.` : `Term ${term} results taken offline.`);
+  }));
+}
+
+async function renderProgressionPositions() {
+  const term = +$('pr-pos-term').value;
+  const rows = await Progression.positions(term);
+  const sorted = [...rows].sort((a, b) => a.yearPosition - b.yearPosition || a.classPosition - b.classPosition);
+  $('pr-positions-table').innerHTML = sorted.length ? sorted.map((r, i) => {
+    const s = Data.student(r.studentId), cl = Data.cls(r.classId);
+    return `<tr>
+      <td>${i + 1}</td>
+      <td><strong>${esc(s?.name || '—')}</strong></td>
+      <td>${esc(cl?.name || '—')}</td>
+      <td>${r.classPosition}</td>
+      <td>${r.yearPosition}</td>
+      <td>${r.termAvg ?? '—'}</td>
+      <td>${r.sessionAvg ?? '—'}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="7" class="muted-cell">No positions yet for this term.</td></tr>';
+}
+
+function renderProgressionApprovals() {
+  const list = $('pr-approvals-list');
+  const rows = Progression.approvalsFor();
+  list.innerHTML = rows.length ? rows.map(a => {
+    const who = a.requestedBy ? Data.user(a.requestedBy) : null;
+    const action = String(a.actionType || 'approve').replace(/_/g, ' ');
+    return `<div class="event-mini-row">
+      <span class="event-dot event-academic"></span>
+      <div><strong>${esc(a.note || action)}</strong>
+      <small>${esc(action)} · ${esc(a.entityType || '')}${who ? ' · requested by ' + esc(who.name) : ''} · ${formatDate(a.at)}</small></div>
+      <span class="role-row-actions">
+        <button class="outline-button" data-approval-ok="${a.id}">Approve</button>
+        <button class="outline-button" data-approval-no="${a.id}">Reject</button>
+      </span>
+    </div>`;
+  }).join('') : '<p class="muted-cell">Nothing awaiting your decision.</p>';
+  $all('[data-approval-ok]').forEach(b => b.addEventListener('click', async () => {
+    await Progression.decideApproval(b.dataset.approvalOk, true, currentUser.id);
+    renderProgressionApprovals(); toast('Request approved.');
+  }));
+  $all('[data-approval-no]').forEach(b => b.addEventListener('click', async () => {
+    await Progression.decideApproval(b.dataset.approvalNo, false, currentUser.id);
+    renderProgressionApprovals(); toast('Request rejected.');
+  }));
+}
+
+function readDayStructureBreaks() {
+  return [...$all('#dstr-breaks-editor .form-row')].map(row => ({
+    after:   Number(row.querySelector('[data-break="after"]')?.value)  || 3,
+    minutes: Number(row.querySelector('[data-break="minutes"]')?.value) || 15,
+    label:   row.querySelector('[data-break="label"]')?.value.trim() || 'Break'
+  }));
+}
+
+function renderDayStructureBreaks(breaks) {
+  $('dstr-breaks-editor').innerHTML = (breaks || []).length ? breaks.map((b, i) => `
+    <div class="form-row tight mt8">
+      <span class="role-muted" style="align-self:center">Break ${i + 1}</span>
+      <input type="number" min="1" max="9" style="width:70px" data-break="after" value="${Number(b.after) || 3}" aria-label="After period">
+      <input type="number" style="width:80px" data-break="minutes" value="${Number(b.minutes) || 15}" aria-label="Minutes">
+      <input data-break="label" value="${esc(b.label || 'Break')}" style="flex:1" aria-label="Label">
+      <button class="outline-button" data-break-remove style="width:auto;margin:0">✕</button>
+    </div>`).join('') : '<p class="muted-cell">No breaks — add some by hand or restore the defaults.</p>';
+  $all('[data-break-remove]').forEach(btn => btn.addEventListener('click', () => {
+    const row = btn.closest('.form-row'); if (row) row.remove();
+  }));
+}
+
+function initDayStructureForm() {
+  const s = Data.ttSettings() || Timetable.DAY_DEFAULTS;
+  $('dstr-periods').value = s.periods;
+  $('dstr-start').value   = s.start;
+  $('dstr-minutes').value = s.periodMinutes || s.minutes;
+  $('dstr-reset-breaks').checked = false;
+  renderDayStructureBreaks(s.breaks);
+}
+
+function bindDayStructureForm() {
+  $('dstr-reset-breaks').addEventListener('change', () => {
+    renderDayStructureBreaks($('dstr-reset-breaks').checked ? Timetable.DAY_DEFAULTS.breaks : (Data.ttSettings()?.breaks || []));
+  });
+  $('save-day-structure-btn').addEventListener('click', async () => {
+    const f = $('dstr-feedback');
+    const periods = +$('dstr-periods').value, minutes = +$('dstr-minutes').value;
+    const start = ($('dstr-start').value || '08:00').trim();
+    if (!periods || periods < 4 || periods > 9) { f.textContent = 'Periods per day must be between 4 and 9.'; f.hidden = false; return; }
+    if (!minutes || minutes < 20 || minutes > 90) { f.textContent = 'Period length must be between 20 and 90 minutes.'; f.hidden = false; return; }
+    const breaks = $('dstr-reset-breaks').checked
+      ? Timetable.DAY_DEFAULTS.breaks
+      : readDayStructureBreaks();
+    await Data.saveTimetableSettings({ periods, start, minutes, breaks }, currentUser.id);
+    f.hidden = true;
+    initDayStructureForm();
+    toast('Day structure saved. Regenerate the timetable on the Timetable page.');
+  });
+}
+
+function askSensitiveConfirm(title, message, run) {
+  _sensitiveRun = run;
+  $('sc-title').textContent    = title;
+  $('sc-message').textContent  = message;
+  $('sc-password').value       = '';
+  const f = $('sc-feedback'); f.textContent = ''; f.hidden = true;
+  openModal('sensitive-confirm-modal');
+}
+
+function renderAdminProgression() {
+  renderProgressionDecisions();
+  renderProgressionPool();
+  renderProgressionPublish();
+  renderProgressionApprovals();
+  initDayStructureForm();
+  const posSel = $('pr-pos-term');
+  posSel.value = currentTerm();
+  renderProgressionPositions();
+
+  $('pr-dryrun-btn').addEventListener('click', () => { renderProgressionDecisions(); toast('Preview refreshed — nothing written.'); });
+  $('pr-commit-btn').addEventListener('click', () => {
+    if (!_prRows.length) renderProgressionDecisions();
+    const gate = Data.promotionsGate();
+    if (!gate.open) { toast(gate.reason, 'error'); return; }
+    const counts = {};
+    _prRows.forEach(r => { counts[r.decision.outcome] = (counts[r.decision.outcome] || 0) + 1; });
+    askSensitiveConfirm('Commit promotion decisions',
+      `${_prRows.length} active student(s). ${counts.promoted || 0} promoted to the next class, ` +
+      `${counts.pooled || 0} moved into the Grade 10 Pool, ${counts.graduated || 0} graduate, ` +
+      `${counts.repeat || 0} repeat. Class assignments and promotion records are updated now — this is the end-of-session action.`,
+      runProgressionCommit);
+  });
+  $('pr-close-pool-btn').addEventListener('click', () => {
+    const n = Progression.poolEntrants().length;
+    if (!n) return;
+    askSensitiveConfirm('Close the Grade 10 Pool',
+      `${n} unplaced entrant(s) will be marked inactive in the roll. This cannot be undone.`,
+      runClosePool);
+  });
+  posSel.addEventListener('change', renderProgressionPositions);
+  $('pr-commit-btn').disabled = !Data.promotionsGate().open;
+}
+
+function bindProgressionModals() {
+  $('pl-save-btn').addEventListener('click', runPlacement);
+  $('sc-confirm-btn').addEventListener('click', async () => {
+    const f = $('sc-feedback');
+    if (!Data.passwordMatches(currentUser, $('sc-password').value)) {
+      f.textContent = 'That password is not right for this account.'; f.hidden = false; return;
+    }
+    f.hidden = true;
+    closeModal('sensitive-confirm-modal');
+    const run = _sensitiveRun; _sensitiveRun = null;
+    if (typeof run === 'function') await run();
+  });
+  bindDayStructureForm();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  GROWTH & RECOGNITION UI
+//  Reads the derived Growth values (XP, ranks, badges); the only writes
+//  are the stored records: artifacts, commendations, engagements and
+//  honors. Errors are swallowed by the writers (offline-first app).
+// ══════════════════════════════════════════════════════════════
+function xpBar(label, value, pct) {
+  const grade = value >= 300 ? 'xp-high' : value >= 100 ? 'xp-mid' : 'xp-low';
+  return `<div class="xp-row">
+    <span>${esc(label)}</span>
+    <i class="xp-track"><em class="${grade}" style="width:${Math.min(100, pct)}%"></em></i>
+    <b>${value} XP</b>
+  </div>`;
+}
+
+function renderStudentGrowth() {
+  const sid = currentUser.studentId;
+  const s   = Data.student(sid); if (!s) return;
+  const xp  = Growth.studentXp(sid);
+  const max = Math.max(xp.total, 1);
+  $('std-xp-heading').textContent = `${xp.total} XP · Level ${xp.level} · ${xp.rank}`;
+  $('std-rank-badge').textContent = `Next rank at ${xp.nextAt} XP`;
+  $('std-xp-breakdown').innerHTML =
+    xpBar('Academic consistency  (+50 per improving term)',     xp.categories.consistency,  xp.categories.consistency / max * 100) +
+    xpBar('Attendance  (+100 per 100% week)',                   xp.categories.attendance,   xp.categories.attendance / max * 100) +
+    xpBar('Co-curricular &amp; STEM  (+150 per verified artifact)', xp.categories.coCurricular, xp.categories.coCurricular / max * 100) +
+    xpBar('Leadership &amp; character  (+75 per commendation)', xp.categories.leadership,   xp.categories.leadership / max * 100);
+
+  const badges = Growth.badges(sid);
+  $('std-badges').innerHTML = badges.length
+    ? badges.map(b => `<div class="badge-chip"><span>${b.icon}</span><div><strong>${esc(b.label)}</strong><small>${esc(b.note)}</small></div></div>`).join('')
+    : '<p class="muted-cell">Complete a verified artifact or earn a perfect attendance week to unlock your first badge.</p>';
+
+  const arts = Growth.artifactsOf(sid);
+  $('std-artifacts').innerHTML = arts.length ? arts.map(a => `
+    <div class="event-mini-row">
+      <span class="event-dot ${a.status === 'verified' ? 'event-academic' : a.status === 'rejected' ? 'event-session' : 'event-other'}"></span>
+      <div><strong>${esc(a.title)}</strong><small>${esc(a.kind)}${a.note ? ' · ' + esc(a.note) : ''}</small></div>
+      <span class="status ${a.status === 'verified' ? 'promoted' : a.status === 'rejected' ? 'repeat' : 'review'}">${a.status}</span>
+    </div>`).join('') : '<p class="muted-cell">No artifacts yet — submit proof of a project, debate, sport or leadership role.</p>';
+
+  $('std-art-submit').onclick = async () => {
+    const title = $('std-art-title').value.trim();
+    if (!title) { $('std-art-feedback').textContent = 'Give the artifact a title first.'; return; }
+    await Growth.addArtifact({ studentId: sid, kind: $('std-art-kind').value, title, note: $('std-art-note').value.trim(), createdBy: currentUser.id });
+    $('std-art-title').value = ''; $('std-art-note').value = '';
+    $('std-art-feedback').textContent = 'Submitted — your class teacher will verify it.';
+    renderStudentGrowth();
+  };
+  $('std-passport-btn').onclick = () => renderPassport(sid);
+}
+
+function renderParentGuardian() {
+  const pid = currentUser.id;
+  const pp  = Growth.parentProfile(pid);
+  $('par-guard-count').textContent = `${pp.badges.length} badge${pp.badges.length !== 1 ? 's' : ''} earned`;
+  $('par-guard-note').textContent  = pp.badges.length
+    ? 'You are an engaged guardian — keep it up to lock in the incentives.'
+    : 'No guardian badges yet. Acknowledge results, attend PTA, and settle early to unlock them.';
+  $('par-guard-badges').innerHTML = pp.badges.length
+    ? pp.badges.map(b => `<div class="badge-chip"><span>${b.icon}</span><div><strong>${esc(b.label)}</strong><small>${esc(b.note)}</small></div></div>`).join('')
+    : '<p class="muted-cell">Badges appear as you engage.</p>';
+  $('par-guard-stats').innerHTML = `
+    <span class="guard-stat"><small>Logins</small><b>${pp.loginCount}</b></span>
+    <span class="guard-stat"><small>Results &amp; PTA this session</small><b>${pp.thisSessSlog}</b></span>
+    <span class="guard-stat"><small>Engagement total</small><b>${pp.engagementTotal}</b></span>
+    <span class="guard-stat"><small>Early payment</small><b>${pp.earlyPayment ? '✓' : '—'}</b></span>`;
+  $('par-ack-btn').onclick = async () => {
+    await Growth.recordParentEngagement(pid, 'ack_results');
+    renderParentGuardian(); toast('Results acknowledged — thank you for staying engaged.');
+  };
+  $('par-pta-btn').onclick = async () => {
+    await Growth.recordParentEngagement(pid, 'pta');
+    renderParentGuardian(); toast('PTA attendance recorded.');
+  };
+}
+
+// Login engagement for the parent streak — at most one per calendar day.
+function recordParentLoginIfNew() {
+  const eng = (Data.parentEngagements() || []).filter(e => e.kind === 'login' && String(e.parentId) === String(currentUser.id));
+  const last = eng.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))[0];
+  const today = new Date().toISOString().slice(0, 10);
+  if (!eng.length || String(last?.at || '').slice(0, 10) !== today) Growth.recordParentEngagement(currentUser.id, 'login');
+}
+
+// ── Student Achievement Passport (printable) ─────────────────
+function renderPassport(studentId) {
+  const sid = String(studentId);
+  const s   = Data.student(sid); if (!s) return;
+  const sess = Data.session();
+  const term = currentTerm();
+  const cl   = Data.cls(s.classId);
+  const avg  = Academic.termAverage(sid, term);
+  const att  = Academic.attendancePct(sid);
+  const xp   = Growth.studentXp(sid);
+  const badges = Growth.badges(sid);
+  const arts = Growth.artifactsOf(sid).filter(a => a.status === 'verified');
+  const mentor = Data.mentor(s.mentorId);
+  const code = Growth.passportCode(sid);
+
+  const comps = [
+    { label: 'Academic competence',        pct: Math.min(100, Math.round(avg || 0)) },
+    { label: 'Attendance & conduct',       pct: Math.min(100, Math.round(+att || 0)) },
+    { label: 'Co-curricular & STEM',       pct: Math.min(100, xp.categories.coCurricular / 150 * 100) },
+    { label: 'Leadership & character',     pct: Math.min(100, xp.categories.leadership / 75 * 100) },
+    { label: 'Resilience (improvements)',  pct: Math.min(100, xp.improvements.filter(p => p.curr > p.prev).length * 20) }
+  ];
+
+  const rows = Academic.termScores(sid, term);
+  const table = rows.length ? rows.map(sc => `
+    <tr><td class="p-subj">${esc(sc.name)}</td><td>${sc.ca ?? '—'}</td><td>${sc.exam ?? '—'}</td><td><strong>${sc.score ?? '—'}</strong></td><td>${sc.score !== null ? gradeLabel(sc.score) : '—'}</td></tr>
+  `).join('') : `<tr><td colspan="5">No recorded scores yet.</td></tr>`;
+
+  $('passport-sheet').innerHTML = `
+    <div class="p-head">
+      <div class="p-crest"><span>HMA</span><small>EST. 2012</small></div>
+      <div class="p-brand"><strong>HAPPY MAN ACADEMY</strong><span>Student Achievement Passport &middot; ${esc(sess.name)} &middot; Term ${term}</span></div>
+      <div class="p-code">Verify: <b>${esc(code)}</b></div>
+    </div>
+    <div class="p-banner">
+      <div class="avatar ${toneClass(s.tone)}">${s.initials}</div>
+      <div class="p-id">
+        <strong class="p-name">${esc(s.name)}</strong>
+        <span>${esc(cl?.name || '—')} &middot; ${esc(s.admissionNo || s.id)} &middot; System ID ${sid}</span>
+        <span>Mentor: ${esc(mentor?.name || 'Not assigned')} &middot; Guardian tier: ${s.parentId ? 'Linked' : '—'}</span>
+      </div>
+      <div class="p-snapshot">
+        <span><small>Average</small><b>${avg}%</b></span>
+        <span><small>Attendance</small><b>${att}</b></span>
+        <span><small>Level ${xp.level}</small><b>${xp.rank}</b></span>
+      </div>
+    </div>
+    <div class="p-section">
+      <h4>Term ${term} academic record — CA (40) + Exam (60) = Total (100)</h4>
+      <table class="p-table">
+        <thead><tr><th>Subject</th><th>CA</th><th>Exam</th><th>Total</th><th>Grade</th></tr></thead>
+        <tbody>${table}</tbody>
+      </table>
+    </div>
+    <div class="p-section">
+      <h4>360&deg; competencies (session)</h4>
+      ${comps.map(c => `
+        <div class="p-comp"><span>${esc(c.label)}</span>
+          <i class="xp-track"><em class="xp-mid" style="width:${c.pct}%"></em></i><b>${c.pct}%</b></div>`).join('')}
+    </div>
+    <div class="p-section">
+      <h4>Verified proof-of-work</h4>
+      <div class="p-cards">
+        ${arts.length ? arts.map(a => `
+          <div class="p-card"><strong>${a.kind}</strong><span>${esc(a.title)}</span><small>${esc(a.note || '')}</small></div>`).join('')
+          : '<span class="muted-cell">No verified artifacts this session.</span>'}
+        ${badges.length ? badges.map(b => `<div class="p-card p-badge"><strong>${b.icon} ${esc(b.label)}</strong><small>${esc(b.note)}</small></div>`).join('')
+          : ''}
+      </div>
+    </div>
+    <div class="p-footer">
+      <div class="p-qr">${esc(code.slice(-4))}</div>
+      <div class="p-foot-note">This passport is generated by Happy Man Academy and carries a session-bound verification code. Present the original document; its status is confirmed against the school register.</div>
+      <div class="p-sign"><span>Class Teacher</span><span>Principal</span></div>
+    </div>`;
+  openModal('passport-modal');
+}
+
+// ── Admin · Recognition (Educator Recognition Engine) ────────
+function renderAdminRecognition() {
+  const lb = Growth.leaderboard();
+  $('rec-leaderboard').innerHTML = lb.length
+    ? lb.map((r, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
+        const rec   = r.rec, hon = (rec.honors || []).map(h => h.kind.replace(/_/g, ' ')).join(', ');
+        return `<div class="leaderboard-row${i === 0 && rec.points > 0 ? ' lb-leader' : ''}">
+          <span class="lb-rank">${medal}</span>
+          <span class="avatar ${toneClass(r.tone)}">${r.initials || avatarInitials(r.name)}</span>
+          <div class="lb-name"><strong>${esc(r.name)}</strong>
+            <small>${rec.mentorNotes} mentor note${rec.mentorNotes !== 1 ? 's' : ''} &middot; ${rec.verifications} verified artifact${rec.verifications !== 1 ? 's' : ''}${rec.masterRegister ? ' &middot; Master Register' : ''}${hon ? ' &middot; ' + esc(hon) : ''}</small></div>
+          <b class="lb-points">${rec.points} pts</b>
+        </div>`;
+      }).join('')
+    : '<p class="muted-cell">No teacher has earned recognition points yet.</p>';
+
+  const log = [...(Data.teacherRecognitions() || []), ...(Data.parentEngagements() || [])]
+    .sort((a, b) => String(b.at || b.awardedAt || '').localeCompare(String(a.at || a.awardedAt || '')));
+  $('rec-log').innerHTML = log.length
+    ? log.slice(0, 8).map(e => {
+        const honor   = e.awardedAt !== undefined;
+        const when    = formatDate(honor ? e.awardedAt : e.at);
+        const subject = honor ? Data.user(e.teacherId) : Data.user(e.parentId);
+        const label   = `${subject?.name || '—'} · ${String(e.kind).replace(/_/g, ' ')}`;
+        return `<div class="event-mini-row">
+          <span class="event-dot ${honor ? 'event-academic' : 'event-session'}"></span>
+          <div><strong>${esc(label)}</strong><small>${esc(e.note || '')}</small></div>
+          <time>${when}</time>
+        </div>`;
+      }).join('')
+    : '<p class="muted-cell">No awards or engagements logged yet.</p>';
+
+  const teachers = Data.users().filter(isTeacher);
+  $('rec-teacher').innerHTML = teachers.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  $('rec-award-btn').onclick = async () => {
+    await Growth.recordTeacherRecognition({ teacherId: $('rec-teacher').value, kind: $('rec-kind').value, note: $('rec-note').value.trim() });
+    $('rec-note').value = '';
+    renderAdminRecognition();
+    toast('Honor awarded.');
+  };
+
+  const arts = (Data.artifacts() || []).filter(a => a.status === 'pending');
+  $('rec-portfolio').innerHTML = arts.length
+    ? arts.map(a => {
+        const stu = Data.student(a.studentId);
+        return `<tr>
+          <td><div class="student"><span class="student-avatar ${stu ? toneClass(stu.tone) : 'blue'}">${stu ? stu.initials : '?'}</span>${esc(stu?.name || a.studentId)}</div></td>
+          <td><strong>${esc(a.title)}</strong><small class="muted-cell"> ${esc(a.kind)}${a.note ? ' · ' + esc(a.note) : ''}</small></td>
+          <td><span class="status review">Pending</span></td>
+          <td class="role-row-actions">
+            <button class="btn-sm-save" data-verify="${a.id}">Verify</button>
+            <button class="btn-sm-outline" data-reject="${a.id}">Reject</button>
+          </td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="4" class="muted-cell">Nothing waiting for verification.</td></tr>';
+  $all('[data-verify]').forEach(b => b.addEventListener('click', async () => {
+    await Growth.decideArtifact(b.dataset.verify, true, currentUser.id);
+    renderAdminRecognition(); toast('Artifact verified — +150 XP credited to the student.');
+  }));
+  $all('[data-reject]').forEach(b => b.addEventListener('click', async () => {
+    await Growth.decideArtifact(b.dataset.reject, false, currentUser.id);
+    renderAdminRecognition(); toast('Artifact rejected.');
+  }));
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1088,6 +2092,70 @@ function renderSubjectDashboard() {
   $('st-report-link').onclick = hasClass(currentUser)
     ? () => { showView('view-class-report'); renderClassReport(); }
     : () => { showView('view-subject-scores'); renderSubjectScores(); };
+
+  initWeeklyTopicsComposer();
+}
+
+// ── Weekly topics — what the teacher covered, per subject/class ─
+function initWeeklyTopicsComposer() {
+  const pairs = myTeachingPairs();
+  const wrap  = $('wt-subject');
+  if (!wrap) return;
+  const noAllocation = () => {
+    $('wt-subject').innerHTML = '<option value="">No allocation</option>';
+    $('wt-class').innerHTML  = '<option value="">—</option>';
+    $('wt-list-meta').textContent = 'You need a subject/class allocation before recording weekly topics.';
+    $('wt-list').innerHTML = '';
+    $('wt-add-btn').disabled = true;
+  };
+  if (!pairs.length) { noAllocation(); return; }
+
+  const mySubjects = [...new Map(pairs.map(p => [p.subjectId, p.subject])).values()];
+  $('wt-subject').innerHTML = mySubjects.length
+    ? mySubjects.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')
+    : '<option value="">No subjects</option>';
+  $('wt-add-btn').disabled = false;
+
+  function fillClasses() {
+    const subjectId = $('wt-subject').value;
+    const classes = pairs.filter(p => String(p.subjectId) === subjectId).map(p => p.cls);
+    $('wt-class').innerHTML = classes.length
+      ? classes.map(c => `<option value="${c.id}">${esc(c.name)}${c.stream ? ' · ' + c.stream : ''}</option>`).join('')
+      : '<option value="">No classes</option>';
+  }
+
+  function drawList() {
+    const subjectId = $('wt-subject').value;
+    const classId   = $('wt-class').value;
+    const list      = Progression.topicsFor(classId, subjectId).slice(0, 15);
+    $('wt-list-meta').textContent = list.length
+      ? `${Data.subject(subjectId)?.name || 'Subject'} · ${Data.cls(classId)?.name || 'Class'} — ${list.length} topic${list.length === 1 ? '' : 's'} logged, latest week ${list[0].week}.`
+      : 'No topics recorded yet for this subject/class.';
+    $('wt-list').innerHTML = list.map(t => `<div class="topic-row">
+        <span class="subject-chip chip-${Data.subject(t.subjectId)?.color || 'blue'}">W${t.week}</span>
+        <div><strong>${esc(t.topic)}</strong><small>${esc(t.summary || Data.subject(t.subjectId)?.name || '—')}</small></div>
+      </div>`).join('') || '<p class="muted-cell">Nothing here yet &mdash; add the first topic for the week.</p>';
+  }
+
+  $('wt-subject').onchange = () => { fillClasses(); drawList(); };
+  $('wt-class').onchange   = () => drawList();
+  $('wt-add-btn').onclick  = async () => {
+    const fb = $('wt-feedback');
+    const subjectId = $('wt-subject').value, classId = $('wt-class').value;
+    const week   = Number($('wt-week').value) || 1;
+    const topic  = $('wt-topic').value.trim();
+    const summary = $('wt-summary').value.trim();
+    if (!subjectId || !classId) { fb.hidden = false; fb.textContent = 'Pick a subject and a class.'; fb.className = 'form-feedback mt8 text-danger'; return; }
+    if (!topic)  { fb.hidden = false; fb.textContent = 'Give the topic a name.'; fb.className = 'form-feedback mt8 text-danger'; return; }
+    await Progression.addWeeklyTopic({ classId, subjectId, week, topic, summary }, currentUser.id);
+    $('wt-topic').value = ''; $('wt-summary').value = '';
+    fb.hidden = false; fb.textContent = `Week ${week} topic saved for ${Data.cls(classId)?.name || 'the class'}. ✓`;
+    fb.className = 'form-feedback mt8 green-text';
+    drawList();
+  };
+
+  fillClasses();
+  drawList();
 }
 
 // ── Mentorship segment ───────────────────────────────────────
@@ -1204,11 +2272,11 @@ function renderSubjectScores() {
   draw();
 
   const dlBtn = $('st-download-xls-btn');
-  if (dlBtn) dlBtn.onclick = downloadScoreSheet;
+  if (dlBtn) dlBtn.onclick = () => downloadScoreSheet(true);
 }
 
-// Download score sheet CSV for the selected subject / class / term
-function downloadScoreSheet() {
+// Download the score sheet for the selected subject / class / term
+function downloadScoreSheet(asExcel) {
   const mine = myTeacherSubjects();
   if (!mine.length) { toast('No subjects are assigned to you.', 'error'); return; }
 
@@ -1221,12 +2289,15 @@ function downloadScoreSheet() {
   const students  = classIds.flatMap(cid => Data.studentsByClass(cid).map(s => ({ s, cid })));
 
   const rows = [[`Happy Man Academy — ${subject?.name} · Term ${term}`],
-                ['Class', 'Student ID', 'Student Name', 'CA Score (max 40)', 'Exam Score (max 60)', 'Total']];
+                ['Class', 'Student ID', 'Student Name', 'CA Score (max 40)', 'Exam Score (max 60)', 'Total', 'Feedback']];
   students.forEach(({ s, cid }) => {
     const e = Data.studentScores(s.id)[subjectId]?.[term];
-    rows.push([Data.cls(cid)?.name || '', s.id, s.name, e?.test ?? '', e?.exam ?? '', e ? e.test + e.exam : '']);
+    const fb = Data.feedback()[s.id];
+    const remark = fb && fb.term === term ? (fb.text || '') : '';
+    rows.push([Data.cls(cid)?.name || '', s.id, s.name, e?.test ?? '', e?.exam ?? '', e ? e.test + e.exam : '', remark]);
   });
-  downloadCsv(`scores_${subject?.code || 'sub'}_term${term}.csv`, rows);
+  if (asExcel) downloadXlsx(`scores_${subject?.code || 'sub'}_term${term}.xlsx`, rows, 'Scores');
+  else         downloadCsv(`scores_${subject?.code || 'sub'}_term${term}.csv`, rows);
   toast('Score sheet downloaded.');
 }
 
@@ -1274,7 +2345,7 @@ async function saveAssignment() {
 function renderClassOverview() {
   const cl = myClassRecord(currentUser);
   if (!cl) { toast('You are not assigned a class yet.', 'error'); return; }
-  const students = Data.studentsByClass(cl.id);
+  const students = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');
   const term     = currentTerm();
   const fb       = Data.feedback();
   const pending  = students.filter(s => !fb[s.id]?.submitted).length;
@@ -1304,7 +2375,10 @@ function renderClassOverview() {
         <span class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</span>
         <strong>${att}</strong>
         <span class="status ${done ? 'promoted' : 'review'}">${done ? 'Done' : 'Pending'}</span>
-        <button class="row-menu ct-att-btn" data-sid="${s.id}" title="Edit attendance">✎</button>
+        <span class="role-row-actions">
+          <button class="row-menu ct-att-btn" data-sid="${s.id}" title="Edit attendance">✎</button>
+          <button class="btn-sm-save" data-reset-pw="${s.id}" title="Reset password">Reset</button>
+        </span>
       </div>`;
     }).join('');
 
@@ -1312,6 +2386,7 @@ function renderClassOverview() {
     showView('view-class-attendance');
     renderClassAttendance(btn.dataset.sid);
   }));
+  bindResetPasswordButtons();
 
   const atRisk = students.filter(s =>
     +Academic.attendancePct(s.id) < 90 || Academic.promotionStatus(s.id, term) === 'Repeat');
@@ -1330,6 +2405,60 @@ function renderClassOverview() {
   $('ct-add-feedback-btn').onclick = () => { showView('view-class-feedback'); renderClassFeedback(); };
   $('ct-open-register-btn').onclick = () => openClassReportModal(cl.id);
   $('ct-full-report-btn').onclick   = () => { showView('view-class-report'); renderClassReport(); };
+  renderClassApprovals(cl);
+}
+
+// ── Class teacher: subject change approvals for the class ─────
+function renderClassApprovals(cl) {
+  const wrap = $('ct-approvals-list');
+  if (!wrap) return;
+  const mine = new Set(Data.studentsByClass(cl.id).map(s => s.id));
+  const rows = Progression.pendingApprovals()
+    .filter(a => a.actionType === 'subject_change' && mine.has(String(a.entityId)));
+  $('ct-approval-count').textContent = rows.length;
+
+  if (!rows.length) {
+    wrap.innerHTML = '<p class="muted-cell">No pending subject change requests for your class.</p>';
+    return;
+  }
+
+  wrap.innerHTML = rows.map(a => {
+    const st    = Data.student(a.entityId);
+    const ids   = Array.isArray(a.payload?.subjectIds) ? a.payload.subjectIds : [];
+    const names = ids.length ? ids.map(id => Data.subject(String(id))?.name || id).join(', ')
+                             : (a.payload?.summary || 'Requested a change');
+    return `<div class="approval-row">
+      <span class="student"><span class="student-avatar ${st ? toneClass(st.tone) : 'blue'}">${st ? st.initials : '?'}</span></span>
+      <div style="flex:1">
+        <strong class="twelve">${esc(st?.name || 'Student ' + a.entityId)}</strong>
+        <span class="approval-sub">${esc(names)}</span>
+      </div>
+      <span class="status review">Pending</span>
+      <span class="approval-actions">
+        <button class="btn-sm-save" data-approve="${a.id}">Approve</button>
+        <button class="btn-sm-outline" data-reject="${a.id}" title="Reject">Reject</button>
+      </span>
+    </div>`;
+  }).join('');
+
+  $all('[data-approve]').forEach(b => b.addEventListener('click', async () => {
+    const a = rows.find(r => r.id === b.dataset.approve);
+    if (!a) return;
+    const ids = Array.isArray(a.payload?.subjectIds) ? a.payload.subjectIds : [];
+    await Progression.chooseSubjects(a.entityId, ids, { status: 'effective', userId: currentUser.id });
+    await Progression.decideApproval(a.id, true, currentUser.id, 'Approved by class teacher');
+    toast(`${Data.student(a.entityId)?.name.split(' ')[0] || 'Student'}'s subjects are now effective. ✓`);
+    renderClassApprovals(cl);
+  }));
+  $all('[data-reject]').forEach(b => b.addEventListener('click', async () => {
+    const a = rows.find(r => r.id === b.dataset.reject);
+    if (!a) return;
+    const prev = Array.isArray(a.payload?.previous) ? a.payload.previous : [];
+    await Progression.chooseSubjects(a.entityId, prev, { status: 'effective', userId: currentUser.id });
+    await Progression.decideApproval(a.id, false, currentUser.id, 'Declined by class teacher');
+    toast('Change request declined; previous subjects kept.');
+    renderClassApprovals(cl);
+  }));
 }
 
 // ── Class report — every subject, the class teacher's view ───
@@ -1393,7 +2522,7 @@ function renderClassReport() {
     report.students.forEach(r => {
       rows.push([r.student.id, r.student.name, ...r.rows.map(x => x.score ?? ''), r.average, r.status]);
     });
-    downloadCsv(`class_report_${cl.name.replace(/\s+/g, '_')}_term${term}.csv`, rows);
+    downloadXlsx(`class_report_${cl.name.replace(/\s+/g, '_')}_term${term}.xlsx`, rows, `Term ${term}`);
   };
   $('cr-register-btn').onclick = () => openClassReportModal(cl.id);
   $('cr-feedback-btn').onclick = () => { showView('view-class-feedback'); renderClassFeedback(); };
@@ -1437,30 +2566,126 @@ function openClassReportModal(classId) {
       rows.push([r.student.id, r.student.name,
         ...r.rows.flatMap(x => [x.ca ?? '', x.exam ?? '']), r.average, r.status]);
     });
-    downloadCsv(`register_${klass.name.replace(/\s+/g, '_')}_term${term}.csv`, rows);
+    downloadXlsx(`register_${klass.name.replace(/\s+/g, '_')}_term${term}.xlsx`, rows, `Term ${term}`);
   };
   draw();
   openModal('class-register-modal');
 }
 
 // ── Attendance ───────────────────────────────────────────────
+const ATT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+
 function renderClassAttendance(focusSid = null) {
   const cl = myClassRecord(currentUser);
   if (!cl) { toast('You are not assigned a class yet.', 'error'); return; }
-  const students = Data.studentsByClass(cl.id);
-  const term     = currentTerm();
-  const weeks    = ['W1', 'W2', 'W3', 'W4'];
-  const att = Data.attendance(term);
+  const students = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');
+  const term = currentTerm();
+  const att  = Data.attendance(term);
 
   $('att-class-name').textContent = `${cl.name} · Term ${term}`;
 
-  function draw() {
+  // Daily register draft — { sid: { week: [status ×5] } }, normalized to 5
+  const normDay = arr => { const a = []; for (let i = 0; i < 5; i++) a[i] = (arr && arr[i]) || ''; return a; };
+  const draft = {};
+  const daily = Data.dailyAttendance(term);
+  students.forEach(s => {
+    draft[s.id] = {};
+    [1, 2, 3, 4].forEach(w => {
+      draft[s.id][w] = normDay(daily[`W${w}`] && daily[`W${w}`][String(s.id)]);
+    });
+  });
+
+  // present and late both count as attended
+  const isPresent = st => st === 'present' || st === 'late';
+
+  // Status cycle: '' → present → late → absent → present
+  const STATUS_LABELS  = { '': 'Not marked', present: 'Present', late: 'Late', absent: 'Absent' };
+  const STATUS_CLASSES = { '': 'att-unmarked', present: 'att-present', late: 'att-late', absent: 'att-absent' };
+  const nextStatus = st => ({ '': 'present', present: 'late', late: 'absent', absent: 'present' }[st] || 'present');
+
+  function dayCount(week, day) {
+    const present = students.filter(s => isPresent(draft[s.id][week][day])).length;
+    const late    = students.filter(s => draft[s.id][week][day] === 'late').length;
+    const absent  = students.filter(s => draft[s.id][week][day] === 'absent').length;
+    $('ct-day-count').textContent =
+      `${present} present${late ? ` (${late} late)` : ''} · ${absent} absent · ${students.length - present - absent} not marked`;
+  }
+
+  function drawDay() {
+    const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
+    $('ct-daily-title').textContent = `${cl.name} · ${ATT_DAYS[d]} · Week ${w}`;
+    $('ct-daily-list').innerHTML = students.map(s => {
+      const st = draft[s.id][w][d] || '';
+      return `<tr class="${s.id === focusSid ? 'att-focused' : ''}">
+        <td><div class="student">
+          <span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}
+        </div></td>
+        <td class="att-status-cell">
+          <div class="att-3state">
+            <button class="att-state-btn ${st === 'present' ? 'active-present' : ''}"
+              data-sid="${s.id}" data-status="present" title="Mark present">✓ Present</button>
+            <button class="att-state-btn ${st === 'late' ? 'active-late' : ''}"
+              data-sid="${s.id}" data-status="late" title="Mark late">⏱ Late</button>
+            <button class="att-state-btn ${st === 'absent' ? 'active-absent' : ''}"
+              data-sid="${s.id}" data-status="absent" title="Mark absent">✗ Absent</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+    dayCount(w, d);
+
+    $all('#ct-daily-list .att-state-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sid    = btn.dataset.sid;
+        const status = btn.dataset.status;
+        const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
+        // Toggle: clicking the active state clears it; clicking another sets it
+        draft[sid][w][d] = draft[sid][w][d] === status ? '' : status;
+        drawDay();
+      });
+    });
+  }
+
+  $('ct-day-week').onchange = drawDay;
+  $('ct-day-of-week').onchange = drawDay;
+  $('ct-day-week').value = 1;
+  $('ct-day-of-week').value = 0;
+
+  $('ct-all-present').onclick = () => {
+    const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
+    students.forEach(s => { draft[s.id][w][d] = 'present'; });
+    drawDay();
+  };
+
+  // Add "Mark all absent" button handler if it exists
+  const allAbsentBtn = $('ct-all-absent');
+  if (allAbsentBtn) {
+    allAbsentBtn.onclick = () => {
+      const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
+      students.forEach(s => { draft[s.id][w][d] = 'absent'; });
+      drawDay();
+    };
+  }
+
+  $('ct-save-day').onclick = async () => {
+    const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
+    const marks = {};
+    students.forEach(s => {
+      const st = draft[s.id][w][d];
+      marks[s.id] = st || 'absent'; // unmarked treated as absent on save
+    });
+    await Data.saveDailyDay(w, d, marks, term);
+    toast(`Attendance saved · ${ATT_DAYS[d]}, Week ${w}.`);
+    drawWeekly();
+  };
+
+  function drawWeekly() {
     $('ct-attendance-table').innerHTML = students.map(s => {
       const saved = Data.studentAttendance(s.id, term);
       const total = Object.values(saved).reduce((a, b) => a + b, 0);
       const pct   = Academic.attendancePct(s.id, term);
       const rowCls = s.id === focusSid ? 'att-focused' : '';
-      const inputs = weeks.map(w =>
+      const inputs = ['W1', 'W2', 'W3', 'W4'].map(w =>
         `<td><input type="number" class="att-input" min="0" max="5"
           value="${saved[w] ?? ''}" placeholder="0"
           data-sid="${s.id}" data-week="${w}"
@@ -1479,7 +2704,7 @@ function renderClassAttendance(focusSid = null) {
       const total  = [...row.querySelectorAll('.att-input')].reduce((a, i) => a + (+i.value || 0), 0);
       row.querySelector('strong').textContent = total;
       const badge  = row.querySelector('.status');
-      const pct    = Math.round((total / (weeks.length * 5)) * 100);
+      const pct    = Math.round((total / 20) * 100);
       badge.textContent = pct + '%';
       badge.className   = `status ${pct >= 90 ? 'promoted' : 'repeat'}`;
     }));
@@ -1493,17 +2718,19 @@ function renderClassAttendance(focusSid = null) {
       });
       await Data.saveAttendance(att, term);
       toast(`Attendance saved for ${Data.student(sid)?.name}.`);
-      draw();
+      drawWeekly();
+      drawDay();
     }));
   }
-  draw();
+  drawDay();
+  drawWeekly();
 }
 
 // ── Feedback ─────────────────────────────────────────────────
 function renderClassFeedback() {
   const cl = myClassRecord(currentUser);
   if (!cl) { toast('You are not assigned a class yet.', 'error'); return; }
-  const students = Data.studentsByClass(cl.id);
+  const students = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');
   const fb       = Data.feedback();
 
   $('ct-feedback-list').innerHTML = students.map(s => {
@@ -1738,10 +2965,11 @@ function renderStudentDashboard() {
   }).join('');
 
   // Promotion tracker — English, Mathematics and the overall average
+  // (each must be AT LEAST the pass mark; exactly 50 passes).
   const reqs = [
-    { label: `English ${passMark()} and above`,        met: check.enPass, value: check.english + '%' },
-    { label: `Mathematics ${passMark()} and above`,     met: check.maPass, value: check.maths + '%' },
-    { label: `Overall average ${passMark()} and above`, met: check.avgPass, value: check.avg + '%' }
+    { label: `At least ${passMark()}% in English`,     met: check.enPass, value: check.english + '%' },
+    { label: `At least ${passMark()}% in Mathematics`, met: check.maPass, value: check.maths + '%' },
+    { label: `Overall average at least ${passMark()}%`, met: check.avgPass, value: check.avg + '%' }
   ];
   const met      = reqs.filter(r => r.met).length;
   const promoted = check.pass;
@@ -1768,6 +2996,9 @@ function renderStudentDashboard() {
   $('std-mentor-card').innerHTML = mentorCard(mentor);
   $('std-view-report-btn').onclick = () => openStudentReport(sid);
   $('std-download-btn').onclick    = () => toast('Report prepared. ✓');
+
+  renderStudentSubjectsPanel();
+  renderStudentGrowth();
 }
 
 function mentorCard(mentor) {
@@ -1786,11 +3017,20 @@ function renderStudentResults() {
   const sid     = currentUser.studentId;
   if (!Data.student(sid)) { toast('This login is not linked to a student record.', 'error'); return; }
   const termSel = $('std-results-term');
-  termSel.innerHTML = Data.session().terms.map(t =>
-    `<option value="${t.term}" ${t.term === currentTerm() ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+  const cur = currentTerm();
+  // Students only see current term and past terms — never future terms
+  termSel.innerHTML = Data.session().terms
+    .filter(t => t.term <= cur)
+    .map(t => `<option value="${t.term}" ${t.term === cur ? 'selected' : ''}>${esc(t.name)}</option>`)
+    .join('');
 
   function draw() {
     const term = +termSel.value;
+    if (!Data.published(term)) {
+      $('std-results-table').innerHTML = `<tr><td colspan="7" class="muted-cell">${resultsLockedNote(term)}</td></tr>`;
+      $('std-results-meta').textContent = `${Data.session().name} · awaiting release`;
+      return;
+    }
     $('std-results-table').innerHTML = Academic.termScores(sid, term).map(sub => {
       const ca    = sub.ca ?? '—';
       const exam  = sub.exam ?? '—';
@@ -1812,12 +3052,135 @@ function renderStudentResults() {
   termSel.onchange = draw;
 }
 
+// ── Student: subject registration panel ───────────────────────
+function renderStudentSubjectsPanel() {
+  const sid = currentUser.studentId;
+  const st  = Data.student(sid);
+  const note = $('std-subjects-note');
+  const grid = $('std-subjects-list');
+  const btn  = $('std-subjects-btn');
+  if (!st || !note || !grid || !btn) return;
+
+  const year = Progression.yearOf(sid);
+  const sel  = Progression.selectionFor(sid);
+  const eff  = Progression.effectiveSubjects(sid);
+  const cl   = Data.cls(st.classId);
+
+  const topics = Progression.topicsFor(st.classId).slice(0, 5);
+  const topicBlock = topics.length
+    ? `<div class="mt16"><p class="role-muted" style="margin:0 0 6px"><strong>What's been covered</strong> · latest weekly topics in your class</p>` +
+      topics.map(t => `<div class="topic-row">
+        <span class="subject-chip chip-${Data.subject(t.subjectId)?.color || 'blue'}">W${t.week}</span>
+        <div><strong>${esc(t.topic)}</strong><small>${esc(Data.subject(t.subjectId)?.name || '')}</small></div>
+      </div>`).join('') + '</div>'
+    : '';
+
+  if (!Progression.canChoose(year)) {
+    note.textContent = 'Subject registration for this year is set by the school — your subjects appear on your report automatically.';
+    btn.hidden = true;
+    grid.innerHTML = topicBlock || '<p class="muted-cell">Junior secondary classes take the common subject list.</p>';
+    return;
+  }
+
+  if (sel && sel.status === 'pending') {
+    note.textContent = 'Your change request has been sent to your class teacher for review.';
+    btn.hidden = true;
+    grid.innerHTML =
+      `<div class="subject-results"><div><span>Requested subjects</span><b class="status review">Pending review</b></div>` +
+      sel.subjectIds.map(id => `<div><span>${esc(Data.subject(id)?.name || id)}</span><b class="muted-cell">${esc(Data.subject(id)?.type === 'core' ? 'Core' : 'Elective')}</b></div>`).join('') +
+      `</div>` + topicBlock;
+    return;
+  }
+
+  if (eff && eff.length) {
+    note.textContent = year >= 11
+      ? 'Your subjects for this term. You can request a change at any time — your class teacher will review it.'
+      : 'Your subjects for this term.';
+    btn.hidden = false;
+    btn.textContent = year >= 11 ? 'Request change' : 'Change subjects';
+    grid.innerHTML =
+      `<div class="subject-results">` +
+      eff.map(id => `<div><span>${esc(Data.subject(id)?.name || id)}</span><b>${esc(Data.subject(id)?.type === 'core' ? 'Core' : 'Elective')}</b></div>`).join('') +
+      `</div>` + topicBlock;
+    btn.onclick = openChooseSubjectsModal;
+    return;
+  }
+
+  note.textContent = `Pick your subjects for this ${Data.session().name} — you can adjust them later.`;
+  btn.hidden = false;
+  btn.textContent = 'Choose subjects';
+  grid.innerHTML = `<p class="muted-cell">No subjects chosen yet.</p>` + topicBlock;
+  btn.onclick = openChooseSubjectsModal;
+}
+
+let _csState = null;
+
+function openChooseSubjectsModal() {
+  const sid = currentUser.studentId;
+  const st  = Data.student(sid);
+  const cl  = st ? Data.cls(st.classId) : null;
+  if (!st || !cl) return;
+  const year   = Progression.yearOf(sid);
+  const subs   = Academic.classSubjects(cl.id);
+  const counts = Progression.selectionCounts() || { minTotal: 8, general: 1, stream: 5 };
+  const sel    = Progression.selectionFor(sid);
+  const cur    = (sel && sel.status !== 'pending') ? (sel.subjectIds || []) : [];
+  _csState = { sid, year, previous: cur };
+
+  $('cs-eyebrow').textContent =
+    `${st.name.split(' ')[0]}, choose from the subjects offered in the ${cl.stream ? cl.stream : cl.level} track. ` +
+    `You need at least ${counts.minTotal} subjects (${counts.general} general + ${counts.stream} stream/electives).`;
+  $('cs-rules').innerHTML = `<p class="role-muted" style="margin:0">Core subjects stay, this choice decides your remaining subjects. ` +
+    (year >= 11 ? 'Changes above this are reviewed by your class teacher before they take effect.' : 'Your choice is effective immediately.') + '</p>';
+  $('cs-list').innerHTML = subs.map(sub => {
+    const locked = sub.type === 'core' || sub.group === 'General' || (cl.stream && sub.group === cl.stream);
+    return `<label class="dept-check">
+      <input type="checkbox" value="${sub.id}" ${cur.includes(String(sub.id)) ? 'checked' : ''}>
+      <span>${subjectChip(sub)}${esc(sub.name)}</span>
+      <small class="muted-cell" style="margin-left:auto">${locked ? (sub.type === 'core' ? 'core' : sub.group) : 'elective'}</small>
+    </label>`;
+  }).join('');
+  $('cs-feedback').hidden = true;
+  $('cs-save-btn').onclick = saveChooseSubjects;
+  openModal('choose-subjects-modal');
+}
+
+async function saveChooseSubjects() {
+  const checked = [...$all('#cs-list input:checked')].map(i => i.value);
+  const counts  = Progression.selectionCounts() || { minTotal: 8 };
+  const fb      = $('cs-feedback');
+  const fail = msg => { fb.hidden = false; fb.textContent = msg; fb.className = 'form-feedback mt8 text-danger'; };
+  if (!checked.length)  { fail('Select at least one subject.'); return; }
+  if (checked.length < counts.minTotal) { fail(`Pick at least ${counts.minTotal} subjects (${checked.length} chosen so far).`); return; }
+  if (!_csState) return;
+
+  if (_csState.year >= 11) {
+    await Progression.chooseSubjects(_csState.sid, checked, { status: 'pending', userId: currentUser.id });
+    await Progression.requestApproval({
+      actionType: 'subject_change',
+      entityType: 'subject_selection',
+      entityId: _csState.sid,
+      payload: { subjectIds: checked.map(String), previous: (_csState.previous || []).map(String) },
+      summary: `${Data.student(_csState.sid)?.name.trim().split(' ').slice(0, 2).join(' ') || 'Student'} requested a subject change (${checked.length} subjects).`
+    }, currentUser.id);
+    closeModal('choose-subjects-modal');
+    toast('Change request sent to your class teacher. ✓');
+  } else {
+    await Progression.chooseSubjects(_csState.sid, checked, { status: 'effective', userId: currentUser.id });
+    closeModal('choose-subjects-modal');
+    toast('Your subjects are saved. ✓');
+  }
+  _csState = null;
+  renderStudentSubjectsPanel();
+}
+
 // ══════════════════════════════════════════════════════════════
 //  PARENT
 // ══════════════════════════════════════════════════════════════
 function renderParentDashboard() {
   const children = (currentUser.childIds || []).map(id => Data.student(id)).filter(Boolean);
   const term     = currentTerm();
+  const released = Data.published(term);
 
   $('par-eyebrow').textContent       = `Parent portal · ${children.length} child${children.length !== 1 ? 'ren' : ''} linked · ${currentUser.phone || 'no phone on file'}`;
   $('par-welcome').textContent       = `Good morning, ${currentUser.name.split(' ')[0]}.`;
@@ -1826,7 +3189,7 @@ function renderParentDashboard() {
   const atts = children.map(c => +Academic.attendancePct(c.id));
   $('par-stat-att').textContent = (atts.length ? Math.round(atts.reduce((a, b) => a + b, 0) / atts.length) : 0) + '%';
   const avgs = children.map(c => Academic.termAverage(c.id, term));
-  $('par-stat-avg').textContent    = (avgs.length ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) : 0) + '%';
+  $('par-stat-avg').textContent    = released && avgs.length ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) + '%' : '—';
   $('par-stat-events').textContent = Data.events().length;
 
   // Child cards — totals, mentor and attendance
@@ -1848,11 +3211,11 @@ function renderParentDashboard() {
         </div>
       </div>
       <div class="child-metrics">
-        <span><small>Term avg</small><b>${avg}%</b></span>
-        <span><small>CA / Exam</small><b>${check.english >= 0 ? `${Academic.termScores(s.id, term).filter(r => r.ca !== null).length} subjects` : '—'}</b></span>
+        <span><small>Term avg</small><b>${released ? avg + '%' : '—'}</b></span>
+        <span><small>CA / Exam</small><b>${released ? (check.english >= 0 ? `${Academic.termScores(s.id, term).filter(r => r.ca !== null).length} subjects` : '—') : '—'}</b></span>
         <span><small>Attendance</small><b>${att}</b></span>
-        <span class="status ${statusClass(status)}">${status}</span>
-        <button class="text-button" data-child="${s.id}">CA &amp; exam scores ↗</button>
+        <span class="status ${released ? statusClass(status) : 'review'}">${released ? status : 'Locked'}</span>
+        ${released ? `<button class="text-button" data-child="${s.id}">CA &amp; exam scores ↗</button>` : '<small class="muted-cell">Awaiting release</small>'}
       </div>
     </div>`;
   }).join('') || '<p class="muted-cell">No children are linked to this account.</p>';
@@ -1874,6 +3237,8 @@ function renderParentDashboard() {
   }
 
   renderEventsList('par-events-list', 5);
+  recordParentLoginIfNew();
+  renderParentGuardian();
 }
 
 // CA and exam split — what a parent needs to see
@@ -1881,10 +3246,16 @@ function showChildResults(studentId) {
   const s     = Data.student(studentId);
   if (!s) return;
   const term  = currentTerm();
-  const rows  = Academic.termScores(studentId, term);
   const cl    = Data.cls(s.classId);
   const check = Academic.promotionCheck(studentId, term);
 
+  if (!Data.published(term)) {
+    $('par-results-meta').textContent = `${s.name} · ${cl?.name || '—'} · ${termNameOf(term)} · awaiting release`;
+    $('par-results-table').innerHTML  = `<tr><td colspan="7" class="muted-cell">${resultsLockedNote(term)}</td></tr>`;
+    return;
+  }
+
+  const rows  = Academic.termScores(studentId, term);
   $('par-results-meta').textContent =
     `${s.name} · ${cl?.name || '—'} · Term ${term} · average ${check.avg}% · ${check.pass ? 'on track to promote' : 'needs improvement'}`;
 
@@ -1916,6 +3287,26 @@ function openStudentReport(studentId, termOverride = null) {
   const check  = Academic.promotionCheck(studentId, term);
   const mentor = Data.mentor(s.mentorId);
 
+  // Students and parents only see a term's report once the school releases it.
+  // Staff (a class teacher reviewing their own class) always sees the report.
+  const isConsumer = currentUser && (currentUser.role === 'Student' || currentUser.role === 'Parent');
+  if (isConsumer && !Data.published(term)) {
+    $('drawer-eyebrow').textContent = `Term ${term} report · ${Data.session().name}`;
+    $('drawer-name').textContent    = s.name;
+    $('drawer-meta').textContent    = `${cl?.name || '—'} · ID ${studentId} · ${esc(s.admissionNo || '')}`;
+    $('drawer-score').textContent   = '—';
+    $('drawer-status').textContent  = 'Locked';
+    $('drawer-status').className    = 'promotion-badge review';
+    $('drawer-subjects').innerHTML  = `<div class="subject-row"><div><span>${resultsLockedNote(term)}</span></div></div>`;
+    $('drawer-mentor-chip').innerHTML = mentor
+      ? `<div class="drawer-mentor-chip mt16"><span class="chip-label">Mentor</span><span class="student-avatar ${toneClass(mentor.tone)}" style="width:22px;height:22px;font-size:9px">${mentor.initials}</span><span>${esc(mentor.name)} · ${esc(mentor.subject || 'Mentor')}</span></div>` : '';
+    $('drawer-attendance').textContent = Academic.attendancePct(studentId, term);
+    const dl = $('drawer-download-btn'); dl.disabled = true; dl.onclick = null;
+    const pdf = $('drawer-pdf-btn'); if (pdf) { pdf.disabled = true; pdf.onclick = null; }
+    openDrawer();
+    return;
+  }
+
   $('drawer-eyebrow').textContent = `Term ${term} report · ${Data.session().name}`;
   $('drawer-name').textContent    = s.name;
   $('drawer-meta').textContent    = `${cl?.name || '—'} · ID ${studentId} · ${esc(s.admissionNo || '')}`;
@@ -1924,7 +3315,16 @@ function openStudentReport(studentId, termOverride = null) {
   badge.textContent = status;
   badge.className = `promotion-badge ${statusClass(status)}`;
 
-  $('drawer-subjects').innerHTML = Academic.termScores(studentId, term).map(sc => {
+  const history = Data.promotionsFor(studentId);
+  const archiveChip = s.status === 'archived'
+    ? `<div class="subject-row"><div><span class="status repeat">Archived</span><small>This student cannot sign in; every previous record is kept in the database.</small></div></div>`
+    : '';
+  const historyChips = history.length
+    ? `<div class="subject-row"><div><span>Previous sessions</span><small>${history.map(h => `${esc(h.outcome)}${h.avg != null ? ' · avg ' + h.avg + '%' : ''}`).join(' → ')}</small></div></div>`
+    : '';
+
+  $('drawer-subjects').innerHTML = archiveChip + historyChips +
+    Academic.termScores(studentId, term).map(sc => {
     const pass = (sc.score ?? 0) >= passMark();
     return `<div class="subject-row">
       <div><span>${esc(sc.name)}</span>
@@ -1941,14 +3341,18 @@ function openStudentReport(studentId, termOverride = null) {
       </div>` : '';
 
   $('drawer-attendance').textContent  = Academic.attendancePct(studentId, term);
-  $('drawer-download-btn').onclick = () => {
+  const dlBtn = $('drawer-download-btn');
+  dlBtn.disabled = false;
+  dlBtn.onclick = () => {
     const rows = [['Student', s.name], ['Class', cl?.name || ''], ['Term', term], ['Average', avg], ['Status', status], [],
                   ['Subject', 'CA (40)', 'Exam (60)', 'Total', 'Grade']];
     Academic.termScores(studentId, term).forEach(sc => {
       rows.push([sc.name, sc.ca ?? '', sc.exam ?? '', sc.score ?? '', sc.score !== null ? gradeLabel(sc.score) : '']);
     });
-    downloadCsv(`report_${s.name.replace(/\s+/g, '_')}_term${term}.csv`, rows);
+    downloadXlsx(`report_${s.name.replace(/\s+/g, '_')}_term${term}.xlsx`, rows, `Term ${term}`);
   };
+  const pdfBtn = $('drawer-pdf-btn');
+  if (pdfBtn) { pdfBtn.disabled = false; pdfBtn.onclick = printReportPdf; }
   openDrawer();
 }
 
@@ -1983,6 +3387,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   wireGlobals();
   initLogin();
+  bindResetPasswordModal();
+  bindProgressionModals();
+  bindPassportActions();
 
   const failed = Data.failedSources();
   if (failed.length) {
@@ -1995,3 +3402,732 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (fresh) login(fresh);
   }
 });
+
+function bindPassportActions() {
+  // window.print() in a normal browser shows the system print dialog,
+  // where the user can pick "Save as PDF". We scope the print CSS to a
+  // .printing body class so only the passport sheet is printed.
+  const doPrint = () => {
+    document.body.classList.add('printing');
+    window.print();
+    document.body.classList.remove('printing');
+  };
+  $('passport-print-btn')?.addEventListener('click', doPrint);
+  $('passport-download-btn')?.addEventListener('click', doPrint);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  LEARNING MANAGEMENT — teacher pages
+// ════════════════════════════════════════════════════════════════
+
+// The (subject, class) pairs a teacher is actually allocated to teach.
+function teacherCombos(user) {
+  const allocs = (Data.teacherSubjects() || []).filter(ts => String(ts.teacherId) === String(user?.id));
+  return allocs
+    .map(ts => ({ subject: Data.subject(ts.subjectId), class: Data.cls(ts.classId) }))
+    .filter(c => c.subject && c.class);
+}
+function comboOptionHTML(combo, value) {
+  return `<option value="${value}">${esc(combo.subject.name)} · ${esc(combo.class.className)}</option>`;
+}
+function comboSplit(value) {
+  const [subjectId, classId] = String(value || '').split('|');
+  return { subjectId, classId };
+}
+function fillComboSelect(sel, combos) {
+  if (!sel) return;
+  sel.innerHTML = combos.length
+    ? combos.map(co => comboOptionHTML(co, `${co.subject.id}|${co.class.id}`)).join('')
+    : '<option value="">No subject / class allocated</option>';
+}
+
+function renderTeacherLessons() {
+  const user  = currentUser;
+  const combos = teacherCombos(user);
+  fillComboSelect($('ls-pick'), combos);
+  const msg = $('ls-msg'); if (msg) msg.hidden = true;
+  $('ls-count').textContent = combos.filter(co => Data.lessonsFor(co.class.id, co.subject.id).length).length;
+
+  $('ls-submit').onclick = async () => {
+    const title   = $('ls-title').value.trim();
+    const content = $('ls-content').value.trim();
+    if (!title || !content) {
+      message(msg, 'Title and lesson content are required.', 'error'); return;
+    }
+    const { subjectId, classId } = comboSplit($('ls-pick')?.value);
+    if (!subjectId || !classId) {
+      message(msg, 'Pick the subject and class first.', 'error'); return;
+    }
+    await Data.addLesson({ subjectId, classId, title, content }, user.id);
+    $('ls-title').value = ''; $('ls-content').value = '';
+    message(msg, 'Lesson published.', 'success');
+    renderTeacherLessons();
+  };
+  renderLessonsTable();
+}
+
+function renderLessonsTable() {
+  const mine = (Data.lmsLessons() || []).filter(l => l.teacherId === currentUser.id);
+  $('ls-count').textContent = mine.length;
+  const list = $('ls-list');
+  list.innerHTML = mine.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Class</th><th>Title</th><th class="muted-cell">Posted</th><th></th></tr></thead>` +
+      `<tbody>${mine.map(l => `
+        <tr>
+          <td>${esc(Data.subject(l.subjectId)?.name || '—')}</td>
+          <td>${esc(Data.classNameOf(l.classId))}</td>
+          <td>${esc(l.title)}</td>
+          <td class="muted-cell">${formatDate(l.createdAt)}</td>
+          <td><div class="table-actions">
+            <button class="text-button" data-ls-view="${l.id}">View</button>
+            <button class="text-button" data-ls-del="${l.id}">Delete</button>
+          </div></td>
+        </tr>`).join('')}</tbody></table></div>`
+    : '<p class="muted-cell">No lessons published yet.</p>';
+
+  $all('[data-ls-view]').forEach(b => b.onclick = () => {
+    const lesson = (Data.lmsLessons() || []).find(x => String(x.id) === String(b.dataset.lsView));
+    const box = $('ls-detail'); if (!lesson || !box) return;
+    box.innerHTML = `<div class="panel">
+      <div class="panel-heading"><div>
+        <p class="eyebrow">${esc(Data.subject(lesson.subjectId)?.name || '')} · ${esc(Data.classNameOf(lesson.classId))} · ${esc(Data.user(lesson.teacherId)?.name || '')} · ${formatDate(lesson.createdAt)}</p>
+        <h2>${esc(lesson.title)}</h2>
+      </div></div>
+      <div class="ls-body">${esc(lesson.content)}</div>
+    </div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+  $all('[data-ls-del]').forEach(b => b.onclick = async () => {
+    await Data.deleteLesson(b.dataset.lsDel, currentUser.id);
+    toast('Lesson deleted.');
+    renderTeacherLessons();
+  });
+}
+
+function renderTeacherQuizzes() {
+  const user = currentUser;
+  fillComboSelect($('qz-pick'), teacherCombos(user));
+  const msg = $('qz-msg'); if (msg) msg.hidden = true;
+
+  $('qz-create').onclick = async () => {
+    const title = $('qz-title').value.trim();
+    if (!title) { message(msg, 'A title is required.', 'error'); return; }
+    const { subjectId, classId } = comboSplit($('qz-pick')?.value);
+    if (!subjectId || !classId) {
+      message(msg, 'Pick the subject and class first.', 'error'); return;
+    }
+    await Data.createQuiz({ subjectId, classId, title, description: $('qz-desc').value.trim() }, user.id);
+    $('qz-title').value = ''; $('qz-desc').value = '';
+    message(msg, 'Quiz created. Add questions below.', 'success');
+    renderTeacherQuizzes();
+  };
+  renderQuizList();
+}
+
+function renderQuizList() {
+  const mine = (Data.lmsQuizzes() || []).filter(q => q.teacherId === currentUser.id);
+  if ($('qz-count')) $('qz-count').textContent = mine.length;
+  const list = $('qz-list');
+  list.innerHTML = mine.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Class</th><th>Title</th><th class="muted-cell">Qns</th><th>Status</th><th></th></tr></thead>` +
+      `<tbody>${mine.map(q => `
+        <tr>
+          <td>${esc(Data.subject(q.subjectId)?.name || '—')}</td>
+          <td>${esc(Data.classNameOf(q.classId))}</td>
+          <td>${esc(q.title)}${q.description ? `<div class="muted-cell" style="font-size:10px;margin-top:2px">${esc(q.description)}</div>` : ''}</td>
+          <td class="muted-cell">${Data.questionsForQuiz(q.id).length}</td>
+          <td><span class="status ${q.isPublished ? 'promoted' : 'review'}">${q.isPublished ? 'Published' : 'Draft'}</span></td>
+          <td><div class="table-actions">
+            <button class="text-button" data-q-ed="${q.id}">Questions</button>
+            <button class="text-button" data-q-pub="${q.id}">${q.isPublished ? 'Unpublish' : 'Publish'}</button>
+            <button class="text-button" data-q-res="${q.id}">Results</button>
+            <button class="text-button" data-q-del="${q.id}">Delete</button>
+          </div></td>
+        </tr>`).join('')}</tbody></table></div>`
+    : '<p class="muted-cell">No quizzes yet — create one above.</p>';
+
+  $all('[data-q-pub]').forEach(b => b.onclick = async () => {
+    const quiz = (Data.lmsQuizzes() || []).find(x => String(x.id) === String(b.dataset.qPub)); if (!quiz) return;
+    await Data.setQuizPublished(quiz.id, !quiz.isPublished);
+    renderQuizList();
+  });
+  $all('[data-q-del]').forEach(b => b.onclick = async () => {
+    const quiz = (Data.lmsQuizzes() || []).find(x => String(x.id) === String(b.dataset.qDel)); if (!quiz) return;
+    await Data.deleteQuiz(quiz.id, currentUser.id);
+    toast('Quiz deleted.');
+    renderTeacherQuizzes();
+  });
+  $all('[data-q-ed]').forEach(b => b.onclick = () => {
+    const quiz = (Data.lmsQuizzes() || []).find(x => String(x.id) === String(b.dataset.qEd)); if (quiz) openQuizEditor(quiz);
+  });
+  $all('[data-q-res]').forEach(b => b.onclick = () => {
+    const quiz = (Data.lmsQuizzes() || []).find(x => String(x.id) === String(b.dataset.qRes)); if (quiz) openQuizResults(quiz);
+  });
+}
+
+function quizQuestionEditorHTML(q = {}) {
+  const type = q.questionType === 'tf' ? 'tf' : 'mc';
+  const opt  = q.options || {};
+  return `<div class="quiz-question" data-qeditor>
+    <div class="form-row tight">
+      <div class="form-group" style="flex:2"><label>Question</label>
+        <input class="q-text" value="${esc(q.questionText || '')}"></div>
+      <div class="form-group"><label>Type</label>
+        <select class="q-type">
+          <option value="mc" ${type === 'mc' ? 'selected' : ''}>Multiple choice</option>
+          <option value="tf" ${type === 'tf' ? 'selected' : ''}>True / False</option>
+        </select></div>
+      <div class="form-group"><label>Points</label>
+        <input class="q-points" type="number" min="1" value="${Number(q.points) || 1}"></div>
+      <div class="form-group"><button class="text-button" data-remove-q style="margin-top:22px">Remove</button></div>
+    </div>
+    <div class="form-row tight">
+      <div class="form-group"><label>A</label><input class="q-opt" data-opt="A" value="${esc(type === 'tf' ? (opt.A || 'True') : (opt.A || ''))}"></div>
+      <div class="form-group"><label>B</label><input class="q-opt" data-opt="B" value="${esc(type === 'tf' ? (opt.B || 'False') : (opt.B || ''))}"></div>
+      <div class="form-group"><label>C</label><input class="q-opt" data-opt="C" value="${esc(type === 'tf' ? (opt.C || '') : (opt.C || ''))}"></div>
+      <div class="form-group"><label>D</label><input class="q-opt" data-opt="D" value="${esc(type === 'tf' ? (opt.D || '') : (opt.D || ''))}"></div>
+    </div>
+    <div class="form-group"><label>Correct answer</label>
+      <input class="q-correct" value="${esc(q.correctAnswer || '')}" placeholder="e.g. B  —  or  True / False" style="max-width:300px">
+    </div>
+  </div>`;
+}
+
+function bindQuizEditorEvents() {
+  $all('[data-remove-q]').forEach(b => b.onclick = () => {
+    const ed = b.closest('[data-qeditor]'); if (ed) ed.remove();
+  });
+  $all('.q-type').forEach(sel => sel.onchange = () => {
+    const ed = sel.closest('[data-qeditor]'); if (!ed) return;
+    const tf = sel.value === 'tf';
+    ed.querySelector('[data-opt="A"]').value = tf ? 'True' : '';
+    ed.querySelector('[data-opt="B"]').value = tf ? 'False' : '';
+    ed.querySelector('[data-opt="C"]').value = '';
+    ed.querySelector('[data-opt="D"]').value = '';
+  });
+}
+
+function openQuizEditor(quiz) {
+  const box = $('qz-detail'); if (!box) return;
+  const existing = Data.questionsForQuiz(quiz.id);
+  box.innerHTML = `<div class="panel">
+    <div class="panel-heading"><div>
+      <p class="eyebrow">${esc(Data.subject(quiz.subjectId)?.name || '')} · ${esc(Data.classNameOf(quiz.classId))}</p>
+      <h2>Questions — ${esc(quiz.title)}</h2>
+    </div><span class="read-only-badge">${existing.length} saved</span></div>
+    <div id="q-editors" class="mt8">
+      ${existing.length ? existing.map(quizQuestionEditorHTML).join('') : quizQuestionEditorHTML()}
+    </div>
+    <div class="form-row tight mt16">
+      <button class="outline-button" id="q-add-more" style="width:auto;margin:0">+ Add another question</button>
+      <button class="btn-primary" id="q-save" style="width:auto;margin:0">Save questions</button>
+    </div>
+    <div id="q-msg" class="form-feedback mt8" hidden></div>
+  </div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  bindQuizEditorEvents();
+  $('q-add-more').onclick = () => {
+    $('q-editors').insertAdjacentHTML('beforeend', quizQuestionEditorHTML());
+    bindQuizEditorEvents();
+  };
+  $('q-save').onclick = async () => {
+    const questions = [...$all('[data-qeditor]')].map(ed => ({
+      questionText:  ed.querySelector('.q-text').value.trim(),
+      questionType:  ed.querySelector('.q-type').value,
+      options: {
+        A: ed.querySelector('[data-opt="A"]').value.trim(),
+        B: ed.querySelector('[data-opt="B"]').value.trim(),
+        C: ed.querySelector('[data-opt="C"]').value.trim(),
+        D: ed.querySelector('[data-opt="D"]').value.trim()
+      },
+      correctAnswer: ed.querySelector('.q-correct').value.trim(),
+      points:        Number(ed.querySelector('.q-points').value) || 1
+    })).filter(qd => qd.questionText);
+    const msg = $('q-msg');
+    if (!questions.length) { message(msg, 'Add at least one question with text.', 'error'); return; }
+    await Data.saveQuizQuestions(quiz.id, questions);
+    message(msg, 'Questions saved.', 'success');
+    renderQuizList();
+    openQuizEditor(quiz);
+  };
+}
+
+function openQuizResults(quiz) {
+  const box = $('qz-detail'); if (!box) return;
+  const students = (Data.studentsByClass(quiz.classId) || []).filter(s => s.status === 'active');
+  const rows = students.map(s => {
+    const attempt = Data.attemptFor(quiz.id, s.id);
+    return `<tr>
+      <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+      <td class="muted-cell">${esc(s.admissionNo || s.id)}</td>
+      <td>${attempt ? `<strong>${attempt.score} / ${attempt.total}</strong>` : '<span class="muted-cell">Not attempted</span>'}</td>
+      <td class="muted-cell">${attempt?.submittedAt ? formatDate(attempt.submittedAt) : '—'}</td>
+    </tr>`;
+  }).join('');
+  box.innerHTML = `<div class="panel">
+    <div class="panel-heading"><div>
+      <p class="eyebrow">${esc(Data.subject(quiz.subjectId)?.name || '')} · ${esc(Data.classNameOf(quiz.classId))}</p>
+      <h2>Results — ${esc(quiz.title)}</h2>
+    </div></div>
+    <div class="table-wrap mt16"><table><thead><tr><th>Student</th><th>Admission No.</th><th>Score</th><th>Submitted</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" class="muted-cell">No active students in this class.</td></tr>'}</tbody></table></div>
+  </div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderTeacherDiscussions() {
+  const user = currentUser;
+  fillComboSelect($('td-pick'), teacherCombos(user));
+  const msg = $('td-msg'); if (msg) msg.hidden = true;
+
+  $('td-open').onclick = async () => {
+    const title = $('td-title').value.trim();
+    if (!title) { message(msg, 'A topic is required.', 'error'); return; }
+    const { subjectId, classId } = comboSplit($('td-pick')?.value);
+    if (!subjectId || !classId) {
+      message(msg, 'Pick the subject and class first.', 'error'); return;
+    }
+    await Data.openDiscussion({ subjectId, classId, title, body: $('td-body').value.trim() }, user.id);
+    $('td-title').value = ''; $('td-body').value = '';
+    message(msg, 'Discussion opened.', 'success');
+    renderTeacherDiscussions();
+  };
+  renderDiscussionsTable();
+}
+
+function renderDiscussionsTable() {
+  const mine = (Data.lmsDiscussions() || []).filter(d => String(d.teacherId) === String(currentUser.id));
+  const list = $('td-list');
+  list.innerHTML = mine.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Class</th><th>Topic</th><th class="muted-cell">Replies</th><th></th></tr></thead>` +
+      `<tbody>${mine.map(d => `
+        <tr>
+          <td>${esc(Data.subject(d.subjectId)?.name || '—')}</td>
+          <td>${esc(Data.classNameOf(d.classId))}</td>
+          <td>${esc(d.title)}</td>
+          <td class="muted-cell">${Data.postsFor(d.id).length}</td>
+          <td><div class="table-actions">
+            <button class="text-button" data-tt-open="${d.id}">View</button>
+            <button class="text-button" data-tt-del="${d.id}">Delete</button>
+          </div></td>
+        </tr>`).join('')}</tbody></table></div>`
+    : '<p class="muted-cell">No discussions opened yet.</p>';
+
+  $all('[data-tt-open]').forEach(b => b.onclick = () => renderThread(b.dataset.ttOpen, 'td-thread'));
+  $all('[data-tt-del]').forEach(b => b.onclick = async () => {
+    await Data.deleteDiscussion(b.dataset.ttDel, currentUser.id);
+    toast('Discussion deleted.');
+    renderTeacherDiscussions();
+  });
+}
+
+// Shared thread viewer (teacher + student).
+function renderThread(discussionId, containerId) {
+  const box = $(containerId); if (!box) return;
+  const discussion = (Data.lmsDiscussions() || []).find(x => String(x.id) === String(discussionId));
+  if (!discussion) { box.innerHTML = ''; return; }
+  const posts = Data.postsFor(discussion.id);
+  const opening = `<div class="thread-card">
+    <p class="muted-cell">${esc(Data.subject(discussion.subjectId)?.name || '')} · ${esc(Data.classNameOf(discussion.classId))} · opened by ${esc(Data.user(discussion.teacherId)?.name || '—')} · ${formatDate(discussion.createdAt)}</p>
+    <strong>${esc(discussion.title)}</strong>
+    ${discussion.body ? `<p style="white-space:pre-wrap;margin:8px 0 0">${esc(discussion.body)}</p>` : ''}
+  </div>`;
+  const replies = posts.map(post => {
+    const author = Data.user(post.userId);
+    const role = author && isTeacher(author) ? 'Teacher' : isAdmin(author) ? 'Administrator' : 'Student';
+    return `<div class="thread-card">
+      <p class="muted-cell" style="margin:0 0 4px"><strong>${esc(author?.name || '—')}</strong> · ${role} · ${formatDate(post.createdAt)}</p>
+      <p style="white-space:pre-wrap;margin:0">${esc(post.body)}</p>
+    </div>`;
+  }).join('');
+  box.innerHTML = `<div class="panel">
+    <div class="panel-heading"><div><p class="eyebrow">Discussion</p><h2>${esc(discussion.title)}</h2></div></div>
+    ${opening}
+    ${replies || '<p class="muted-cell">No replies yet — start the conversation.</p>'}
+    <div class="form-group mt16"><label for="reply-text">Your reply</label>
+      <textarea id="reply-text" rows="2" placeholder="Share your thoughts…"></textarea></div>
+    <button class="btn-primary" id="reply-post" style="width:auto;margin:0">Reply</button>
+    <div id="reply-msg" class="form-feedback mt8" hidden></div>
+  </div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('reply-post').onclick = async () => {
+    const body = $('reply-text').value.trim();
+    if (!body) return;
+    await Data.addDiscussionPost(discussion.id, currentUser.id, body);
+    renderThread(discussionId, containerId);
+  };
+}
+
+// ── student pages ───────────────────────────────────────────────
+
+function renderStudentPathway() {
+  const s = Data.student(currentUser.studentId);
+  const box = $('stu-path-body');
+  if (!$('stu-path-body')) return;
+  if (!s) {
+    box.innerHTML = '<div class="panel"><p class="muted-cell">This login is not linked to a student record.</p></div>';
+    return;
+  }
+  const cl   = Data.cls(s.classId);
+  const year = cl?.year ?? null;
+  if ($('stu-path-heading')) $('stu-path-heading').textContent = cl ? `Choose my path — ${esc(cl.className)}` : 'Choose my path';
+  const eligible = !!(cl && (cl.selectionMode === 'pool' || Progression.isCheckpoint(year)));
+
+  if (!cl) {
+    box.innerHTML = '<div class="panel"><p class="muted-cell">No class record yet.</p></div>';
+    return;
+  }
+
+  // Placed into a stream class — path already decided.
+  if (cl.stream) {
+    box.innerHTML = `<div class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">Path decided</p><h2>${esc(cl.className)}</h2></div>
+        <span class="status promoted">Placed</span></div>
+      <p class="role-muted">Your path is set for this session — you are on the <strong>${esc(cl.stream)}</strong> stream.</p>
+    </div>`;
+    return;
+  }
+
+  if (!eligible) {
+    box.innerHTML = `<div class="panel">
+      <p class="role-muted">At your year the school sets your class for you — the choice opens at the Grade 9 checkpoint and for students in a placement pool.</p>
+      <p class="muted-cell">Current class: ${esc(cl.className)}.</p>
+    </div>`;
+    return;
+  }
+
+  const targetYear = cl.year === 10 ? 10 : cl.year + 1;
+  const options = (Data.classes() || []).filter(c => c.year == targetYear && c.level === 'SS' && ['Science', 'Commercial', 'Arts'].includes(c.stream));
+  const hints = {
+    Science:    'Mathematics, Physics, Chemistry, Biology',
+    Commercial: 'Accounting, Business Studies, Commerce, Economics',
+    Arts:       'Literature, Fine & Applied Arts, Music, Theatre'
+  };
+  const req  = Progression.pathRequest(s.id);
+  const chosen = req?.stream || '';
+
+  const statusHTML = req ? `<div class="path-status ${req.status}">
+      ${req.status === 'approved'
+        ? `<strong>Your path is decided.</strong> The school placed you on the ${esc(req.stream || '—')} stream.`
+        : `<strong>Preference recorded: ${esc(req.stream || '—')}.</strong> The school will confirm it — you can change it any time before they decide.`}
+      ${req.note ? `<div class="muted-cell mt8">Your note to the school: ${esc(req.note)}</div>` : ''}
+    </div>` : '';
+
+  box.innerHTML = `<div class="panel">
+    <div class="panel-heading"><div>
+      <p class="eyebrow">Grade ${targetYear} · SSS</p>
+      <h2>Pick the stream that fits you</h2>
+    </div></div>
+    <p class="role-muted">For ${esc(cl.className)} the school decides your final path with your results and your wishes in mind. Pick the stream you want — the administration will confirm it.</p>
+    ${statusHTML}
+    <div class="path-options mt16">
+      ${options.length ? options.map(o => `
+        <label class="path-card${o.stream === chosen ? ' selected' : ''}" data-stream="${o.stream}">
+          <input type="radio" name="stu-path" value="${o.stream}" ${o.stream === chosen ? 'checked' : ''}>
+          <strong>${esc(o.className)}</strong>
+          <span class="muted-cell">${esc(hints[o.stream] || '')}</span>
+        </label>`).join('')
+        : '<p class="muted-cell">The stream classes for Grade ' + targetYear + ' have not been set up yet.</p>'}
+    </div>
+    <div class="form-group mt16"><label for="stu-path-note">Anything you want the school to know <small class="muted-cell" style="font-weight:400">(optional)</small></label>
+      <textarea id="stu-path-note" rows="3" maxlength="500" placeholder="e.g. I enjoy sciences and would like to study medicine…">${esc((req && req.note) || '')}</textarea></div>
+    <button class="btn-primary" id="stu-path-save" style="width:auto;margin:0">Save my choice</button>
+    <div id="stu-path-msg" class="form-feedback mt8" hidden></div>
+  </div>`;
+
+  $all('.path-card').forEach(card => card.onclick = () => {
+    $all('.path-card').forEach(x => x.classList.toggle('selected', x === card));
+    const radio = card.querySelector('input[type=radio]'); if (radio) radio.checked = true;
+  });
+  $('stu-path-save').onclick = async () => {
+    const picked = $q('input[name="stu-path"]:checked');
+    const msg = $('stu-path-msg');
+    if (!picked) { message(msg, 'Choose a path first.', 'error'); return; }
+    await Progression.requestPathway(s.id, picked.value, $('stu-path-note').value.trim(), currentUser.id);
+    message(msg, 'Your choice is saved — the school will confirm it.', 'success');
+    renderStudentPathway();
+  };
+}
+
+function renderStudentLessons() {
+  const s = Data.student(currentUser.studentId);
+  const list = $('stu-less-list');
+  if (!s || !list) return;
+  const lessons = Data.lessonsFor(s.classId) || [];
+  list.innerHTML = lessons.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Title</th><th class="muted-cell">Teacher</th><th class="muted-cell">Posted</th><th></th></tr></thead>` +
+      `<tbody>${lessons.map(l => `
+        <tr>
+          <td>${esc(Data.subject(l.subjectId)?.name || '—')}</td>
+          <td>${esc(l.title)}</td>
+          <td class="muted-cell">${esc(Data.user(l.teacherId)?.name || '—')}</td>
+          <td class="muted-cell">${formatDate(l.createdAt)}</td>
+          <td><button class="text-button" data-stu-read="${l.id}">Read</button></td>
+        </tr>`).join('')}</tbody></table></div>`
+    : '<p class="muted-cell">No lessons have been published for your class yet.</p>';
+
+  $all('[data-stu-read]').forEach(b => b.onclick = () => {
+    const lesson = (Data.lmsLessons() || []).find(x => String(x.id) === String(b.dataset.stuRead));
+    const box = $('stu-less-detail'); if (!lesson || !box) return;
+    box.innerHTML = `<div class="panel">
+      <div class="panel-heading"><div>
+        <p class="eyebrow">${esc(Data.subject(lesson.subjectId)?.name || '')} · ${esc(Data.user(lesson.teacherId)?.name || '')} · ${formatDate(lesson.createdAt)}</p>
+        <h2>${esc(lesson.title)}</h2>
+      </div></div>
+      <div class="ls-body">${esc(lesson.content)}</div>
+    </div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}
+
+function renderStudentQuizzes() {
+  const s = Data.student(currentUser.studentId);
+  const list = $('sq-list');
+  if (!s || !list) return;
+  const quizzes = (Data.quizzesFor(s.classId) || []).filter(q => q.isPublished);
+  list.innerHTML = quizzes.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Title</th><th class="muted-cell">Qns</th><th>Your score</th><th></th></tr></thead>` +
+      `<tbody>${quizzes.map(q => {
+        const attempt = Data.attemptFor(q.id, s.id);
+        return `<tr>
+          <td>${esc(Data.subject(q.subjectId)?.name || '—')}</td>
+          <td>${esc(q.title)}${q.description ? `<div class="muted-cell" style="font-size:10px;margin-top:2px">${esc(q.description)}</div>` : ''}</td>
+          <td class="muted-cell">${Data.questionsForQuiz(q.id).length}</td>
+          <td>${attempt ? `<span class="status promoted">${attempt.score} / ${attempt.total}</span>` : '<span class="muted-cell">Not attempted</span>'}</td>
+          <td>${attempt
+            ? `<button class="text-button" data-sq-result="${q.id}">View result</button>`
+            : `<button class="btn-primary small" data-sq-take="${q.id}">Take quiz</button>`}</td>
+        </tr>`;
+      }).join('')}</tbody></table></div>`
+    : '<p class="muted-cell">No quizzes are available for your class right now.</p>';
+
+  $all('[data-sq-take]').forEach(b => b.onclick = () => openQuizTaker(b.dataset.sqTake));
+  $all('[data-sq-result]').forEach(b => b.onclick = () => openStudentQuizResult(b.dataset.sqResult));
+}
+
+function openQuizTaker(quizId) {
+  const box = $('sq-body'); if (!box) return;
+  const quiz = (Data.lmsQuizzes() || []).find(x => String(x.id) === String(quizId)); if (!quiz) return;
+  const questions = Data.questionsForQuiz(quizId);
+  box.innerHTML = `<div class="panel">
+    <div class="panel-heading"><div>
+      <p class="eyebrow">${esc(Data.subject(quiz.subjectId)?.name || '')} · ${esc(Data.classNameOf(quiz.classId))}</p>
+      <h2>${esc(quiz.title)}</h2>
+    </div></div>
+    ${quiz.description ? `<p class="role-muted">${esc(quiz.description)}</p>` : ''}
+    <form id="quiz-form" class="mt8">
+      ${questions.map((qq, i) => `
+        <fieldset class="quiz-fieldset">
+          <legend>Question ${i + 1}${qq.points > 1 ? ` · ${qq.points} pts` : ''}</legend>
+          <p class="quiz-question-text">${esc(qq.questionText)}</p>
+          ${qq.questionType === 'tf'
+            ? `<div class="form-row tight">
+                <label class="dept-check"><input type="radio" name="q${qq.id}" value="True" required> True</label>
+                <label class="dept-check"><input type="radio" name="q${qq.id}" value="False" required> False</label>
+              </div>`
+            : [['A', qq.options?.A], ['B', qq.options?.B], ['C', qq.options?.C], ['D', qq.options?.D]]
+                .filter(([, v]) => v != null && v !== '')
+                .map(([label, v]) => `<label class="dept-check"><input type="radio" name="q${qq.id}" value="${esc(v)}" required> <strong>${label}.</strong> ${esc(v)}</label>`).join('')}
+        </fieldset>`).join('')}
+      <button class="btn-primary mt16" type="submit" style="width:auto">Submit quiz</button>
+      <div id="quiz-msg" class="form-feedback mt8" hidden></div>
+    </form>
+  </div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  $('quiz-form').onsubmit = async e => {
+    e.preventDefault();
+    const msg = $('quiz-msg');
+    const answers = {};
+    questions.forEach(qq => {
+      const picked = $q(`input[name="q${qq.id}"]:checked`);
+      if (picked) answers[qq.id] = picked.value;
+    });
+    const result = await Data.submitQuizAttempt(quiz.id, currentUser.studentId, answers);
+    if (!result) { message(msg, 'This quiz has no questions yet.', 'error'); return; }
+    message(msg, `You scored ${result.score} / ${result.total} — well done.`, 'success');
+    openStudentQuizResult(quiz.id);
+  };
+}
+
+function openStudentQuizResult(quizId) {
+  const box = $('sq-body'); if (!box) return;
+  const quiz    = (Data.lmsQuizzes() || []).find(x => String(x.id) === String(quizId));
+  const attempt = Data.attemptFor(quizId, currentUser.studentId);
+  if (!attempt) { box.innerHTML = '<div class="panel"><p class="muted-cell">No attempt recorded.</p></div>'; return; }
+  const detail = (Data.questionsForQuiz(quizId) || []).map(qq => {
+    const got   = String(attempt.answers?.[qq.id] ?? '').trim();
+    const right = got.toLowerCase() === String(qq.correctAnswer).toLowerCase();
+    return `<tr>
+      <td>${esc(qq.questionText)}</td>
+      <td class="muted-cell">${esc(got) || '—'}</td>
+      <td class="muted-cell">${esc(qq.correctAnswer)}</td>
+      <td><span class="status ${right ? 'promoted' : 'repeat'}">${right ? 'Correct' : 'Incorrect'}</span></td>
+    </tr>`;
+  }).join('');
+  box.innerHTML = `<div class="panel">
+    <div class="panel-heading"><div>
+      <p class="eyebrow">${quiz ? esc(quiz.title) : ''}</p>
+      <h2>Your result</h2>
+    </div><span class="check-badge">${attempt.score} / ${attempt.total}</span></div>
+    <div class="table-wrap mt16"><table><thead><tr><th>Question</th><th>Your answer</th><th>Correct</th><th></th></tr></thead>
+      <tbody>${detail || '<tr><td colspan="4" class="muted-cell">No questions saved for this quiz.</td></tr>'}</tbody></table></div>
+  </div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderStudentDiscussions() {
+  const s = Data.student(currentUser.studentId);
+  const list = $('sd-list');
+  if (!s || !list) return;
+  const discussions = Data.discussionsFor(s.classId) || [];
+  list.innerHTML = discussions.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Topic</th><th class="muted-cell">Teacher</th><th class="muted-cell">Replies</th><th></th></tr></thead>` +
+      `<tbody>${discussions.map(d => `
+        <tr>
+          <td>${esc(Data.subject(d.subjectId)?.name || '—')}</td>
+          <td>${esc(d.title)}</td>
+          <td class="muted-cell">${esc(Data.user(d.teacherId)?.name || '—')}</td>
+          <td class="muted-cell">${Data.postsFor(d.id).length}</td>
+          <td><button class="text-button" data-sd-open="${d.id}">Open</button></td>
+        </tr>`).join('')}</tbody></table></div>`
+    : '<p class="muted-cell">No discussions are open for your class yet.</p>';
+  $all('[data-sd-open]').forEach(b => b.onclick = () => renderThread(b.dataset.sdOpen, 'sd-thread'));
+}
+
+function renderStudentAttendance() {
+  const s = Data.student(currentUser.studentId);
+  const sel = $('stu-att-term');
+  if (!s || !sel) return;
+  sel.innerHTML = Data.session().terms.map(t =>
+    `<option value="${t.term}" ${t.term === currentTerm() ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+  const draw = () => {
+    $('stu-att-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.className || '')} · ${termNameOf(+sel.value)}`;
+    $('stu-att-grid').innerHTML   = attendanceGridHTML(s.id, +sel.value);
+  };
+  draw();
+  sel.onchange = draw;
+}
+
+function dayChipsHTML(studentId, term, wk) {
+  const arr = Data.dailyAttendance(term)[wk]?.[String(studentId)] || [];
+  if (!arr.some(Boolean)) return '';
+  return `<span class="att-days">${[0, 1, 2, 3, 4].map(i => {
+    const st = arr[i];
+    return `<b class="att-day ${st || 'off'}" title="${ATT_DAYS[i]}: ${st || 'unmarked'}">${st ? st[0].toUpperCase() : '&middot;'}</b>`;
+  }).join('')}</span>`;
+}
+
+function attendanceGridHTML(studentId, term) {
+  const weeks = Data.studentAttendance(studentId, term) || {};
+  const entries = Object.entries(weeks).sort(
+    (a, b) => (parseInt(a[0].replace('W', ''), 10) || 0) - (parseInt(b[0].replace('W', ''), 10) || 0));
+  const present = entries.reduce((sum, [, d]) => sum + (Number(d) || 0), 0);
+  const possibile = entries.length * 5;
+  return `<div class="att-legend"><b class="att-day present">P</b> present &nbsp;<b class="att-day late">L</b> late &nbsp;<b class="att-day absent">A</b> absent</div>
+    <div class="att-grid mt16">
+      ${entries.length ? entries.map(([w, d]) => `
+        <div class="att-week"><strong>${esc(w)}</strong><span>${Number(d) || 0} / 5 days</span>${dayChipsHTML(studentId, term, w)}</div>`).join('')
+        : '<p class="muted-cell">No attendance recorded for this term.</p>'}
+    </div>
+    <div class="att-summary mt16">
+      <div><span>Days present</span><b>${present}</b></div>
+      <div><span>Possible</span><b>${possibile}</b></div>
+      <div><span>Attendance</span><b>${Academic.attendancePct(studentId, term)}</b></div>
+    </div>`;
+}
+
+function assignmentRowsHTML(classId) {
+  const assigns = (Data.assignments() || [])
+    .filter(a => String(a.classId) === String(classId))
+    .sort((a, b) => String(a.due || '').localeCompare(String(b.due || '')));
+  const now = new Date().toISOString().slice(0, 10);
+  return assigns.length ? assigns.map(a => {
+    const subject  = Data.subject(a.subjectId);
+    const teacher  = Data.user(a.teacherId);
+    const chips    = (subject?.color ? `chip-${subject.color}` : '') + (subject?.code ? '' : ' chip-blue');
+    const upcoming = a.due && String(a.due) >= now;
+    return `<div class="assignment-item">
+      <span class="assignment-type ${chips}">${esc(subject?.code || '?')}</span>
+      <div><strong>${esc(a.title)}</strong>
+        <small>${esc(subject?.name || '')}${teacher ? ` · ${esc(teacher.name)}` : ''}${a.note ? ` · ${esc(a.note)}` : ''}</small></div>
+      <time>${a.due ? formatDate(a.due) : '—'}${upcoming ? ' · upcoming' : ''}</time>
+    </div>`;
+  }).join('') : '<p class="muted-cell">No assignments for this class right now.</p>';
+}
+
+function renderStudentAssignments() {
+  const s = Data.student(currentUser.studentId);
+  const meta = $('stu-assign-meta');
+  const list = $('stu-assign-list');
+  if (!s || !meta || !list) return;
+  meta.textContent = `${s.name.split(' ')[0]}, here are the assignments set for ${esc(Data.cls(s.classId)?.className || 'your class')}.`;
+  list.innerHTML = assignmentRowsHTML(s.classId);
+}
+
+function renderStudentTimetable() {
+  const s = Data.student(currentUser.studentId);
+  const meta = $('stu-tt-meta');
+  if (!s || !meta) return;
+  meta.textContent = `${s.name} · ${esc(Data.cls(s.classId)?.className || '')}`;
+  renderTimetableFor(s.classId, 'stu-tt-grid');
+}
+
+function renderTimetableFor(classId, containerId) {
+  const box = $(containerId); if (!box) return;
+  const all     = Timetable.generateAll();
+  const schedule = all.schedules.find(x => String(x.classId) === String(classId));
+  if (!schedule) {
+    box.innerHTML = `<div class="panel"><p class="muted-cell">No weekly timetable generated for ${esc(Data.classNameOf(classId))} yet.</p></div>`;
+    return;
+  }
+  box.innerHTML = `<div class="panel">
+    <div class="panel-heading"><div>
+      <p class="eyebrow">Term ${currentTerm()} · ${esc(Data.session().name)}</p>
+      <h2>${esc(schedule.name)} · Weekly schedule</h2>
+    </div><span class="read-only-badge">View only</span></div>
+    ${timetableTable(schedule)}
+  </div>`;
+}
+
+// ── parent pages ────────────────────────────────────────────────
+
+function parentChildSelect(selId, onPick) {
+  const sel = $(selId); if (!sel) return;
+  const children = (currentUser.childIds || []).map(id => Data.student(String(id))).filter(Boolean);
+  sel.innerHTML = children.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  if (!children.length) return;
+  onPick(children[0].id);
+  sel.onchange = () => onPick(sel.value);
+}
+
+function renderParentAttendance() {
+  parentChildSelect('par-att-child', childId => {
+    const s = Data.student(childId); if (!s) return;
+    $('par-att-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.className || '')} · ${termNameOf(currentTerm())}`;
+    $('par-att-grid').innerHTML   = attendanceGridHTML(childId, currentTerm());
+  });
+}
+
+function renderParentAssignments() {
+  parentChildSelect('par-assign-child', childId => {
+    const s = Data.student(childId); if (!s) return;
+    $('par-assign-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.className || '')}`;
+    $('par-assign-list').innerHTML   = assignmentRowsHTML(s.classId);
+  });
+}
+
+function renderParentTimetable() {
+  parentChildSelect('par-tt-child', childId => {
+    const s = Data.student(childId); if (!s) return;
+    $('par-tt-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.className || '')} · Term ${currentTerm()}`;
+    renderTimetableFor(s.classId, 'par-tt-grid');
+  });
+}
+
+// Small form-feedback helper: sets text, unhides and resets its class.
+function message(el, text, kind) {
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = false;
+  el.className = kind === 'error' ? 'form-feedback mt8 text-danger' : 'form-feedback mt8 success';
+}

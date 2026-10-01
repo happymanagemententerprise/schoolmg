@@ -962,6 +962,31 @@ tr.att-focused { background: var(--blue-soft); }
 .dept-check:hover { background: var(--paper); }
 .dept-check input { width: auto; flex-shrink: 0; margin: 0; accent-color: var(--blue); }
 
+/* ── Weekly topic rows ───────────────────────────────────────── */
+.topic-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-top: 1px solid #f0f0ec; font-size: 12px;
+}
+.topic-row:first-child { border-top: 0; }
+.topic-row strong, .topic-row small { display: block; }
+.topic-row strong { font-size: 12px; }
+.topic-row small  { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+/* ── Class teacher: subject change approvals ─────────────────── */
+.approval-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 0; border-top: 1px solid #f0f0ec; font-size: 12px;
+}
+.approval-row:first-child { border-top: 0; }
+.approval-row .approval-sub { display: block; font-size: 10px; color: var(--muted); margin-top: 3px; }
+.approval-row .approval-actions { display: inline-flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.twelve { font-size: 12px; }
+.btn-sm-outline {
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line);
+  background: transparent; color: var(--coral); font-size: 11px; cursor: pointer;
+}
+.btn-sm-outline:hover { background: var(--coral-soft); }
+
 /* ── Mentee rows ────────────────────────────────────────────── */
 .mentee-row {
   display: flex; align-items: center; gap: 10px;
@@ -980,3 +1005,401 @@ tr.att-focused { background: var(--blue-soft); }
 /* ── Wide modal (register / class students) ─────────────────── */
 .modal-wide { width: min(1080px, 94vw); }
 
+/* ── Printing ───────────────────────────────────────────────────
+   Reports print through the browser's own print dialog, so "Save as
+   PDF" is the export path. The emblem sits behind the content on
+   every page via a fixed pseudo-element, which is what Chrome
+   repeats across page boundaries.
+
+   Chrome does not support @page margin boxes, so page numbers cannot
+   be produced here — the running footer carries the student, class
+   and session instead.
+   ──────────────────────────────────────────────────────────── */
+
+.print-only { display: none; }
+
+.print-header {
+  display: none;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--blue);
+  font-size: 12px;
+}
+.print-header strong { display: block; font-size: 15px; }
+.print-header span    { color: var(--muted); }
+
+.print-footer {
+  display: none;
+  margin-top: 14px;
+  padding-top: 8px;
+  border-top: 1px solid #dcdcd6;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.role-table-row .role-row-actions { display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.rp-name { margin: 0 0 16px; font-size: 12px; color: var(--muted); }
+
+@page { size: A4 portrait; margin: 14mm; }
+
+@media print {
+  html, body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* The emblem. Fixed so the browser repeats it on each sheet, and
+     muted so it stays legible as a watermark rather than competing
+     with the marks underneath. */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 50%; left: 50%;
+    width: 78%;
+    transform: translate(-50%, -50%);
+    background: url('assets/hma-watermark.svg') no-repeat center center;
+    background-size: contain;
+    opacity: .07;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* App chrome has no place on a report. */
+  .sidebar, .mobile-menu, .drawer, .toast, .row-menu-wrap,
+  .topbar button, .text-button, .outline-button, .btn-primary,
+  .toggle-row, .setup-form, .nav { display: none !important; }
+
+  .app-shell { display: block !important; }
+  .main-content { display: block !important; overflow: visible !important; }
+
+  .page-wrap {
+    padding: 0 !important;
+    display: block !important;
+  }
+  .page-wrap[hidden] { display: none !important; }
+
+  .panel {
+    border: 1px solid #d8d8d2;
+    box-shadow: none;
+    break-inside: avoid;
+    margin-bottom: 12px;
+  }
+
+  /* Tables carry the content of every report, so they get real rules
+     and are allowed to run across pages without losing their header. */
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr    { break-inside: avoid; }
+  th, td { border: 1px solid #d8d8d2; padding: 5px 7px; text-align: left; }
+  th { background: #eef3f5; font-weight: 600; }
+
+  .status, .stat-card, .subject-chip {
+    border: 1px solid #d8d8d2;
+    background: none !important;
+    color: #000 !important;
+  }
+
+  /* Colour is the only carrier of pass/fail state in the UI, so it
+     has to survive into the PDF as readable text. */
+  .status { padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+
+  .print-only { display: block !important; }
+  .print-header, .print-footer { display: block !important; }
+
+  a[href]::after { content: ''; }
+
+  /* A report drawn via "Print / PDF" prints the open drawer alone —
+     the dashboard stays hidden and the drawer becomes a plain sheet. */
+  body.printing-report .report-drawer { display: block !important; position: static !important; }
+  body.printing-report .drawer {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+  body.printing-report .drawer-backdrop,
+  body.printing-report .close-drawer { display: none !important; }
+}
+
+/* ── Learning management ────────────────────────────────────── */
+.count-badge {
+  background: var(--blue-soft); color: var(--blue);
+  border-radius: 12px; padding: 5px 10px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.btn-primary.small { padding: 7px 12px; font-size: 11px; width: auto; margin: 0; }
+.ls-body { white-space: pre-wrap; font-size: 12px; line-height: 1.7; }
+
+.quiz-question {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; margin-bottom: 12px; background: #fff;
+}
+.quiz-fieldset {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; margin: 0 0 14px;
+}
+.quiz-fieldset legend {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--muted); padding: 0 6px;
+}
+.quiz-question-text { font-weight: 600; margin: 0 0 10px; }
+
+/* ── Pathway cards ──────────────────────────────────────────── */
+.path-options {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+.path-card {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 16px; cursor: pointer; display: block;
+  background: #fff; transition: border-color .15s, background .15s;
+}
+.path-card input { margin-right: 8px; accent-color: var(--blue); }
+.path-card strong { display: block; margin: 6px 0 2px; font-size: 13px; }
+.path-card span { font-size: 11px; line-height: 1.5; }
+.path-card.selected { border-color: var(--blue); background: var(--blue-soft); }
+.path-status {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; margin-top: 14px; font-size: 12px;
+}
+.path-status.approved { background: var(--green-soft); border-color: #c9e3d4; }
+.path-status.pending  { background: var(--yellow-soft); border-color: #ecd97a; }
+
+/* ── Weekly attendance grid ─────────────────────────────────── */
+.att-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.att-week {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; background: #fff;
+}
+.att-week strong { display: block; font-size: 12px; }
+.att-week span  { font-size: 11px; color: var(--muted); }
+.att-summary { display: flex; gap: 12px; flex-wrap: wrap; }
+.att-summary > div {
+  flex: 1; min-width: 120px; border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; background: var(--paper);
+}
+.att-summary span {
+  display: block; font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.att-summary b { font: 700 18px/1.2 'Space Grotesk', sans-serif; color: var(--blue); }
+
+/* ── Discussion threads ─────────────────────────────────────── */
+.thread-card {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 13px 15px; margin-bottom: 12px;
+  background: #fff; font-size: 12px;
+}
+
+/* ── Daily attendance register (class teacher) ──────────────── */
+.att-daily-bar {
+  display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px;
+}
+.att-daily-bar label {
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: 11px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.att-daily-bar select {
+  min-width: 150px; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: 8px; font: 600 13px/1.2 'Space Grotesk', sans-serif;
+  color: var(--ink); background: #fff;
+}
+.att-day-title { font: 700 14px/1.2 'Space Grotesk', sans-serif; color: var(--blue); margin-bottom: 6px; }
+.att-day-count { font: 700 13px/1 'Space Grotesk', sans-serif; color: var(--muted); margin-bottom: 6px; }
+.att-daily-actions { display: flex; gap: 8px; align-items: center; margin-bottom: 2px; }
+.att-status-cell { width: 1%; white-space: nowrap; }
+
+.att-toggle { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.att-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.att-toggle-track {
+  position: relative; width: 44px; height: 24px; border-radius: 999px;
+  background: #fdecec; border: 1px solid #ea4335; flex: none;
+  transition: background .15s ease, border-color .15s ease;
+}
+.att-toggle-track::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+  transition: transform .15s ease, background .15s ease;
+}
+.att-toggle input:checked + .att-toggle-track { background: #e8f6ec; border-color: #34a853; }
+.att-toggle input:checked + .att-toggle-track::after { transform: translateX(20px); background: #34a853; }
+.att-toggle-label { font: 700 12px/1 'Space Grotesk', sans-serif; color: #b42318; }
+.att-toggle-label.on { color: #1e7d3a; }
+
+/* ── Day-status chips (student / parent weekly grid) ────────── */
+.att-legend { font-size: 11px; color: var(--muted); }
+.att-days { display: flex; gap: 4px; margin-top: 8px; }
+.att-day {
+  min-width: 18px; height: 18px; padding: 0 4px; border-radius: 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 700 10px/1 'Space Grotesk', sans-serif;
+}
+.att-day.present { background: #e8f6ec; color: #1e7d3a; }
+.att-day.late    { background: #fdf3d7; color: #9a6b00; }
+.att-day.absent  { background: #fdecec; color: #b42318; }
+.att-day.off     { background: #f2f4f7; color: #b6bdca; }
+
+/* ── Mid-term report (admin analytics) ─────────────────────── */
+.midterm-actions { display: flex; gap: 8px; align-items: center; }
+.strong-neutral  { font-weight: 600; color: var(--ink); }
+
+
+/* ── Growth & Mastery ─────────────────────────────── */
+.event-other { background: var(--muted); }
+.xp-breakdown { display: grid; gap: 10px; }
+.xp-row { display: grid; grid-template-columns: 1fr 1.4fr 64px; gap: 10px; align-items: center; }
+.xp-row > span { font-size: 13px; color: var(--ink); }
+.xp-row > b   { font-size: 13px; text-align: right; white-space: nowrap; }
+.xp-track { display: block; height: 8px; border-radius: 999px; background: #eef1f6; overflow: hidden; }
+.xp-track em { display: block; height: 100%; border-radius: 999px; }
+.xp-high { background: var(--green); }
+.xp-mid  { background: var(--blue); }
+.xp-low  { background: var(--yellow); }
+
+.badge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.badge-chip {
+  display: flex; gap: 10px; align-items: flex-start;
+  border: 1px solid #e6eaf2; border-radius: 10px; padding: 10px 12px; background: #fafbfd;
+}
+.badge-chip > span { font-size: 22px; line-height: 1; }
+.badge-chip strong { display: block; font-size: 13px; color: var(--ink); }
+.badge-chip small  { font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px; }
+
+.guardian-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.guard-stat {
+  border: 1px solid #e6eaf2; border-radius: 10px; padding: 10px 12px; background: #fafbfd;
+}
+.guard-stat small { display: block; font-size: 11px; color: var(--muted); }
+.guard-stat b     { font-size: 18px; color: var(--ink); }
+
+/* ── Leaderboard (admin recognition) ──────────────── */
+.rec-leaderboard { display: grid; gap: 8px; }
+.leaderboard-row {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid #e6eaf2; border-radius: 10px; padding: 10px 12px; background: #fafbfd;
+}
+.leaderboard-row.lb-leader { border-color: var(--blue); background: var(--blue-soft); }
+.lb-rank { width: 26px; height: 26px; border-radius: 50%; background: #eef1f6; color: var(--muted);
+  display: grid; place-items: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.lb-name { flex: 1; min-width: 0; }
+.lb-name strong { font-size: 13px; color: var(--ink); }
+.lb-name small  { font-size: 11.5px; color: var(--muted); display: block; margin-top: 1px; }
+.lb-points { font-size: 15px; color: var(--blue); white-space: nowrap; }
+.avatar + .lb-name { margin-left: 0; }
+
+/* ── Student Achievement Passport ─────────────────── */
+.passport-modal { width: min(820px, 100%); }
+.passport-sheet {
+  background: #fff; color: #1a1a1a; border: 1px solid #e3e7ee; border-radius: 8px;
+  font-family: Arial, Helvetica, sans-serif; font-size: 12.5px; line-height: 1.45;
+}
+.p-head { display: flex; align-items: center; gap: 14px; border-bottom: 3px double #c9a227; padding: 16px 20px; }
+.p-crest {
+  width: 46px; height: 46px; border-radius: 50%; border: 2px solid #8a6d1a; color: #8a6d1a;
+  display: grid; place-items: center; font-size: 11px; font-weight: 700; line-height: 1; text-align: center; flex-shrink: 0;
+}
+.p-crest small { font-size: 7.5px; font-weight: 400; display: block; margin-top: 3px; letter-spacing: 1px; }
+.p-brand { flex: 1; }
+.p-brand strong { display: block; font-size: 16px; letter-spacing: .5px; color: #7a1d16; }
+.p-brand span  { font-size: 11px; color: #555; }
+.p-code { font-size: 11px; color: #555; text-align: right; white-space: nowrap; }
+.p-code b { color: #7a1d16; font-family: Consolas, monospace; }
+.p-banner {
+  display: flex; gap: 14px; align-items: center; padding: 14px 20px;
+  background: #f7f5ee; border-bottom: 1px solid #e7e2d2;
+}
+.p-id { flex: 1; min-width: 0; }
+.p-name { font-size: 19px; color: #7a1d16; display: block; }
+.p-id span { display: block; font-size: 11.5px; color: #555; margin-top: 1px; }
+.p-snapshot { display: grid; grid-template-columns: repeat(3, auto); gap: 12px; }
+.p-snapshot span { text-align: center; border-left: 1px solid #ddd6c0; padding-left: 12px; }
+.p-snapshot .avatar ~ * { border-left: 1px solid #ddd6c0; }
+.p-snapshot small { display: block; font-size: 10px; color: #888; }
+.p-snapshot b     { font-size: 15px; color: #1a1a1a; }
+.p-section { padding: 14px 20px; border-bottom: 1px dashed #dbd6c8; }
+.p-section h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: #7a1d16; }
+.p-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.p-table th { text-align: left; border-bottom: 2px solid #1a1a1a; padding: 4px 6px; font-size: 10.5px; text-transform: uppercase; color: #555; }
+.p-table td { border-bottom: 1px solid #eee; padding: 5px 6px; }
+.p-subj { font-weight: 600; }
+.p-comp { display: grid; grid-template-columns: 1fr 2fr 40px; gap: 10px; align-items: center; margin-bottom: 6px; }
+.p-comp > span { font-size: 12px; }
+.p-comp > b    { font-size: 12px; text-align: right; }
+.p-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.p-card { border: 1px solid #e3e7ee; border-radius: 6px; padding: 8px 10px; background: #fafbfd; }
+.p-card strong { display: block; font-size: 11.5px; color: #1a1a1a; text-transform: capitalize; }
+.p-card span, .p-card small { font-size: 11px; color: #555; display: block; }
+.p-card.p-badge strong { color: #8a6d1a; }
+.p-footer { display: flex; align-items: center; gap: 16px; padding: 14px 20px; }
+.p-qr {
+  width: 62px; height: 62px; border: 1px solid #bbb; flex-shrink: 0; display: grid; place-items: center;
+  font-family: Consolas, monospace; font-size: 15px; color: #1a1a1a; font-weight: 700;
+  /* hand-rolled pseudo-QR so the passport prints offline */
+}
+.p-foot-note { flex: 1; font-size: 10px; color: #777; }
+.p-sign { display: grid; gap: 26px; flex-shrink: 0; }
+.p-sign span { font-size: 11px; color: #1a1a1a; border-top: 1px solid #1a1a1a; padding-top: 4px; min-width: 110px; text-align: center; }
+
+/* Print: only the passport sheet leaves the printer. */
+@media print {
+  body * { visibility: hidden; }
+  body.printing .modal-overlay { display: block; position: static; background: none; padding: 0; }
+  body.printing #passport-sheet, body.printing #passport-sheet * { visibility: visible; }
+  body.printing #passport-sheet {
+    position: static; width: 100%; border: none; border-radius: 0; box-shadow: none;
+  }
+}
+
+/* ── Daily attendance 3-state buttons ─────────────────────── */
+.att-3state {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.att-state-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1.5px solid #d1d5db;
+  background: #f9fafb;
+  font: 600 12px/1 'DM Sans', sans-serif;
+  cursor: pointer;
+  color: #6b7280;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.att-state-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+
+/* Present — green */
+.att-state-btn.active-present,
+.att-state-btn[data-status="present"]:focus {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #065f46;
+}
+/* Late — amber */
+.att-state-btn.active-late,
+.att-state-btn[data-status="late"]:focus {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+/* Absent — red */
+.att-state-btn.active-absent,
+.att-state-btn[data-status="absent"]:focus {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #991b1b;
+}

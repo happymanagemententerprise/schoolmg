@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" width="100%" height="auto" role="img" aria-label="Happy Man Academy">
+  <!--
+    Happy Man Academy — watermark asset.
+
+    Adapted from the supplied emblem for use as a report watermark.
+    Three changes were necessary, because the original could not work
+    as a watermark:
+
+      1. The typography used class="text-primary" / "text-secondary" /
+         "text-tagline", which are defined by the host page and resolve
+         to nothing once this is loaded as an image or data URI. The
+         fills are inlined here from the brand palette.
+      2. The off-white <rect fill="#F5F7F8" rx="24"> surface is removed.
+         An opaque background would paint a solid panel over the
+         report it is supposed to sit behind.
+      3. The feDropShadow filter is removed. A drop shadow behind a
+         watermark reads as a dirty halo on paper.
+
+    The aspect ratio of the original (800x520, landscape) is preserved
+    rather than stretched to fill a portrait page. Position the image
+    with CSS; do not force width and height independently.
+  -->
+
+  <defs>
+    <linearGradient id="ribbonGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1A5F7A" />
+      <stop offset="50%" stop-color="#57C5B6" />
+      <stop offset="100%" stop-color="#9BB0A5" />
+    </linearGradient>
+
+    <linearGradient id="pillarLeftGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1A5F7A" />
+      <stop offset="100%" stop-color="#226B88" />
+    </linearGradient>
+
+    <linearGradient id="pillarRightGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7E968B" />
+      <stop offset="100%" stop-color="#9BB0A5" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(0, 15)">
+
+    <!-- Left classical pillar — deep teal -->
+    <g>
+      <rect x="30" y="25" width="110" height="14" rx="3" fill="#1A5F7A" />
+      <path d="M 40 39 L 130 39 L 120 54 L 50 54 Z" fill="#1A5F7A" />
+      <rect x="52" y="60" width="18" height="145" rx="4" fill="url(#pillarLeftGrad)" />
+      <rect x="76" y="60" width="18" height="145" rx="4" fill="url(#pillarLeftGrad)" />
+      <rect x="100" y="60" width="18" height="145" rx="4" fill="url(#pillarLeftGrad)" />
+      <path d="M 50 210 L 120 210 L 130 225 L 40 225 Z" fill="#1A5F7A" />
+      <rect x="30" y="225" width="110" height="14" rx="3" fill="#1A5F7A" />
+    </g>
+
+    <!-- Right classical pillar — slate sage -->
+    <g>
+      <rect x="190" y="25" width="110" height="14" rx="3" fill="#9BB0A5" />
+      <path d="M 200 39 L 290 39 L 280 54 L 210 54 Z" fill="#9BB0A5" />
+      <rect x="212" y="60" width="18" height="145" rx="4" fill="url(#pillarRightGrad)" />
+      <rect x="236" y="60" width="18" height="145" rx="4" fill="url(#pillarRightGrad)" />
+      <rect x="260" y="60" width="18" height="145" rx="4" fill="url(#pillarRightGrad)" />
+      <path d="M 210 210 L 280 210 L 290 225 L 200 225 Z" fill="#9BB0A5" />
+      <rect x="190" y="225" width="110" height="14" rx="3" fill="#9BB0A5" />
+    </g>
+
+    <!-- Intersecting ribbon through the pillars -->
+    <path d="M 10 160
+             C 65 215, 140 210, 170 145
+             C 200 85, 275 90, 325 140
+             C 305 100, 215 65, 170 115
+             C 130 158, 65 165, 10 160 Z"
+          fill="url(#ribbonGrad)" opacity="0.95" />
+    <path d="M 15 168
+             C 70 220, 148 215, 182 142
+             C 212 80, 292 82, 330 142"
+          fill="none" stroke="#57C5B6" stroke-width="12" stroke-linecap="round" />
+    <circle cx="330" cy="142" r="6" fill="#1A5F7A" />
+
+    <!-- Typography lockup — fills inlined from the brand palette -->
+    <g transform="translate(400, 340)">
+      <text x="0" y="0"
+            font-family="Georgia, 'Times New Roman', serif"
+            font-size="44" font-weight="700" letter-spacing="2"
+            fill="#1A5F7A">HAPPY MAN</text>
+      <text x="0" y="44"
+            font-family="Georgia, 'Times New Roman', serif"
+            font-size="34" font-weight="400" letter-spacing="6"
+            fill="#226B88">ACADEMY</text>
+      <line x1="-160" y1="68" x2="160" y2="68" stroke="#9BB0A5" stroke-width="1.5" opacity="0.5" />
+      <circle cx="0" cy="68" r="4" fill="#57C5B6" />
+      <text x="0" y="96" text-anchor="middle"
+            font-family="Helvetica, Arial, sans-serif"
+            font-size="14" letter-spacing="3"
+            fill="#7E968B">EXCELLENCE • LEADERSHIP • ARCHITECTURE</text>
+    </g>
+  </g>
+</svg>
