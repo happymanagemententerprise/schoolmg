@@ -11,11 +11,7 @@ import {
 } from '../utils.js';
 import { openModal, closeModal } from '../router.js';
 import { openStudentReport } from './reports.js';
-import { timetableTable } from './shared.js';
-import { renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf } from './admin.js';
-import { renderStudentGrowth } from './admin.js';
-
-const ATT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+import { timetableTable, renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf, renderStudentGrowth, dayChipsHTML, attendanceGridHTML, assignmentRowsHTML } from './shared.js';
 
 // ── Student dashboard ─────────────────────────────────────────
 export function renderStudentDashboard() {
@@ -544,53 +540,6 @@ export function renderStudentAttendance() {
   };
   draw();
   sel.onchange = draw;
-}
-
-export function dayChipsHTML(studentId, term, wk) {
-  const arr = Data.dailyAttendance(term)[wk]?.[String(studentId)] || [];
-  if (!arr.some(Boolean)) return '';
-  return `<span class="att-days">${[0, 1, 2, 3, 4].map(i => {
-    const st = arr[i];
-    return `<b class="att-day ${st || 'off'}" title="${ATT_DAYS[i]}: ${st || 'unmarked'}">${st ? st[0].toUpperCase() : '&middot;'}</b>`;
-  }).join('')}</span>`;
-}
-
-export function attendanceGridHTML(studentId, term) {
-  const weeks = Data.studentAttendance(studentId, term) || {};
-  const entries = Object.entries(weeks).sort(
-    (a, b) => (parseInt(a[0].replace('W', ''), 10) || 0) - (parseInt(b[0].replace('W', ''), 10) || 0));
-  const present = entries.reduce((sum, [, d]) => sum + (Number(d) || 0), 0);
-  const possibile = entries.length * 5;
-  return `<div class="att-legend"><b class="att-day present">P</b> present &nbsp;<b class="att-day late">L</b> late &nbsp;<b class="att-day absent">A</b> absent</div>
-    <div class="att-grid mt16">
-      ${entries.length ? entries.map(([w, d]) => `
-        <div class="att-week"><strong>${esc(w)}</strong><span>${Number(d) || 0} / 5 days</span>${dayChipsHTML(studentId, term, w)}</div>`).join('')
-        : '<p class="muted-cell">No attendance recorded for this term.</p>'}
-    </div>
-    <div class="att-summary mt16">
-      <div><span>Days present</span><b>${present}</b></div>
-      <div><span>Possible</span><b>${possibile}</b></div>
-      <div><span>Attendance</span><b>${Academic.attendancePct(studentId, term)}</b></div>
-    </div>`;
-}
-
-export function assignmentRowsHTML(classId) {
-  const assigns = (Data.assignments() || [])
-    .filter(a => String(a.classId) === String(classId))
-    .sort((a, b) => String(a.due || '').localeCompare(String(b.due || '')));
-  const now = new Date().toISOString().slice(0, 10);
-  return assigns.length ? assigns.map(a => {
-    const subject  = Data.subject(a.subjectId);
-    const teacher  = Data.user(a.teacherId);
-    const chips    = (subject?.color ? `chip-${subject.color}` : '') + (subject?.code ? '' : ' chip-blue');
-    const upcoming = a.due && String(a.due) >= now;
-    return `<div class="assignment-item">
-      <span class="assignment-type ${chips}">${esc(subject?.code || '?')}</span>
-      <div><strong>${esc(a.title)}</strong>
-        <small>${esc(subject?.name || '')}${teacher ? ` · ${esc(teacher.name)}` : ''}${a.note ? ` · ${esc(a.note)}` : ''}</small></div>
-      <time>${a.due ? formatDate(a.due) : '—'}${upcoming ? ' · upcoming' : ''}</time>
-    </div>`;
-  }).join('') : '<p class="muted-cell">No assignments for this class right now.</p>';
 }
 
 export function renderStudentAssignments() {

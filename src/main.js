@@ -5,7 +5,7 @@
 import { initLogin, login } from './auth.js';
 import { wireGlobals } from './router.js';
 import { Data, DB } from './data/index.js';
-import { bindResetPasswordModal, bindProgressionModals, bindPassportActions } from './views/admin.js';
+import { initAdminModals } from './views/admin.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Wait for the data layer to load from Supabase (data.js bootstraps
@@ -26,9 +26,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   wireGlobals();
   initLogin();
-  bindResetPasswordModal();
-  bindProgressionModals();
-  bindPassportActions();
+  initAdminModals();
 
   const failed = Data.failedSources?.();
   if (failed?.length) {
