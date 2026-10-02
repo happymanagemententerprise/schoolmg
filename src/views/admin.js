@@ -62,7 +62,9 @@ export function renderAdminOverview() {
   renderEventsList('admin-events-list', 4);
   renderAdminStudentTable();
   renderUploadToggles();
-  $('admin-student-search').oninput = e => renderAdminStudentTable(e.target.value);
+  // renderAdminStudentTable is called via Alpine @input on #admin-student-search
+  // Expose it on window so the Alpine expression can reference it
+  window.renderAdminStudentTable = renderAdminStudentTable;
 }
 
 export function renderAdminStudentTable(query = '') {
@@ -169,6 +171,8 @@ export function renderUploadToggles() {
 
 // ── Admin · People ────────────────────────────────────────────
 export function renderAdminPeople() {
+  // Expose renderPeopleTab globally so Alpine @click can call it
+  window.renderPeopleTab = renderPeopleTab;
   bindPeopleTabs();
   renderPeopleTab('staff');
 
@@ -281,9 +285,9 @@ export async function saveUserFromForm() {
 }
 
 export function bindPeopleTabs() {
-  $all('#people-tabs .tab-btn').forEach(btn => btn.addEventListener('click', () => {
-    renderPeopleTab(btn.dataset.tab);
-  }));
+  // Active-class management is handled by Alpine @click on #people-tabs.
+  // renderPeopleTab is called from the Alpine @click expression via window.renderPeopleTab.
+  // This function is kept as a no-op to avoid breaking any existing call sites.
 }
 
 function myTeacherSubjectsOf(teacherId) {
@@ -915,22 +919,12 @@ export function renderAdminSetup() {
     s.uploadOpen.test = !s.uploadOpen.test;
     Data.saveSession(s);
     updateUploadLabels(s);
-    const setupForm = $('session-setup-form');
-    if (setupForm && window.Alpine) {
-      const data = Alpine.$data(setupForm);
-      if (data) data.testOpen = s.uploadOpen.test;
-    }
   };
   $('toggle-exam-upload').onclick = () => {
     const s = Data.session();
     s.uploadOpen.exam = !s.uploadOpen.exam;
     Data.saveSession(s);
     updateUploadLabels(s);
-    const setupForm = $('session-setup-form');
-    if (setupForm && window.Alpine) {
-      const data = Alpine.$data(setupForm);
-      if (data) data.examOpen = s.uploadOpen.exam;
-    }
   };
   $('save-session-btn').onclick = () => {
     const s = Data.session();
@@ -977,14 +971,8 @@ export function renderAdminSetup() {
 }
 
 export function updateUploadLabels(sess) {
-  ['test', 'exam'].forEach(t => {
-    const el = $(`upload-${t}-label`);
-    if (el) {
-      el.textContent = sess.uploadOpen[t] ? 'Open' : 'Closed';
-      el.className   = sess.uploadOpen[t] ? 'open-label' : 'closed-label';
-    }
-  });
-  // Sync Alpine component state
+  // DOM writes removed — Alpine x-text and :class own the label elements.
+  // Sync Alpine component state only.
   const setupForm = $('session-setup-form');
   if (setupForm && window.Alpine) {
     const data = Alpine.$data(setupForm);

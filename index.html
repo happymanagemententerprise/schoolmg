@@ -191,7 +191,7 @@
           <div class="panel-heading">
             <div><p class="eyebrow">Needs attention</p><h2>Student progress</h2></div>
             <div class="table-actions">
-              <div class="search" x-data="{ query: '' }"><span>&#8981;</span><input id="admin-student-search" type="search" placeholder="Search student" aria-label="Search student" x-model="query"></div>
+              <div class="search" x-data="{ query: '' }"><span>&#8981;</span><input id="admin-student-search" type="search" placeholder="Search student" aria-label="Search student" x-model="query" @input="renderAdminStudentTable(query)"></div>
             </div>
           </div>
           <div class="table-wrap">
@@ -217,13 +217,13 @@
       <div class="tab-bar" id="people-tabs" x-data="{ tab: 'staff' }">
         <button class="tab-btn" data-tab="staff"
                 :class="{ active: tab === 'staff' }"
-                @click="tab = 'staff'">Staff</button>
+                @click="tab = 'staff'; $nextTick(() => renderPeopleTab('staff'))">Staff</button>
         <button class="tab-btn" data-tab="students-all"
                 :class="{ active: tab === 'students-all' }"
-                @click="tab = 'students-all'">Students</button>
+                @click="tab = 'students-all'; $nextTick(() => renderPeopleTab('students-all'))">Students</button>
         <button class="tab-btn" data-tab="parents"
                 :class="{ active: tab === 'parents' }"
-                @click="tab = 'parents'">Parents</button>
+                @click="tab = 'parents'; $nextTick(() => renderPeopleTab('parents'))">Parents</button>
       </div>
       <div id="people-tab-content" class="panel mt16">
         <div class="table-wrap" id="people-table-wrap"></div>
