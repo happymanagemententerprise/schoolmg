@@ -1212,11 +1212,42 @@ function syncSubjectForm() {
 
 // ── Admin · Timetable (single class or the whole school) ─────
 function renderAdminTimetable(preselectClassId = null) {
-  // Teachers only ever see (and generate) the timetable for their own class
+  // Teachers only ever see the timetable for their own class — no generator.
   const mine = myClassRecord(currentUser);
+
+  // Hide the entire generator panel for non-admin users
+  const genPanel = $q('.timetable-gen-panel');
+  if (genPanel) genPanel.hidden = !isAdmin(currentUser);
+
+  if (!isAdmin(currentUser)) {
+    // Non-admin (class teacher / HOD): show the saved timetable for their
+    // class immediately, with no generate controls.
+    const classId = mine?.id ?? preselectClassId;
+    if (!classId) {
+      $('timetable-output').innerHTML = '<div class="panel"><p class="muted-cell">No class assigned to you — ask an administrator to assign you to a class.</p></div>';
+      return;
+    }
+    const saved = Data.timetables().filter(r => String(r.classId) === String(classId));
+    if (saved.length) {
+      const schedule = _buildScheduleFromSaved(classId, saved);
+      const cl = Data.cls(classId);
+      $('timetable-output').innerHTML =
+        `<div class="panel"><div class="panel-heading">
+           <div><p class="eyebrow">Your class timetable · Term ${currentTerm()}</p><h2>${esc(cl?.name)} · Weekly schedule</h2></div>
+           <button class="outline-button" id="tt-download" style="width:auto;margin:0">Download CSV ↓</button>
+         </div>${timetableTable(schedule)}</div>`;
+      const dl = $('tt-download');
+      if (dl) dl.onclick = () => downloadCsv(`timetable_${(cl?.name || '').replace(/\s+/g, '_')}.csv`, timetableCsv(schedule));
+    } else {
+      $('timetable-output').innerHTML = '<div class="panel"><p class="muted-cell">No timetable has been generated for your class yet. Ask the administrator to generate one.</p></div>';
+    }
+    return;
+  }
+
+  // Admin-only from here ────────────────────────────────────────
   if (!isAdmin(currentUser)) preselectClassId = mine?.id ?? null;
   refreshTTClassSelect(preselectClassId, isAdmin(currentUser) ? null : mine?.id);
-  $('generate-tt-all-btn').hidden = !isAdmin(currentUser);
+  $('generate-tt-all-btn').hidden = false;
 
   const opts = () => ({
     periodsPerDay: +$('tt-periods').value,
@@ -1272,6 +1303,38 @@ function renderAdminTimetable(preselectClassId = null) {
     toast(saved
       ? `Timetable generated for all ${result.schedules.length} classes and saved.`
       : `Timetable generated for all ${result.schedules.length} classes.`);
+  };
+}
+
+// Build a timetable schedule object from saved DB rows (for view-only display)
+function _buildScheduleFromSaved(classId, rows) {
+  const cl   = Data.cls(classId);
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  // Group rows by day
+  const byDay = {};
+  rows.forEach(r => {
+    const slot = Data.timeSlots().find(s => String(s.id) === String(r.timeSlotId));
+    const day  = slot?.dayOfWeek ?? r.day ?? 1; // 1=Mon … 5=Fri
+    const dayName = DAYS[(day - 1)] || `Day ${day}`;
+    if (!byDay[dayName]) byDay[dayName] = [];
+    byDay[dayName].push({
+      period:  slot ? slot.period || byDay[dayName].length + 1 : byDay[dayName].length + 1,
+      time:    slot ? `${slot.startTime}–${slot.endTime}` : '',
+      subject: Data.subject(r.subjectId)?.name || '—',
+      teacher: Data.user(r.teacherId)?.name  || '—',
+      free:    false,
+      color:   Data.subject(r.subjectId)?.color || 'blue'
+    });
+  });
+  // Sort periods within each day
+  Object.values(byDay).forEach(d => d.sort((a, b) => a.period - b.period));
+  const days = DAYS
+    .filter(d => byDay[d])
+    .map(d => ({ day: d, periods: byDay[d] }));
+  return {
+    classId, name: cl?.name || '—',
+    level: cl?.level, stream: cl?.stream, room: '',
+    days: days.length ? days : DAYS.map(d => ({ day: d, periods: [] }))
   };
 }
 
@@ -3103,7 +3166,7 @@ function renderClassAttendance(focusSid = null) {
     refreshStats();
   };
 
-  // ── Weekly rollup table ─────────────────────────────────────
+  // ── Weekly rollup table — read-only summary derived from daily register ─
   function drawWeekly() {
     $('ct-attendance-table').innerHTML = students.map(s => {
       const saved  = Data.studentAttendance(s.id, term);
@@ -3112,11 +3175,8 @@ function renderClassAttendance(focusSid = null) {
       const pctNum = parseInt(pct, 10) || 0;
       const rowCls = s.id === focusSid ? 'att-focused' : '';
 
-      const inputs = ['W1', 'W2', 'W3', 'W4'].map(wk =>
-        `<td><input type="number" class="att-input" min="0" max="5"
-          value="${saved[wk] ?? ''}" placeholder="—"
-          data-sid="${s.id}" data-week="${wk}"
-          aria-label="${esc(s.name)} ${wk}"></td>`
+      const cells = ['W1', 'W2', 'W3', 'W4'].map(wk =>
+        `<td class="muted-cell" style="text-align:center">${saved[wk] ?? '—'}</td>`
       ).join('');
 
       return `<tr class="${rowCls}">
@@ -3126,43 +3186,11 @@ function renderClassAttendance(focusSid = null) {
             ${esc(s.name)}
           </div>
         </td>
-        ${inputs}
-        <td><strong>${total}</strong></td>
+        ${cells}
+        <td style="text-align:center"><strong>${total}</strong></td>
         <td><span class="status ${pctNum >= 90 ? 'promoted' : pctNum >= 75 ? 'review' : 'repeat'}">${pct}</span></td>
-        <td><button class="btn-sm-save" data-save-att="${s.id}">Save</button></td>
       </tr>`;
     }).join('');
-
-    // Live update totals/pct while typing
-    $all('.att-input').forEach(inp => inp.addEventListener('input', () => {
-      const row   = inp.closest('tr');
-      const tot   = [...row.querySelectorAll('.att-input')].reduce((a, i) => a + (+i.value || 0), 0);
-      const pctN  = Math.round((tot / 20) * 100);
-      row.querySelector('strong').textContent = tot;
-      const badge = row.querySelector('.status');
-      badge.textContent = pctN + '%';
-      badge.className   = `status ${pctN >= 90 ? 'promoted' : pctN >= 75 ? 'review' : 'repeat'}`;
-    }));
-
-    // Per-student save — writes weekly totals and backfills daily cache
-    $all('[data-save-att]').forEach(btn => btn.addEventListener('click', async () => {
-      const sid = btn.dataset.saveAtt;
-      const row = btn.closest('tr');
-      att[sid]  = {};
-      row.querySelectorAll('.att-input').forEach(i => {
-        att[sid][i.dataset.week] = Math.min(5, Math.max(0, +i.value || 0));
-      });
-      await Data.saveAttendance(att, term);
-      // Refresh draft from the newly written daily cache
-      const newDaily = Data.dailyAttendance(term);
-      [1, 2, 3, 4].forEach(w => {
-        draft[sid][w] = normDay(newDaily[`W${w}`]?.[String(sid)]);
-      });
-      toast(`Attendance saved · ${Data.student(sid)?.name}.`);
-      drawWeekly();
-      drawDay();
-      refreshStats();
-    }));
   }
 
   drawDay();
