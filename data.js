@@ -68,7 +68,8 @@ const _sources = {
   terms:        () => _sb.from('terms').select('*'),
   users:        () => _sb.from('users').select('*').order('id'),
   subjects:     () => _sb.from('subjects').select('*').order('name'),
-  classes:      () => _sb.from('classes').select('*, teacher_classes(teacher_id)').order('year'),
+  classes:      () => _sb.from('classes').select('*').order('year'),
+  teacherClasses: () => _sb.from('teacher_classes').select('teacher_id, class_id'),
   // students has two foreign keys into users (user_id and mentor_id), so the
   // relationship has to be named or PostgREST cannot pick one.
   students:     () => _sb.from('students').select('*, users!students_user_id_fkey(name,initials,tone,phone,email,role), classes(class_name)'),
@@ -124,6 +125,13 @@ function _hydrate(raw) {
   }));
 
   // ── classes
+  // Build a map of class_id → teacher_id from the separately-fetched
+  // teacher_classes table (more reliable than the embedded select which
+  // can return empty arrays when RLS blocks the nested query).
+  const teacherClassMap = new Map(
+    (raw.teacherClasses || []).map(r => [String(r.class_id), String(r.teacher_id)])
+  );
+
   _cache.classes = raw.classes.map(c => ({
     id:             String(c.id),
     name:           c.class_name,
@@ -132,9 +140,7 @@ function _hydrate(raw) {
     year:           c.year   ?? null,     // 7 - 12
     selectionMode:  c.selection_mode || 'normal',  // normal | pool | graduate
     nextClassId:    c.next_class_id ? String(c.next_class_id) : null,
-    classTeacherId: c.teacher_classes?.[0]?.teacher_id
-                      ? String(c.teacher_classes[0].teacher_id)
-                      : null
+    classTeacherId: teacherClassMap.get(String(c.id)) || null
   }));
 
   // ── students
@@ -1165,11 +1171,17 @@ function _loadDemoSchool() {
     decided_by:   null
   }] : [];
 
+  // Build the flat teacherClasses array from the class objects
+  const teacherClasses = classes
+    .filter(c => c.teacher_classes?.[0]?.teacher_id)
+    .map(c => ({ class_id: c.id, teacher_id: c.teacher_classes[0].teacher_id }));
+
   _hydrate({
     session, terms, users, subjects, classes, students, parents: [
       { parent_id: parentId, student_id: students[0].id },
       { parent_id: parentId, student_id: students[5].id }
     ],
+    teacherClasses,
     teacherSubs, departments, grades, attendance, assignments, events, remarks,
     attendanceDaily,
     lmsLessons, lmsQuizzes, lmsQuestions, lmsAttempts, lmsDiscussions, lmsPosts,

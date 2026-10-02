@@ -31,7 +31,12 @@ function isParent(user)  { return user?.role === 'Parent'; }
 
 // The class this teacher is in charge of (if any)
 function myClassRecord(user) {
-  return Data.classes().find(c => c.classTeacherId === user?.id) || null;
+  if (!user) return null;
+  // classTeacherId is String(teacher_classes[0].teacher_id) — compare as strings
+  return Data.classes().find(c =>
+    c.classTeacherId !== null &&
+    String(c.classTeacherId) === String(user.id)
+  ) || null;
 }
 function hasClass(user) { return !!myClassRecord(user); }
 function isHOD(user)    { return user?.role === 'HOD'; }
@@ -55,7 +60,8 @@ function buildTeacherCapabilities(user) {
     { page: 'view-teacher-discussions', label: 'Discussions', icon: '◇' }
   );
   // A class teacher is in charge of a class
-  if (hasClass(user)) {
+  const cl = myClassRecord(user);
+  if (cl) {
     nav.push(
       { page: 'view-class-overview',   label: 'My Class',     icon: 'C' },
       { page: 'view-class-report',     label: 'Class Report', icon: 'R' },
@@ -63,6 +69,11 @@ function buildTeacherCapabilities(user) {
       { page: 'view-class-feedback',   label: 'Feedback',     icon: 'F' },
       { page: 'view-admin-timetable',  label: 'Timetable',    icon: 'T' }
     );
+  } else {
+    // Debug: log the mismatch so it's visible in the browser console
+    const teacherClasses = Data.classes().map(c => ({ name: c.name, classTeacherId: c.classTeacherId }));
+    console.info('[HMA] No class found for teacher id=' + user.id +
+      '. Classes with teachers:', JSON.stringify(teacherClasses));
   }
   // An HOD also oversees a department
   if (isHOD(user)) nav.push({ page: 'view-hod-dashboard', label: 'Department', icon: 'D' });
