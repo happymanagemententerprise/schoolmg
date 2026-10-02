@@ -697,41 +697,104 @@
 
     <div class="page-wrap" id="view-class-attendance" data-role="Class Teacher" hidden>
       <section class="welcome-row role-welcome">
-        <div><p class="eyebrow">Attendance register</p><h1>Mark Attendance</h1><p class="subcopy">Take the register each school day (Monday&ndash;Friday), then review the weekly summary for your class.</p></div>
+        <div>
+          <p class="eyebrow">Attendance register</p>
+          <h1 id="att-page-title">Attendance</h1>
+          <p class="subcopy">Take the daily register Mon–Fri, track late arrivals, and see the term overview at a glance.</p>
+        </div>
+        <div class="form-row tight">
+          <button class="btn-primary" id="ct-save-day">Save day ↑</button>
+        </div>
       </section>
+
+      <!-- ── Term stat cards ── -->
+      <section class="stat-grid" id="att-stat-grid" aria-label="Attendance summary">
+        <article class="stat-card accent-green">
+          <div class="stat-top"><span class="stat-label">Class attendance</span><span class="stat-icon">%</span></div>
+          <strong id="att-stat-pct">&mdash;</strong>
+          <div class="stat-trend neutral" id="att-stat-sub">Term average</div>
+        </article>
+        <article class="stat-card accent-blue">
+          <div class="stat-top"><span class="stat-label">Present today</span><span class="stat-icon">✓</span></div>
+          <strong id="att-stat-present">&mdash;</strong>
+          <div class="stat-trend neutral" id="att-stat-date">—</div>
+        </article>
+        <article class="stat-card accent-yellow">
+          <div class="stat-top"><span class="stat-label">Late arrivals</span><span class="stat-icon">⏱</span></div>
+          <strong id="att-stat-late">&mdash;</strong>
+          <div class="stat-trend neutral">This week</div>
+        </article>
+        <article class="stat-card accent-coral">
+          <div class="stat-top"><span class="stat-label">At risk</span><span class="stat-icon">!</span></div>
+          <strong id="att-stat-risk">&mdash;</strong>
+          <div class="stat-trend neutral">Below 75% attendance</div>
+        </article>
+      </section>
+
+      <!-- ── Daily register ── -->
       <div class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow">Daily register</p><h2>Upload daily attendance</h2></div>
-          <span class="role-muted">Toggle each student present or absent</span></div>
-        <p class="role-muted" style="margin-top:12px">Take the register one school day at a time (Monday&ndash;Friday). Pick a week and a day, toggle each student to Present or Absent, then <strong>Save day</strong>. The roll-up below, the student, their parent and the admin all see the same record &mdash; a late arrival still counts as present.</p>
-        <div class="att-daily-bar mt16">
-          <label>Week<select id="ct-day-week">
-            <option value="1">Week 1</option><option value="2">Week 2</option>
-            <option value="3">Week 3</option><option value="4">Week 4</option></select></label>
-          <label>Day<select id="ct-day-of-week">
-            <option value="0">Monday</option><option value="1">Tuesday</option>
-            <option value="2">Wednesday</option><option value="3">Thursday</option>
-            <option value="4">Friday</option></select></label>
-          <strong id="ct-daily-title" class="att-day-title">&mdash;</strong>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Daily register</p>
+            <h2 id="ct-daily-title">Mark Attendance</h2>
+          </div>
           <span class="att-day-count" id="ct-day-count"></span>
+        </div>
+
+        <div class="att-daily-bar mt16">
+          <label>Week
+            <select id="ct-day-week">
+              <option value="1">Week 1</option><option value="2">Week 2</option>
+              <option value="3">Week 3</option><option value="4">Week 4</option>
+            </select>
+          </label>
+          <label>Day
+            <select id="ct-day-of-week">
+              <option value="0">Monday</option><option value="1">Tuesday</option>
+              <option value="2">Wednesday</option><option value="3">Thursday</option>
+              <option value="4">Friday</option>
+            </select>
+          </label>
           <span class="att-daily-actions">
-            <button type="button" class="btn-sm-save" id="ct-all-present">Mark all present</button>
-            <button type="button" class="btn-sm-save" id="ct-all-absent" style="background:var(--coral-soft,#fff0ee);color:var(--coral,#e05)">Mark all absent</button>
-            <button type="button" class="btn-primary small" id="ct-save-day">Save day</button>
+            <button type="button" class="btn-sm-save" id="ct-all-present">✓ All present</button>
+            <button type="button" class="btn-sm-save att-all-absent-btn" id="ct-all-absent">✗ All absent</button>
           </span>
         </div>
+
         <div class="table-wrap mt16">
-          <table>
-            <thead><tr><th>Student</th><th>Status &nbsp;<span class="muted-cell" style="font-weight:400;font-size:11px">Click to set · click again to clear</span></th></tr></thead>
+          <table class="att-register-table">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th class="att-status-col">Status</th>
+                <th class="att-term-col">Term record <span class="muted-cell" style="font-weight:400;font-size:10px">Mon · Tue · Wed · Thu · Fri per week</span></th>
+              </tr>
+            </thead>
             <tbody id="ct-daily-list"></tbody>
           </table>
         </div>
       </div>
+
+      <!-- ── Weekly rollup table ── -->
       <div class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow" id="att-class-name">&mdash;</p><h2>Weekly summary</h2></div></div>
-        <p class="role-muted" style="margin-top:12px">Days present per week (max 5), derived from the daily register. Editing a week here also updates its daily marks.</p>
+        <div class="panel-heading">
+          <div><p class="eyebrow" id="att-class-name">&mdash;</p><h2>Weekly summary</h2></div>
+          <span class="read-only-badge">Edit a cell and click Save to override the daily record</span>
+        </div>
         <div class="table-wrap mt16">
           <table>
-            <thead><tr><th>Student</th><th>Week 1</th><th>Week 2</th><th>Week 3</th><th>Week 4</th><th>Total</th><th>%</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>W1 <span class="muted-cell" style="font-size:10px;font-weight:400">/5</span></th>
+                <th>W2 <span class="muted-cell" style="font-size:10px;font-weight:400">/5</span></th>
+                <th>W3 <span class="muted-cell" style="font-size:10px;font-weight:400">/5</span></th>
+                <th>W4 <span class="muted-cell" style="font-size:10px;font-weight:400">/5</span></th>
+                <th>Total</th>
+                <th>Rate</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody id="ct-attendance-table"></tbody>
           </table>
         </div>
@@ -777,14 +840,14 @@
           <div class="upload-zone mt16">
             <span class="upload-symbol">&uarr;</span>
             <strong>Drop spreadsheet here</strong>
-            <small>Use Student ID to match CA and exam scores</small>
+            <small>Use Admission No or Student Name to match scores</small>
             <button class="outline-button" id="st-choose-file">Choose file</button>
             <input type="file" id="st-file-input" accept=".csv,.xlsx,.xls" hidden>
           </div>
           <div class="upload-helper mt16">
             <span class="green-text">&check;</span>
             <span>Accepted: .xlsx, .xls, .csv</span>
-            <span>Required columns: Student ID, Test, Exam</span>
+            <span>Required columns: Admission No, CA Score, Exam Score</span>
           </div>
           <button class="outline-button mt16" id="st-download-sheet-btn" style="background:var(--blue-soft);border-color:var(--blue);color:var(--blue)">
             &darr; Download score sheet (.csv)

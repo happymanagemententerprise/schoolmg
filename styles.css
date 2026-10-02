@@ -1356,12 +1356,20 @@ tr.att-focused { background: var(--blue-soft); }
 
 /* Print: only the passport sheet leaves the printer. */
 @media print {
-  body * { visibility: hidden; }
-  body.printing .modal-overlay { display: block; position: static; background: none; padding: 0; }
-  body.printing #passport-sheet, body.printing #passport-sheet * { visibility: visible; }
+  /* When printing via the passport button, hide everything… */
+  body.printing * { visibility: hidden !important; }
+  /* …except the passport sheet itself */
+  body.printing .modal-overlay { display: block !important; position: static !important; background: none !important; padding: 0 !important; }
+  body.printing #passport-sheet,
+  body.printing #passport-sheet * { visibility: visible !important; }
   body.printing #passport-sheet {
-    position: static; width: 100%; border: none; border-radius: 0; box-shadow: none;
+    position: static !important; width: 100% !important;
+    border: none !important; border-radius: 0 !important; box-shadow: none !important;
   }
+  /* When printing via the report drawer button, hide everything except the drawer */
+  body.printing-report * { visibility: hidden !important; }
+  body.printing-report .report-drawer,
+  body.printing-report .report-drawer * { visibility: visible !important; }
 }
 
 /* ── Daily attendance 3-state buttons ─────────────────────── */
@@ -1424,4 +1432,44 @@ tr.att-focused { background: var(--blue-soft); }
 .leaderboard-rank.top-3 {
   color: #CD7F32; /* Bronze */
   font-size: 18px;
+}
+
+/* ── Attendance tracker (class teacher) ─────────────────────── */
+
+/* "All absent" button in the daily bar */
+.att-all-absent-btn {
+  background: var(--coral-soft) !important;
+  color: var(--coral) !important;
+  border-color: var(--coral) !important;
+}
+.att-all-absent-btn:hover {
+  background: var(--coral) !important;
+  color: #fff !important;
+}
+
+/* Register table — wider layout with heatmap column */
+.att-register-table { width: 100%; }
+.att-status-col { white-space: nowrap; width: 1%; }
+.att-term-col   { white-space: nowrap; }
+
+/* Heatmap: groups of 5 day chips per week */
+.att-heatmap {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.att-week-group {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+}
+/* att-day chips already defined above; extend sizes for the heatmap */
+.att-week-group .att-day {
+  min-width: 16px;
+  height: 16px;
+  font-size: 9px;
 }

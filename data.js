@@ -169,7 +169,7 @@ function _hydrate(raw) {
     tone:         u.tone || 'blue',
     email:        u.email,
     phone:        u.phone || null,
-    password:     u.password,             // only present pre-migration; cleared once hashed
+    // password column is always NULL after the hash migration — never read it
     passwordHash: u.password_hash || null,
     passwordSalt: u.password_salt || null,
     isMentor:     !!u.is_mentor,
@@ -830,19 +830,32 @@ function _loadDemoSchool() {
   ];
 
   const users = [];
-  USERS.forEach((u, i) => users.push({
-    id: i + 1, name: u[0], email: u[1], password: u[2], role: u[3], phone: u[4],
-    tone: u[5], staff_role: u[6], is_mentor: u[7], mentor_subject: u[8], mentor_bio: u[9]
-  }));
+  USERS.forEach((u, i) => {
+    const salt = newSalt();
+    const hash = hashPassword(u[2], salt);
+    users.push({
+      id: i + 1, name: u[0], email: u[1],
+      password_hash: hash, password_salt: salt,
+      role: u[3], phone: u[4],
+      tone: u[5], staff_role: u[6], is_mentor: u[7], mentor_subject: u[8], mentor_bio: u[9]
+    });
+  });
   const staffCount = USERS.length;
-  STUDENT_USERS.forEach((u, i) => users.push({
-    id: staffCount + i + 1, name: u[0], email: u[1], password: 'student123',
-    role: 'student', phone: u[2], tone: u[3],
-    staff_role: null, is_mentor: false, mentor_subject: null, mentor_bio: null
-  }));
+  STUDENT_USERS.forEach((u, i) => {
+    const salt = newSalt();
+    const hash = hashPassword('student123', salt);
+    users.push({
+      id: staffCount + i + 1, name: u[0], email: u[1],
+      password_hash: hash, password_salt: salt,
+      role: 'student', phone: u[2], tone: u[3],
+      staff_role: null, is_mentor: false, mentor_subject: null, mentor_bio: null
+    });
+  });
   const parentId = users.length + 1;
+  const _pSalt = newSalt();
   users.push({
-    id: parentId, name: 'Mrs. Comfort Osei', email: 'parent@happyman.edu', password: 'parent123',
+    id: parentId, name: 'Mrs. Comfort Osei', email: 'parent@happyman.edu',
+    password_hash: hashPassword('parent123', _pSalt), password_salt: _pSalt,
     role: 'parent', phone: '08099887766', tone: 'coral',
     staff_role: null, is_mentor: false, mentor_subject: null, mentor_bio: null
   });
@@ -1343,15 +1356,16 @@ const Data = {
   user(id)           { return _cache.users.find(u => u.id === String(id)) || null; },
   teachers()         { return _cache.users.filter(u => ['Subject Teacher','Class Teacher','HOD'].includes(u.role)); },
 
-  // True when `typed` is the right password for this account. Hashed
-  // accounts (post-migration) verify sha256(salt + typed); legacy rows
-  // fall back to a plaintext compare so pre-migration data still signs in.
+  // True when `typed` is the right password for this account.
+  // All accounts now use salted SHA-256 — plaintext fallback removed.
   passwordMatches(user, typed) {
     if (!user) return false;
     if (user.passwordHash && user.passwordSalt) {
       return hashPassword(typed, user.passwordSalt) === user.passwordHash;
     }
-    return String(user.password || '') === String(typed || '');
+    // No hash present — account has never had a password set or migration
+    // hasn't run yet; deny access rather than allow an unguarded login.
+    return false;
   },
 
   generateTempPassword: () => generateTempPassword(),
@@ -1374,21 +1388,12 @@ const Data = {
     }
     const salt = newSalt();
     const hash = hashPassword(newPassword, salt);
-    user.password = null; user.passwordHash = hash; user.passwordSalt = salt;
+    user.passwordHash = hash; user.passwordSalt = salt;
     DB.set('users', _cache.users);
-    const p = _sb.from('users')
+    await _sb.from('users')
       .update({ password: null, password_hash: hash, password_salt: salt })
       .eq('id', Number(userId));
-    if (p && typeof p.then === 'function') {
-      p.then(r => {
-        // Pre-migration the password_hash column does not exist yet; fall
-        // back to writing the plaintext column so resets keep working.
-        if (r?.error) {
-          _sb.from('users').update({ password: newPassword }).eq('id', Number(userId)).then(() => {});
-        }
-      });
-    }
-    return { password: newPassword };
+    return { ok: true };
   },
 
   async addUser(u) {
@@ -1404,28 +1409,19 @@ const Data = {
     // Add locally first so the caller can redraw without waiting on the
     // network, then reconcile with the row the database returns.
     const record = { ...u, id: u.id || uid('U'), studentId: null, childIds: [],
-      password: null, passwordHash: hash, passwordSalt: hash ? salt : null };
+      passwordHash: hash, passwordSalt: hash ? salt : null };
     _cache.users.push(record);
     DB.set('users', _cache.users);
     try {
-      let data, error;
-      ({ data, error } = await _sb.from('users')
+      const { data, error } = await _sb.from('users')
         .insert({ ...payload, password: null, password_hash: hash, password_salt: salt })
-        .select().single());
-      // Pre-migration users.password is NOT NULL and password_hash does not
-      // exist; retry with the plaintext column so new accounts still persist.
-      if (!data || error) {
-        ({ data, error } = await _sb.from('users')
-          .insert({ ...payload, password: u.password || 'changeme' })
-          .select().single());
-      }
+        .select().single();
       if (error) throw error;
       if (data) {
         Object.assign(record, {
           id: String(data.id), role: _mapRole(data.role, data.staff_role),
           name: data.name, initials: data.initials || record.initials,
           tone: data.tone || record.tone, email: data.email, phone: data.phone,
-          password: data.password || null,
           passwordHash: hash, passwordSalt: hash ? salt : null,
           isMentor: !!data.is_mentor,
           mentorSubject: data.mentor_subject || '', mentorBio: data.mentor_bio || ''
@@ -1464,18 +1460,13 @@ const Data = {
     if (patch.password !== undefined && patch.password !== null && patch.password !== '') {
       const salt = newSalt();
       const hash = hashPassword(patch.password, salt);
-      user.password = null; user.passwordHash = hash; user.passwordSalt = salt;
+      user.passwordHash = hash; user.passwordSalt = salt;
       payload.password = null; payload.password_hash = hash; payload.password_salt = salt;
     }
     if (Object.keys(payload).length) {
-      const p = _sb.from('users').update(payload).eq('id', Number(id));
-      if (p && typeof p.then === 'function') {
-        p.then(r => {
-          if (r?.error && payload.password_hash !== undefined && patch.password !== '') {
-            _sb.from('users').update({ password: patch.password }).eq('id', Number(id)).then(() => {});
-          }
-        });
-      }
+      _sb.from('users').update(payload).eq('id', Number(id)).then(r => {
+        if (r?.error) console.warn('[HMA] updateUser not saved:', r.error?.message || r.error);
+      });
     }
     return user;
   },
@@ -1636,6 +1627,33 @@ const Data = {
   // ── Scores ────────────────────────────────────────────────
   studentScores(sid)   { return _cache.scores[String(sid)] || {}; },
   saveScores(obj)      { _cache.scores = obj; DB.set('scores', obj); },
+
+  // Write a single CA/exam entry for one student+subject+term to both the
+  // in-memory cache and the Supabase grades table.
+  async saveGrade(studentId, subjectId, term, ca, exam) {
+    const sid  = String(studentId);
+    const sub  = String(subjectId);
+    const termId = _termIdFromNum(term);
+    if (!termId) { console.warn('[HMA] saveGrade: unknown term', term); return false; }
+    // Update cache immediately so the UI reflects the change without a reload
+    if (!_cache.scores[sid]) _cache.scores[sid] = {};
+    if (!_cache.scores[sid][sub]) _cache.scores[sid][sub] = {};
+    _cache.scores[sid][sub][term] = { test: Number(ca) || 0, exam: Number(exam) || 0 };
+    try {
+      const { error } = await _sb.from('grades').upsert({
+        student_id: Number(sid),
+        subject_id: Number(sub),
+        term_id:    Number(termId),
+        ca_score:   Math.min(40, Math.max(0, Number(ca)  || 0)),
+        exam_score: Math.min(60, Math.max(0, Number(exam) || 0))
+      }, { onConflict: 'student_id,subject_id,term_id' });
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.warn('[HMA] grade not saved:', err?.message || err);
+      return false;
+    }
+  },
 
   // ── Mentors ───────────────────────────────────────────────
   mentors()  { return _cache.mentors; },

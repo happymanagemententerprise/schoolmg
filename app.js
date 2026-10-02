@@ -342,21 +342,64 @@ function zipStore(parts) {
   return out;
 }
 function xlsxBlob(sheetName, rows) {
+  return xlsxBlobMulti([{ name: sheetName, rows }]);
+}
+
+// Multi-sheet version: sheets = [{ name, rows }, ...]
+function xlsxBlobMulti(sheets) {
+  // Build workbook.xml listing all sheets
+  const sheetRefs = sheets.map((s, i) =>
+    `<sheet name="${_xlsxEscape(s.name.slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`
+  ).join('');
+
+  // Build workbook rels pointing to each worksheet
+  const wbRels = sheets.map((_, i) =>
+    `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`
+  ).join('') +
+    `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;
+
+  // Content types for each worksheet
+  const extraTypes = sheets.map((_, i) =>
+    `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+  ).join('');
+  const contentTypes = _xlsxXml +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    extraTypes +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+    '</Types>';
+
   const parts = [
-    { name: '[Content_Types].xml', data: _xlsxContentTypes },
+    { name: '[Content_Types].xml', data: contentTypes },
     { name: '_rels/.rels',         data: _xlsxRootRels },
     { name: 'xl/workbook.xml',     data: _xlsxXml +
       '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-      '<sheets><sheet name="' + _xlsxEscape(sheetName) + '" sheetId="1" r:id="rId1"/></sheets></workbook>' },
-    { name: 'xl/_rels/workbook.xml.rels', data: _xlsxWorkbookRels },
-    { name: 'xl/worksheets/sheet1.xml',   data: xlsxSheetXml(rows) },
-    { name: 'xl/styles.xml',              data: _xlsxStyles }
+      `<sheets>${sheetRefs}</sheets></workbook>` },
+    { name: 'xl/_rels/workbook.xml.rels', data: _xlsxXml +
+      `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${wbRels}</Relationships>` },
+    { name: 'xl/styles.xml', data: _xlsxStyles },
+    ...sheets.map((s, i) => ({
+      name: `xl/worksheets/sheet${i + 1}.xml`,
+      data: xlsxSheetXml(s.rows)
+    }))
   ];
   return new Blob([zipStore(parts)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
+
 function downloadXlsx(filename, rows, sheetName = 'Sheet1') {
   const name = filename.endsWith('.xlsx') ? filename : filename + '.xlsx';
   const url  = URL.createObjectURL(xlsxBlob(sheetName, rows));
+  const a    = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Download a multi-sheet workbook: sheets = [{ name, rows }, ...]
+function downloadXlsxMulti(filename, sheets) {
+  const name = filename.endsWith('.xlsx') ? filename : filename + '.xlsx';
+  const url  = URL.createObjectURL(xlsxBlobMulti(sheets));
   const a    = document.createElement('a');
   a.href = url; a.download = name; a.click();
   URL.revokeObjectURL(url);
@@ -2171,7 +2214,12 @@ function renderSubjectDashboard() {
 
   $('st-choose-file').onclick = () => $('st-file-input').click();
   $('st-upload-btn').onclick  = () => $('st-file-input').click();
-  $('st-file-input').onchange = e => { if (e.target.files.length) toast(`${e.target.files[0].name} ready to upload.`); };
+  $('st-file-input').onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = ''; // allow re-selecting the same file
+    processScoreUpload(file);
+  };
   const dlBtn = $('st-download-sheet-btn');
   if (dlBtn) dlBtn.onclick = downloadScoreSheet;
 
@@ -2369,25 +2417,223 @@ function downloadScoreSheet(asExcel) {
   const mine = myTeacherSubjects();
   if (!mine.length) { toast('No subjects are assigned to you.', 'error'); return; }
 
-  const subSel = $('st-score-subject');
+  const subSel    = $('st-score-subject');
   const subjectId = subSel?.value || mine[0].subjectId;
   const classId   = ($('st-score-class')?.value) || '';
   const term      = +($('st-score-term')?.value || currentTerm());
   const subject   = Data.subject(subjectId);
-  const classIds  = classId ? [classId] : [...new Set(mine.filter(ts => ts.subjectId === subjectId).map(ts => ts.classId))];
-  const students  = classIds.flatMap(cid => Data.studentsByClass(cid).map(s => ({ s, cid })));
+  const classIds  = classId
+    ? [classId]
+    : [...new Set(mine.filter(ts => ts.subjectId === subjectId).map(ts => ts.classId))];
 
-  const rows = [[`Happy Man Academy — ${subject?.name} · Term ${term}`],
-                ['Class', 'Student ID', 'Student Name', 'CA Score (max 40)', 'Exam Score (max 60)', 'Total', 'Feedback']];
-  students.forEach(({ s, cid }) => {
-    const e = Data.studentScores(s.id)[subjectId]?.[term];
-    const fb = Data.feedback()[s.id];
-    const remark = fb && fb.term === term ? (fb.text || '') : '';
-    rows.push([Data.cls(cid)?.name || '', s.id, s.name, e?.test ?? '', e?.exam ?? '', e ? e.test + e.exam : '', remark]);
-  });
-  if (asExcel) downloadXlsx(`scores_${subject?.code || 'sub'}_term${term}.xlsx`, rows, 'Scores');
-  else         downloadCsv(`scores_${subject?.code || 'sub'}_term${term}.csv`, rows);
+  const header = ['Class', 'Admission No', 'Student Name', 'CA Score (max 40)', 'Exam Score (max 60)', 'Total', 'Feedback'];
+
+  if (asExcel) {
+    // One sheet per class so each class is separate when downloaded
+    const sheets = classIds.map(cid => {
+      const cl       = Data.cls(cid);
+      const students = Data.studentsByClass(cid);
+      const rows = [
+        [`Happy Man Academy — ${subject?.name} · ${cl?.name || ''} · Term ${term}`],
+        header
+      ];
+      students.forEach(s => {
+        const e  = Data.studentScores(s.id)[subjectId]?.[term];
+        const fb = Data.feedback()[s.id];
+        const remark = fb && fb.term === term ? (fb.text || '') : '';
+        rows.push([cl?.name || '', s.admissionNo || '', s.name,
+          e?.test ?? '', e?.exam ?? '', e ? e.test + e.exam : '', remark]);
+      });
+      return { name: (cl?.name || cid).slice(0, 31), rows };
+    });
+    downloadXlsxMulti(`scores_${subject?.code || 'sub'}_term${term}.xlsx`, sheets);
+  } else {
+    const rows = [[`Happy Man Academy — ${subject?.name} · Term ${term}`], header];
+    classIds.forEach(cid => {
+      const cl = Data.cls(cid);
+      Data.studentsByClass(cid).forEach(s => {
+        const e  = Data.studentScores(s.id)[subjectId]?.[term];
+        const fb = Data.feedback()[s.id];
+        const remark = fb && fb.term === term ? (fb.text || '') : '';
+        rows.push([cl?.name || '', s.admissionNo || '', s.name,
+          e?.test ?? '', e?.exam ?? '', e ? e.test + e.exam : '', remark]);
+      });
+    });
+    downloadCsv(`scores_${subject?.code || 'sub'}_term${term}.csv`, rows);
+  }
   toast('Score sheet downloaded.');
+}
+
+// ── Score upload — parse the teacher's filled-in spreadsheet ─
+// Matches rows to students by Admission No (preferred) or Student Name.
+// Only writes scores for students in the classes the teacher is allocated to.
+// Accepted formats: .csv and .xlsx (the built-in dependency-free reader handles both).
+async function processScoreUpload(file) {
+  // 1. Read file bytes
+  const buf = await file.arrayBuffer();
+  let rows = [];
+
+  if (file.name.toLowerCase().endsWith('.csv')) {
+    // Parse CSV (handles quoted fields)
+    const text = new TextDecoder().decode(buf);
+    rows = text.split(/\r?\n/).map(line => {
+      const out = []; let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') { inQ = !inQ; }
+        else if (ch === ',' && !inQ) { out.push(cur.trim()); cur = ''; }
+        else { cur += ch; }
+      }
+      out.push(cur.trim());
+      return out;
+    }).filter(r => r.some(c => c));
+  } else {
+    // Parse XLSX — extract the first sheet's shared strings + cells
+    try {
+      rows = _parseXlsxRows(buf);
+    } catch (err) {
+      toast('Could not read the spreadsheet. Save as .csv and try again.', 'error');
+      return;
+    }
+  }
+
+  if (rows.length < 2) { toast('The file appears to be empty.', 'error'); return; }
+
+  // 2. Detect header row — find columns by name (case-insensitive)
+  const header = rows[0].map(h => String(h ?? '').toLowerCase().trim());
+  const col = name => header.findIndex(h => h.includes(name));
+
+  const colAdm  = col('admission');            // Admission No
+  const colName = col('student name') >= 0 ? col('student name') : col('name');
+  const colCA   = col('ca') >= 0 ? col('ca') : col('test');
+  const colExam = col('exam');
+
+  if (colCA < 0 || colExam < 0) {
+    toast('Missing columns. The sheet must have "CA Score" and "Exam Score" columns.', 'error');
+    return;
+  }
+
+  // 3. Determine which subject and term we're uploading for (from the score view)
+  const subjectId = $('st-score-subject')?.value;
+  const term      = +($('st-score-term')?.value || currentTerm());
+  const mine      = myTeacherSubjects();
+  if (!subjectId) { toast('Select a subject first, then upload.', 'error'); return; }
+
+  // All students in classes this teacher teaches this subject
+  const allowedClassIds = [...new Set(
+    mine.filter(ts => ts.subjectId === subjectId).map(ts => ts.classId)
+  )];
+  const allowedStudents = allowedClassIds.flatMap(cid => Data.studentsByClass(cid));
+
+  // Build lookup maps: admissionNo→student, name(lower)→student
+  const byAdm  = new Map(allowedStudents.map(s => [String(s.admissionNo || '').toLowerCase(), s]));
+  const byName = new Map(allowedStudents.map(s => [s.name.toLowerCase(), s]));
+
+  // 4. Process data rows
+  let saved = 0, skipped = 0, errors = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const admVal  = colAdm  >= 0 ? String(row[colAdm]  ?? '').toLowerCase().trim() : '';
+    const nameVal = colName >= 0 ? String(row[colName] ?? '').toLowerCase().trim() : '';
+    const caRaw   = row[colCA];
+    const exRaw   = row[colExam];
+
+    if (!caRaw && !exRaw) { skipped++; continue; } // blank row
+
+    const ca   = Math.min(40, Math.max(0, Number(String(caRaw  ?? '').replace(/[^0-9.]/g, '')) || 0));
+    const exam = Math.min(60, Math.max(0, Number(String(exRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
+
+    // Match student
+    const student = (admVal && byAdm.get(admVal)) || (nameVal && byName.get(nameVal));
+    if (!student) {
+      if (admVal || nameVal) errors.push(`Row ${i + 1}: "${admVal || nameVal}" not found`);
+      skipped++;
+      continue;
+    }
+
+    const ok = await Data.saveGrade(student.id, subjectId, term, ca, exam);
+    if (ok) saved++; else skipped++;
+  }
+
+  // 5. Mark the sheet as uploaded and refresh the view
+  await Progression.markUploaded(
+    { classId: allowedClassIds[0] || '', subjectId, kind: 'both', rowCount: saved },
+    currentUser.id
+  );
+
+  const msg = `Uploaded ${saved} score${saved !== 1 ? 's' : ''}` +
+    (skipped ? ` · ${skipped} skipped` : '') +
+    (errors.length ? ` · ${errors.length} unmatched` : '');
+  toast(msg, saved > 0 ? 'success' : 'error');
+  if (errors.length) console.warn('[HMA] unmatched upload rows:', errors.join('; '));
+
+  renderSubjectScores();   // refresh the on-screen table
+  renderSubjectDashboard(); // refresh the stat cards
+}
+
+// Minimal XLSX reader — extracts cell values from the first worksheet.
+// Only handles inline strings (t="inlineStr"), shared strings, and numbers.
+function _parseXlsxRows(buf) {
+  const u8  = new Uint8Array(buf);
+  const dec = new TextDecoder();
+
+  // Read a zip entry by filename
+  function zipEntry(name) {
+    const enc = new TextEncoder().encode(name);
+    for (let i = 0; i < u8.length - 30; i++) {
+      if (u8[i] !== 0x50 || u8[i+1] !== 0x4B || u8[i+2] !== 0x03 || u8[i+3] !== 0x04) continue;
+      const fLen = u8[i+26] | (u8[i+27] << 8);
+      const xLen = u8[i+28] | (u8[i+29] << 8);
+      if (fLen !== enc.length) continue;
+      const fname = u8.slice(i+30, i+30+fLen);
+      if (!enc.every((b, j) => b === fname[j])) continue;
+      const dataStart = i + 30 + fLen + xLen;
+      const cLen = (u8[i+18] | (u8[i+19]<<8) | (u8[i+20]<<16) | (u8[i+21]<<24)) >>> 0;
+      return dec.decode(u8.slice(dataStart, dataStart + cLen));
+    }
+    return null;
+  }
+
+  // Pull all text content from <si> shared-string entries
+  const ssXml = zipEntry('xl/sharedStrings.xml') || '';
+  const shared = [...ssXml.matchAll(/<si[^>]*>[\s\S]*?<\/si>/g)]
+    .map(m => (m[0].match(/<t[^>]*>([\s\S]*?)<\/t>/g) || [])
+      .map(t => t.replace(/<[^>]+>/g, '')).join(''));
+
+  // Find the first sheet
+  const wb   = zipEntry('xl/workbook.xml') || '';
+  const rel  = zipEntry('xl/_rels/workbook.xml.rels') || '';
+  const sheetIdM = wb.match(/<sheet[^>]+sheetId="1"[^>]+r:id="([^"]+)"/);
+  const sheetId  = sheetIdM?.[1] || 'rId1';
+  const targetM  = rel.match(new RegExp(`Id="${sheetId}"[^>]+Target="([^"]+)"`));
+  const target   = targetM?.[1] || 'worksheets/sheet1.xml';
+  const sheetXml = zipEntry('xl/' + target) || zipEntry('xl/worksheets/sheet1.xml') || '';
+
+  // Parse rows and cells
+  const result = [];
+  for (const rowM of sheetXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
+    const cells = [];
+    let lastCol = -1;
+    for (const cellM of rowM[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)) {
+      const colStr = cellM[1];
+      const colIdx = [...colStr].reduce((a, c) => a * 26 + c.charCodeAt(0) - 64, 0) - 1;
+      // Fill gaps with empty strings
+      while (cells.length <= colIdx) cells.push('');
+      const attrs = cellM[2], inner = cellM[3];
+      const vM = inner.match(/<v>([\s\S]*?)<\/v>/);
+      const val = vM ? vM[1] : '';
+      if (attrs.includes('t="s"')) {
+        cells[colIdx] = shared[Number(val)] ?? '';
+      } else if (attrs.includes('t="inlineStr"') || attrs.includes('t="str"')) {
+        cells[colIdx] = inner.replace(/<[^>]+>/g, '');
+      } else {
+        cells[colIdx] = val === '' ? '' : isNaN(Number(val)) ? val : Number(val);
+      }
+      lastCol = colIdx;
+    }
+    result.push(cells);
+  }
+  return result;
 }
 
 // ── Assignment modal ─────────────────────────────────────────
@@ -2606,12 +2852,31 @@ function renderClassReport() {
   $('cr-download-btn').onclick = () => {
     const term   = +termSel.value;
     const report = Academic.classReport(cl.id, term);
-    const rows   = [[`${cl.name} — full class report · Term ${term}`],
-                    ['Student ID', 'Student', ...report.subjects.map(s => s.name), 'Average', 'Status']];
+    // One sheet per subject — Summary sheet + one sheet per subject
+    const summaryRows = [
+      [`${cl.name} — full class report · Term ${term}`],
+      ['Admission No', 'Student', ...report.subjects.map(s => s.name), 'Average', 'Status']
+    ];
     report.students.forEach(r => {
-      rows.push([r.student.id, r.student.name, ...r.rows.map(x => x.score ?? ''), r.average, r.status]);
+      summaryRows.push([r.student.admissionNo || '', r.student.name, ...r.rows.map(x => x.score ?? ''), r.average, r.status]);
     });
-    downloadXlsx(`class_report_${cl.name.replace(/\s+/g, '_')}_term${term}.xlsx`, rows, `Term ${term}`);
+    const sheets = [{ name: 'Summary', rows: summaryRows }];
+    report.subjects.forEach(sub => {
+      const subRows = [
+        [`${cl.name} · ${sub.name} · Term ${term}`],
+        ['Admission No', 'Student', 'CA (40)', 'Exam (60)', 'Total', 'Grade', 'Status']
+      ];
+      report.students.forEach(r => {
+        const sc = r.rows.find(x => x.subjectId === sub.id);
+        const total = sc?.score ?? null;
+        subRows.push([r.student.admissionNo || '', r.student.name,
+          sc?.ca ?? '', sc?.exam ?? '', total ?? '',
+          total !== null ? gradeLabel(total) : '',
+          total === null ? '' : total >= passMark() ? 'Pass' : 'Fail']);
+      });
+      sheets.push({ name: sub.code.slice(0, 31), rows: subRows });
+    });
+    downloadXlsxMulti(`class_report_${cl.name.replace(/\s+/g, '_')}_term${term}.xlsx`, sheets);
   };
   $('cr-register-btn').onclick = () => openClassReportModal(cl.id);
   $('cr-feedback-btn').onclick = () => { showView('view-class-feedback'); renderClassFeedback(); };
@@ -2650,167 +2915,245 @@ function openClassReportModal(classId) {
   $('register-download-btn').onclick = () => {
     const term   = +termSel.value;
     const report = Academic.classReport(klass.id, term);
-    const rows   = [['Student ID', 'Student', ...report.subjects.flatMap(s => [`${s.name} CA`, `${s.name} Exam`]), 'Average', 'Status']];
+    // One sheet per subject plus a summary sheet
+    const summaryRows = [
+      ['Admission No', 'Student', ...report.subjects.flatMap(s => [`${s.name} CA`, `${s.name} Exam`]), 'Average', 'Status']
+    ];
     report.students.forEach(r => {
-      rows.push([r.student.id, r.student.name,
+      summaryRows.push([r.student.admissionNo || '', r.student.name,
         ...r.rows.flatMap(x => [x.ca ?? '', x.exam ?? '']), r.average, r.status]);
     });
-    downloadXlsx(`register_${klass.name.replace(/\s+/g, '_')}_term${term}.xlsx`, rows, `Term ${term}`);
+    const sheets = [{ name: 'Register', rows: summaryRows }];
+    report.subjects.forEach(sub => {
+      const subRows = [
+        [`${klass.name} · ${sub.name} · Term ${term}`],
+        ['Admission No', 'Student', 'CA (40)', 'Exam (60)', 'Total']
+      ];
+      report.students.forEach(r => {
+        const sc = r.rows.find(x => x.subjectId === sub.id);
+        subRows.push([r.student.admissionNo || '', r.student.name,
+          sc?.ca ?? '', sc?.exam ?? '', sc?.score ?? '']);
+      });
+      sheets.push({ name: sub.code.slice(0, 31), rows: subRows });
+    });
+    downloadXlsxMulti(`register_${klass.name.replace(/\s+/g, '_')}_term${term}.xlsx`, sheets);
   };
   draw();
   openModal('class-register-modal');
 }
 
 // ── Attendance ───────────────────────────────────────────────
-const ATT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+const ATT_DAYS     = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+const ATT_DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 function renderClassAttendance(focusSid = null) {
   const cl = myClassRecord(currentUser);
   if (!cl) { toast('You are not assigned a class yet.', 'error'); return; }
+
   const students = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');
-  const term = currentTerm();
-  const att  = Data.attendance(term);
+  const term     = currentTerm();
+  const att      = Data.attendance(term);
 
-  $('att-class-name').textContent = `${cl.name} · Term ${term}`;
+  $('att-page-title').textContent  = `${cl.name} · Attendance`;
+  $('att-class-name').textContent  = `${cl.name} · Term ${term}`;
 
-  // Daily register draft — { sid: { week: [status ×5] } }, normalized to 5
-  const normDay = arr => { const a = []; for (let i = 0; i < 5; i++) a[i] = (arr && arr[i]) || ''; return a; };
-  const draft = {};
-  const daily = Data.dailyAttendance(term);
+  // ── Normalise daily draft: { sid: { week: [status×5] } } ──
+  const normDay = arr => Array.from({ length: 5 }, (_, i) => (arr && arr[i]) || '');
+  const draft   = {};
+  const daily   = Data.dailyAttendance(term);
   students.forEach(s => {
     draft[s.id] = {};
     [1, 2, 3, 4].forEach(w => {
-      draft[s.id][w] = normDay(daily[`W${w}`] && daily[`W${w}`][String(s.id)]);
+      draft[s.id][w] = normDay(daily[`W${w}`]?.[String(s.id)]);
     });
   });
 
-  // present and late both count as attended
   const isPresent = st => st === 'present' || st === 'late';
 
-  // Status cycle: '' → present → late → absent → present
-  const STATUS_LABELS  = { '': 'Not marked', present: 'Present', late: 'Late', absent: 'Absent' };
-  const STATUS_CLASSES = { '': 'att-unmarked', present: 'att-present', late: 'att-late', absent: 'att-absent' };
-  const nextStatus = st => ({ '': 'present', present: 'late', late: 'absent', absent: 'present' }[st] || 'present');
+  // ── Stat cards ──────────────────────────────────────────────
+  function refreshStats() {
+    const pcts  = students.map(s => parseInt(Academic.attendancePct(s.id, term), 10) || 0);
+    const avg   = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
+    const risk  = pcts.filter(p => p < 75).length;
 
-  function dayCount(week, day) {
-    const present = students.filter(s => isPresent(draft[s.id][week][day])).length;
-    const late    = students.filter(s => draft[s.id][week][day] === 'late').length;
-    const absent  = students.filter(s => draft[s.id][week][day] === 'absent').length;
-    $('ct-day-count').textContent =
-      `${present} present${late ? ` (${late} late)` : ''} · ${absent} absent · ${students.length - present - absent} not marked`;
+    const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
+    const presentToday = students.filter(s => isPresent(draft[s.id][w][d])).length;
+    const lateThisWeek = students.reduce((n, s) =>
+      n + draft[s.id][w].filter(st => st === 'late').length, 0);
+
+    $('att-stat-pct').textContent     = avg + '%';
+    $('att-stat-sub').textContent     = avg >= 90 ? 'Excellent' : avg >= 75 ? 'Good' : 'Needs attention';
+    $('att-stat-present').textContent = `${presentToday}/${students.length}`;
+    $('att-stat-date').textContent    = `${ATT_DAYS_FULL[d]}, Week ${w}`;
+    $('att-stat-late').textContent    = lateThisWeek;
+    $('att-stat-risk').textContent    = risk;
   }
 
+  // ── Day count bar ───────────────────────────────────────────
+  function refreshCount() {
+    const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
+    const present = students.filter(s => isPresent(draft[s.id][w][d])).length;
+    const late    = students.filter(s => draft[s.id][w][d] === 'late').length;
+    const absent  = students.filter(s => draft[s.id][w][d] === 'absent').length;
+    const unmarked = students.length - present - absent;
+    $('ct-day-count').textContent =
+      `${present} present${late ? ` (${late} late)` : ''} · ${absent} absent` +
+      (unmarked ? ` · ${unmarked} not marked` : '');
+  }
+
+  // ── Build the per-student term heatmap chips ─────────────────
+  // Shows 4 weeks × 5 days as small coloured squares
+  function termHeatmap(sid) {
+    return [1, 2, 3, 4].map(w => {
+      const row = draft[sid][w].map((st, d) => {
+        const cls = st === 'present' ? 'present' : st === 'late' ? 'late' : st === 'absent' ? 'absent' : 'off';
+        return `<span class="att-day ${cls}" title="W${w} ${ATT_DAYS[d]}: ${st || 'not marked'}">${ATT_DAYS[d][0]}</span>`;
+      }).join('');
+      return `<span class="att-week-group" title="Week ${w}">${row}</span>`;
+    }).join('');
+  }
+
+  // ── Daily register ──────────────────────────────────────────
   function drawDay() {
     const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
-    $('ct-daily-title').textContent = `${cl.name} · ${ATT_DAYS[d]} · Week ${w}`;
+    $('ct-daily-title').textContent = `${ATT_DAYS_FULL[d]}, Week ${w}`;
+
     $('ct-daily-list').innerHTML = students.map(s => {
-      const st = draft[s.id][w][d] || '';
+      const st  = draft[s.id][w][d] || '';
+      const pct = Academic.attendancePct(s.id, term);
       return `<tr class="${s.id === focusSid ? 'att-focused' : ''}">
-        <td><div class="student">
-          <span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}
-        </div></td>
+        <td>
+          <div class="student">
+            <span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>
+            <span>${esc(s.name)}</span>
+          </div>
+          <small class="muted-cell" style="padding-left:32px;display:block;margin-top:2px">
+            <span class="status ${parseInt(pct,10) >= 90 ? 'promoted' : parseInt(pct,10) >= 75 ? 'review' : 'repeat'}" style="font-size:9px">${pct}</span>
+          </small>
+        </td>
         <td class="att-status-cell">
           <div class="att-3state">
             <button class="att-state-btn ${st === 'present' ? 'active-present' : ''}"
-              data-sid="${s.id}" data-status="present" title="Mark present">✓ Present</button>
-            <button class="att-state-btn ${st === 'late' ? 'active-late' : ''}"
-              data-sid="${s.id}" data-status="late" title="Mark late">⏱ Late</button>
-            <button class="att-state-btn ${st === 'absent' ? 'active-absent' : ''}"
-              data-sid="${s.id}" data-status="absent" title="Mark absent">✗ Absent</button>
+              data-sid="${s.id}" data-status="present">✓ Present</button>
+            <button class="att-state-btn ${st === 'late'    ? 'active-late'    : ''}"
+              data-sid="${s.id}" data-status="late">⏱ Late</button>
+            <button class="att-state-btn ${st === 'absent'  ? 'active-absent'  : ''}"
+              data-sid="${s.id}" data-status="absent">✗ Absent</button>
           </div>
+        </td>
+        <td class="att-term-col">
+          <div class="att-heatmap">${termHeatmap(s.id)}</div>
         </td>
       </tr>`;
     }).join('');
-    dayCount(w, d);
+
+    refreshCount();
+    refreshStats();
 
     $all('#ct-daily-list .att-state-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const sid    = btn.dataset.sid;
+        const sid = btn.dataset.sid;
         const status = btn.dataset.status;
         const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
-        // Toggle: clicking the active state clears it; clicking another sets it
+        // Toggle: click the active state to clear; click another to set
         draft[sid][w][d] = draft[sid][w][d] === status ? '' : status;
         drawDay();
       });
     });
   }
 
-  $('ct-day-week').onchange = drawDay;
-  $('ct-day-of-week').onchange = drawDay;
-  $('ct-day-week').value = 1;
-  $('ct-day-of-week').value = 0;
+  $('ct-day-week').onchange     = drawDay;
+  $('ct-day-of-week').onchange  = drawDay;
+  $('ct-day-week').value        = 1;
+  $('ct-day-of-week').value     = 0;
 
   $('ct-all-present').onclick = () => {
     const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
     students.forEach(s => { draft[s.id][w][d] = 'present'; });
     drawDay();
   };
+  $('ct-all-absent').onclick = () => {
+    const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
+    students.forEach(s => { draft[s.id][w][d] = 'absent'; });
+    drawDay();
+  };
 
-  // Add "Mark all absent" button handler if it exists
-  const allAbsentBtn = $('ct-all-absent');
-  if (allAbsentBtn) {
-    allAbsentBtn.onclick = () => {
-      const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
-      students.forEach(s => { draft[s.id][w][d] = 'absent'; });
-      drawDay();
-    };
-  }
-
+  // Save day — writes every student's status for the selected day to Supabase
   $('ct-save-day').onclick = async () => {
     const w = +$('ct-day-week').value, d = +$('ct-day-of-week').value;
     const marks = {};
     students.forEach(s => {
       const st = draft[s.id][w][d];
-      marks[s.id] = st || 'absent'; // unmarked treated as absent on save
+      marks[s.id] = st || 'absent'; // unmarked → absent on save
     });
     await Data.saveDailyDay(w, d, marks, term);
-    toast(`Attendance saved · ${ATT_DAYS[d]}, Week ${w}.`);
+    toast(`Register saved · ${ATT_DAYS_FULL[d]}, Week ${w}.`);
     drawWeekly();
+    refreshStats();
   };
 
+  // ── Weekly rollup table ─────────────────────────────────────
   function drawWeekly() {
     $('ct-attendance-table').innerHTML = students.map(s => {
-      const saved = Data.studentAttendance(s.id, term);
-      const total = Object.values(saved).reduce((a, b) => a + b, 0);
-      const pct   = Academic.attendancePct(s.id, term);
+      const saved  = Data.studentAttendance(s.id, term);
+      const total  = Object.values(saved).reduce((a, b) => a + b, 0);
+      const pct    = Academic.attendancePct(s.id, term);
+      const pctNum = parseInt(pct, 10) || 0;
       const rowCls = s.id === focusSid ? 'att-focused' : '';
-      const inputs = ['W1', 'W2', 'W3', 'W4'].map(w =>
+
+      const inputs = ['W1', 'W2', 'W3', 'W4'].map(wk =>
         `<td><input type="number" class="att-input" min="0" max="5"
-          value="${saved[w] ?? ''}" placeholder="0"
-          data-sid="${s.id}" data-week="${w}"
-          aria-label="${esc(s.name)} ${w}"></td>`).join('');
+          value="${saved[wk] ?? ''}" placeholder="—"
+          data-sid="${s.id}" data-week="${wk}"
+          aria-label="${esc(s.name)} ${wk}"></td>`
+      ).join('');
+
       return `<tr class="${rowCls}">
-        <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+        <td>
+          <div class="student">
+            <span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>
+            ${esc(s.name)}
+          </div>
+        </td>
         ${inputs}
         <td><strong>${total}</strong></td>
-        <td><span class="status ${+pct >= 90 ? 'promoted' : 'repeat'}">${pct}</span></td>
+        <td><span class="status ${pctNum >= 90 ? 'promoted' : pctNum >= 75 ? 'review' : 'repeat'}">${pct}</span></td>
         <td><button class="btn-sm-save" data-save-att="${s.id}">Save</button></td>
       </tr>`;
     }).join('');
 
+    // Live update totals/pct while typing
     $all('.att-input').forEach(inp => inp.addEventListener('input', () => {
-      const row    = inp.closest('tr');
-      const total  = [...row.querySelectorAll('.att-input')].reduce((a, i) => a + (+i.value || 0), 0);
-      row.querySelector('strong').textContent = total;
-      const badge  = row.querySelector('.status');
-      const pct    = Math.round((total / 20) * 100);
-      badge.textContent = pct + '%';
-      badge.className   = `status ${pct >= 90 ? 'promoted' : 'repeat'}`;
+      const row   = inp.closest('tr');
+      const tot   = [...row.querySelectorAll('.att-input')].reduce((a, i) => a + (+i.value || 0), 0);
+      const pctN  = Math.round((tot / 20) * 100);
+      row.querySelector('strong').textContent = tot;
+      const badge = row.querySelector('.status');
+      badge.textContent = pctN + '%';
+      badge.className   = `status ${pctN >= 90 ? 'promoted' : pctN >= 75 ? 'review' : 'repeat'}`;
     }));
 
+    // Per-student save — writes weekly totals and backfills daily cache
     $all('[data-save-att]').forEach(btn => btn.addEventListener('click', async () => {
-      const sid  = btn.dataset.saveAtt;
-      const row  = btn.closest('tr');
-      att[sid]   = {};
+      const sid = btn.dataset.saveAtt;
+      const row = btn.closest('tr');
+      att[sid]  = {};
       row.querySelectorAll('.att-input').forEach(i => {
         att[sid][i.dataset.week] = Math.min(5, Math.max(0, +i.value || 0));
       });
       await Data.saveAttendance(att, term);
-      toast(`Attendance saved for ${Data.student(sid)?.name}.`);
+      // Refresh draft from the newly written daily cache
+      const newDaily = Data.dailyAttendance(term);
+      [1, 2, 3, 4].forEach(w => {
+        draft[sid][w] = normDay(newDaily[`W${w}`]?.[String(sid)]);
+      });
+      toast(`Attendance saved · ${Data.student(sid)?.name}.`);
       drawWeekly();
       drawDay();
+      refreshStats();
     }));
   }
+
   drawDay();
   drawWeekly();
 }
@@ -3032,7 +3375,7 @@ function renderStudentDashboard() {
   const mentor  = Data.mentor(s.mentorId);
   const check   = Academic.promotionCheck(sid, term);
 
-  $('std-eyebrow').textContent      = `Student portal · ID ${sid} · ${s.admissionNo || ''}`;
+  $('std-eyebrow').textContent      = `Student portal · ${s.admissionNo || ''}`;
   $('std-welcome').textContent      = `Welcome back, ${s.name.split(' ')[0]}.`;
   $('std-name').textContent         = s.name;
   $('std-class').textContent        = `${cl?.name || '—'} · ${Data.session().name}${cl?.stream ? ' · ' + cl.stream : ''}`;
@@ -3042,7 +3385,9 @@ function renderStudentDashboard() {
   $('std-stat-avg-note').textContent = `Grade ${gradeLabel(avg)} · ${[check.enPass, check.maPass, check.avgPass].filter(Boolean).length} of 3 met`;
   $('std-stat-att').textContent     = att;
   $('std-stat-assigns').textContent = assigns.length;
-  $('std-stat-status').textContent  = status;
+  // Promotion status is only meaningful after all three terms are published
+  const _allPub = [1, 2, 3].every(t => Data.published(t));
+  $('std-stat-status').textContent  = _allPub ? status : '—';
 
   $('std-subject-results').innerHTML = Academic.termScores(sid, term).map(sc => {
     const pct = sc.score ?? 0, pass = pct >= passMark();
@@ -3067,11 +3412,21 @@ function renderStudentDashboard() {
   $('std-promo-badge').textContent = promoted ? '✓' : '!';
   $('std-promo-badge').className   = `check-badge ${promoted ? '' : 'warn-badge'}`;
   $('std-promo-circle').innerHTML  = `<strong>${met}/3</strong><span>requirements</span>`;
-  $('std-promo-reqs').innerHTML    = reqs.map(r => `
-    <div>
-      <span class="requirement-check ${r.met ? '' : 'req-fail'}">${r.met ? '✓' : '✗'}</span>
-      <span>${r.label}</span><b>${r.value}</b>
-    </div>`).join('');
+  // Promotion tracker shown to students only after all 3 terms are published
+  const _promoEl = $('std-promo-reqs');
+  if (_allPub) {
+    $('std-promo-reqs').innerHTML = reqs.map(r => `
+      <div>
+        <span class="requirement-check ${r.met ? '' : 'req-fail'}">${r.met ? '✓' : '✗'}</span>
+        <span>${r.label}</span><b>${r.value}</b>
+      </div>`).join('');
+  } else {
+    $('std-promo-title').textContent = 'Pending';
+    $('std-promo-badge').textContent = '…';
+    $('std-promo-badge').className   = 'check-badge';
+    $('std-promo-circle').innerHTML  = `<strong>—</strong><span>awaiting final term</span>`;
+    $('std-promo-reqs').innerHTML    = '<div class="muted-cell" style="font-size:12px">Promotion status will be shown after all term results are published.</div>';
+  }
 
   $('std-assignments-list').innerHTML = assigns.map(a => {
     const sub = Data.subject(a.subjectId);
@@ -3107,11 +3462,24 @@ function renderStudentResults() {
   if (!Data.student(sid)) { toast('This login is not linked to a student record.', 'error'); return; }
   const termSel = $('std-results-term');
   const cur = currentTerm();
-  // Students only see current term and past terms — never future terms
-  termSel.innerHTML = Data.session().terms
-    .filter(t => t.term <= cur)
+
+  // Students only see published terms. Unpublished terms are hidden entirely
+  // from the selector — the publish feature controls when students can see results.
+  const visibleTerms = Data.session().terms
+    .filter(t => t.term <= cur && Data.published(t.term));
+
+  if (!visibleTerms.length) {
+    termSel.innerHTML = '';
+    $('std-results-table').innerHTML = `<tr><td colspan="7" class="muted-cell">${resultsLockedNote(cur)}</td></tr>`;
+    $('std-results-meta').textContent = `${Data.session().name} · awaiting release`;
+    return;
+  }
+
+  termSel.innerHTML = visibleTerms
     .map(t => `<option value="${t.term}" ${t.term === cur ? 'selected' : ''}>${esc(t.name)}</option>`)
     .join('');
+  // If current term not published, default to most recent published
+  if (!Data.published(cur)) termSel.value = String(visibleTerms[visibleTerms.length - 1].term);
 
   function draw() {
     const term = +termSel.value;
@@ -3401,8 +3769,19 @@ function openStudentReport(studentId, termOverride = null) {
   $('drawer-meta').textContent    = `${cl?.name || '—'} · ${esc(s.admissionNo || '—')}`;
   $('drawer-score').textContent   = avg + '%';
   const badge = $('drawer-status');
-  badge.textContent = status;
-  badge.className = `promotion-badge ${statusClass(status)}`;
+  // Promotion status (Promoted / Repeat / Review) is only shown to students
+  // and parents after ALL three terms have been published — it reflects the
+  // final session outcome, not a single-term snapshot.
+  const isConsumerView = currentUser && (currentUser.role === 'Student' || currentUser.role === 'Parent');
+  const allTermsPublished = [1, 2, 3].every(t => Data.published(t));
+  const showStatus = !isConsumerView || allTermsPublished;
+  if (showStatus) {
+    badge.textContent = status;
+    badge.className = `promotion-badge ${statusClass(status)}`;
+  } else {
+    badge.textContent = '—';
+    badge.className   = 'promotion-badge review';
+  }
 
   const history = Data.promotionsFor(studentId);
   const archiveChip = s.status === 'archived'
@@ -3496,10 +3875,16 @@ function bindPassportActions() {
   // window.print() in a normal browser shows the system print dialog,
   // where the user can pick "Save as PDF". We scope the print CSS to a
   // .printing body class so only the passport sheet is printed.
+  // Use afterprint to remove the class so the dialog has time to render.
   const doPrint = () => {
     document.body.classList.add('printing');
-    window.print();
-    document.body.classList.remove('printing');
+    const done = () => {
+      document.body.classList.remove('printing');
+      window.removeEventListener('afterprint', done);
+    };
+    window.addEventListener('afterprint', done);
+    // Double rAF ensures the class is applied before print() is called
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
   };
   $('passport-print-btn')?.addEventListener('click', doPrint);
   $('passport-download-btn')?.addEventListener('click', doPrint);
