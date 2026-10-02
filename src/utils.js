@@ -2,7 +2,7 @@
 //  Happy Man Academy — Pure utility helpers
 // ============================================================
 
-import { Data, Academic } from './data/index.js';
+import { Data, Academic, Progression } from './data/index.js';
 
 // ── DOM helpers ──────────────────────────────────────────────
 export const $    = id  => document.getElementById(id);

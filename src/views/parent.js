@@ -8,7 +8,8 @@ import {
   $, $all, esc, toast, currentTerm, passMark, gradeLabel, toneClass, subjectChip, statusClass
 } from '../utils.js';
 import { openStudentReport } from './reports.js';
-import { timetableTable, renderParentGuardian, recordParentLoginIfNew, resultsLockedNote, termNameOf } from './admin.js';
+import { timetableTable } from './shared.js';
+import { renderParentGuardian, recordParentLoginIfNew, resultsLockedNote, termNameOf } from './admin.js';
 import { renderEventsList } from './admin.js';
 import { attendanceGridHTML, assignmentRowsHTML } from './student.js';
 

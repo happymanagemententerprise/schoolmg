@@ -11,7 +11,8 @@ import {
 } from '../utils.js';
 import { openModal, closeModal } from '../router.js';
 import { openStudentReport } from './reports.js';
-import { timetableTable, renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf } from './admin.js';
+import { timetableTable } from './shared.js';
+import { renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf } from './admin.js';
 import { renderStudentGrowth } from './admin.js';
 
 const ATT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];

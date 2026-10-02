@@ -18,9 +18,9 @@ function renderView(page) { import('../router.js').then(m => m.renderView(page))
 import { isTeacher, isAdmin, isHOD, myClassRecord, hasClass, myDepartments } from '../auth.js';
 import { openStudentReport } from './reports.js';
 import {
-  renderAdminTimetable, askSensitiveConfirm,
-  openClassReportModal, openResetPasswordModal, timetableTable
-} from './admin.js';
+  askSensitiveConfirm, openClassReportModal, openResetPasswordModal, timetableTable
+} from './shared.js';
+// renderAdminTimetable is never called directly in teacher views; removed from import
 
 // ── Teacher subject helpers ───────────────────────────────────
 export function myTeacherSubjects() {
@@ -586,7 +586,7 @@ export function renderClassOverview() {
     showView('view-class-attendance');
     renderClassAttendance(btn.dataset.sid);
   }));
-  import('./admin.js').then(({ openResetPasswordModal: orp }) => {
+  import('./shared.js').then(({ openResetPasswordModal: orp }) => {
     $all('[data-reset-pw]').forEach(btn => btn.addEventListener('click', () => orp(btn.dataset.resetPw)));
   });
 
