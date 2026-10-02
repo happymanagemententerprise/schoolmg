@@ -9,7 +9,7 @@ import {
   $, $q, $all, esc, toast, formatDate,
   gradeLabel, toneClass, subjectChip, statusClass, currentTerm, passMark
 } from '../utils.js';
-import { openModal, closeModal } from '../router.js';
+import { openModal, closeModal } from '../modals.js';
 import { openStudentReport } from './reports.js';
 import { timetableTable, renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf, renderStudentGrowth, dayChipsHTML, attendanceGridHTML, assignmentRowsHTML } from './shared.js';
 
@@ -342,8 +342,10 @@ export function renderStudentPathway() {
     ${statusHTML}
     <div class="path-options mt16">
       ${options.length ? options.map(o => `
-        <label class="path-card${o.stream === chosen ? ' selected' : ''}" data-stream="${o.stream}">
-          <input type="radio" name="stu-path" value="${o.stream}" ${o.stream === chosen ? 'checked' : ''}>
+        <label class="path-card" data-stream="${o.stream}"
+               :class="{ selected: chosen === '${o.stream}' }"
+               @click="chosen = '${o.stream}'">
+          <input type="radio" name="stu-path" value="${o.stream}" :checked="chosen === '${o.stream}'">
           <strong>${esc(o.name)}</strong>
           <span class="muted-cell">${esc(hints[o.stream] || '')}</span>
         </label>`).join('')
@@ -355,15 +357,19 @@ export function renderStudentPathway() {
     <div id="stu-path-msg" class="form-feedback mt8" hidden></div>
   </div>`;
 
-  $all('.path-card').forEach(card => card.onclick = () => {
-    $all('.path-card').forEach(x => x.classList.toggle('selected', x === card));
-    const radio = card.querySelector('input[type=radio]'); if (radio) radio.checked = true;
-  });
+  // Initialise Alpine directives on the newly injected HTML
+  if (window.Alpine) {
+    Alpine.initTree(box);
+    const alpineData = Alpine.$data(box);
+    if (alpineData) alpineData.chosen = chosen;
+  }
+
   $('stu-path-save').onclick = async () => {
-    const picked = $q('input[name="stu-path"]:checked');
     const msg = $('stu-path-msg');
+    const alpineData = window.Alpine ? Alpine.$data(box) : null;
+    const picked = alpineData?.chosen || $q('input[name="stu-path"]:checked')?.value;
     if (!picked) { _message(msg, 'Choose a path first.', 'error'); return; }
-    await Progression.requestPathway(s.id, picked.value, $('stu-path-note').value.trim(), currentUser.id);
+    await Progression.requestPathway(s.id, picked, $('stu-path-note').value.trim(), currentUser.id);
     _message(msg, 'Your choice is saved — the school will confirm it.', 'success');
     renderStudentPathway();
   };

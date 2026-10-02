@@ -107,17 +107,13 @@ export function navForUser(user) {
 
 // ── Login / logout ───────────────────────────────────────────
 export function initLogin() {
-  const emailI = $('login-email'), pwI = $('login-password'), err = $('login-error');
+  const emailI = $('login-email'), pwI = $('login-password');
 
   $all('.demo-btn').forEach(btn => btn.addEventListener('click', () => {
     emailI.value = btn.dataset.email;
     pwI.value    = btn.dataset.pw;
-    err.hidden   = true;
+    Alpine.store('loginError', '');
   }));
-
-  $('toggle-pw').addEventListener('click', () => {
-    pwI.type = pwI.type === 'password' ? 'text' : 'password';
-  });
 
   $('login-form').addEventListener('submit', e => {
     e.preventDefault();
@@ -125,20 +121,19 @@ export function initLogin() {
     const user  = Data.userByEmail(email);
     if (user && Data.passwordMatches(user, pwI.value)) {
       if (Data.accountBlocked(user)) {
-        err.textContent = 'This account has been archived and can no longer sign in. Contact the school office.';
-        err.hidden = false; return;
+        Alpine.store('loginError', 'This account has been archived and can no longer sign in. Contact the school office.');
+        return;
       }
-      err.hidden = true; login(user); return;
+      Alpine.store('loginError', ''); login(user); return;
     }
     if (!user && Data.users().length) {
-      err.textContent = 'No account with that email. This page may be showing ' +
-                        'out-of-date data - reload it, then try again.';
+      Alpine.store('loginError', 'No account with that email. This page may be showing ' +
+                        'out-of-date data - reload it, then try again.');
     } else if (user) {
-      err.textContent = 'That password is not right for ' + user.name + '.';
+      Alpine.store('loginError', 'That password is not right for ' + user.name + '.');
     } else {
-      err.textContent = 'Incorrect email or password.';
+      Alpine.store('loginError', 'Incorrect email or password.');
     }
-    err.hidden = false;
   });
 }
 

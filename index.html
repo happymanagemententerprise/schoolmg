@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
 </head>
 <body>
 
@@ -35,12 +36,17 @@
       </div>
       <div class="form-group">
         <label for="login-password">Password</label>
-        <div class="password-wrap">
-          <input id="login-password" type="password" placeholder="Enter password" autocomplete="current-password">
-          <button type="button" id="toggle-pw" class="toggle-pw" aria-label="Show password">&#128065;</button>
+        <div class="password-wrap" x-data="{ show: false }">
+          <input id="login-password" :type="show ? 'text' : 'password'" placeholder="Enter password" autocomplete="current-password">
+          <button type="button" id="toggle-pw" class="toggle-pw" aria-label="Show password"
+                  @click="show = !show">&#128065;</button>
         </div>
       </div>
-      <p id="login-error" class="login-error" hidden>Incorrect email or password. Try a demo account below.</p>
+      <p id="login-error"
+         class="login-error"
+         x-data
+         x-show="$store.loginError"
+         x-text="$store.loginError"></p>
       <button type="submit" class="btn-primary login-btn">Sign in</button>
     </form>
 
@@ -185,7 +191,7 @@
           <div class="panel-heading">
             <div><p class="eyebrow">Needs attention</p><h2>Student progress</h2></div>
             <div class="table-actions">
-              <div class="search"><span>&#8981;</span><input id="admin-student-search" type="search" placeholder="Search student" aria-label="Search student"></div>
+              <div class="search" x-data="{ query: '' }"><span>&#8981;</span><input id="admin-student-search" type="search" placeholder="Search student" aria-label="Search student" x-model="query"></div>
             </div>
           </div>
           <div class="table-wrap">
@@ -208,10 +214,16 @@
         <div><p class="eyebrow">Directory</p><h1>People</h1><p class="subcopy">Staff, students, and parents at Happy Man Academy.</p></div>
         <button class="btn-primary" id="add-user-btn">+ Add person</button>
       </section>
-      <div class="tab-bar" id="people-tabs">
-        <button class="tab-btn active" data-tab="staff">Staff</button>
-        <button class="tab-btn" data-tab="students-all">Students</button>
-        <button class="tab-btn" data-tab="parents">Parents</button>
+      <div class="tab-bar" id="people-tabs" x-data="{ tab: 'staff' }">
+        <button class="tab-btn" data-tab="staff"
+                :class="{ active: tab === 'staff' }"
+                @click="tab = 'staff'">Staff</button>
+        <button class="tab-btn" data-tab="students-all"
+                :class="{ active: tab === 'students-all' }"
+                @click="tab = 'students-all'">Students</button>
+        <button class="tab-btn" data-tab="parents"
+                :class="{ active: tab === 'parents' }"
+                @click="tab = 'parents'">Parents</button>
       </div>
       <div id="people-tab-content" class="panel mt16">
         <div class="table-wrap" id="people-table-wrap"></div>
@@ -247,14 +259,16 @@
       <div class="panel mt16">
         <div class="panel-heading">
           <div><p class="eyebrow">Curriculum</p><h2>All subjects</h2></div>
-          <div class="form-row tight">
-            <select id="as-filter-level" class="select-inline" aria-label="Filter by level">
+          <div class="form-row tight" x-data="{ level: 'ALL', group: 'ALL' }">
+            <select id="as-filter-level" class="select-inline" aria-label="Filter by level"
+                    x-model="level">
               <option value="ALL">All levels</option>
               <option value="JSS">Junior (JSS)</option>
               <option value="SS">Senior (SS)</option>
               <option value="BOTH">All levels</option>
             </select>
-            <select id="as-filter-group" class="select-inline" aria-label="Filter by track">
+            <select id="as-filter-group" class="select-inline" aria-label="Filter by track"
+                    x-model="group">
               <option value="ALL">All tracks</option>
               <option value="General">General</option>
               <option value="Science">Science</option>
@@ -525,7 +539,7 @@
       <div class="setup-grid">
         <article class="panel">
           <div class="panel-heading"><div><p class="eyebrow">Academic year</p><h2>Session settings</h2></div></div>
-          <div class="setup-form" id="session-setup-form">
+          <div class="setup-form" id="session-setup-form" x-data="{ testOpen: false, examOpen: false }">
             <div class="form-group mt16">
               <label>Current session</label>
               <input id="setup-session-name" type="text" placeholder="e.g. 2025 / 2026">
@@ -541,14 +555,18 @@
             <div class="form-group">
               <label>Upload: CA (40) scores</label>
               <div class="toggle-row">
-                <span id="upload-test-label">Closed</span>
+              <span id="upload-test-label"
+                    x-text="testOpen ? 'Open' : 'Closed'"
+                    :class="testOpen ? 'open-label' : 'closed-label'"></span>
                 <button class="toggle-btn" id="toggle-test-upload" data-type="test">Toggle</button>
               </div>
             </div>
             <div class="form-group">
               <label>Upload: Exam (60) scores</label>
               <div class="toggle-row">
-                <span id="upload-exam-label">Open</span>
+              <span id="upload-exam-label"
+                    x-text="examOpen ? 'Open' : 'Closed'"
+                    :class="examOpen ? 'open-label' : 'closed-label'"></span>
                 <button class="toggle-btn" id="toggle-exam-upload" data-type="exam">Toggle</button>
               </div>
             </div>
@@ -741,15 +759,15 @@
           <span class="att-day-count" id="ct-day-count"></span>
         </div>
 
-        <div class="att-daily-bar mt16">
+        <div class="att-daily-bar mt16" x-data="{ week: '1', day: '0' }">
           <label>Week
-            <select id="ct-day-week">
+            <select id="ct-day-week" x-model="week">
               <option value="1">Week 1</option><option value="2">Week 2</option>
               <option value="3">Week 3</option><option value="4">Week 4</option>
             </select>
           </label>
           <label>Day
-            <select id="ct-day-of-week">
+            <select id="ct-day-of-week" x-model="day">
               <option value="0">Monday</option><option value="1">Tuesday</option>
               <option value="2">Wednesday</option><option value="3">Thursday</option>
               <option value="4">Friday</option>
@@ -1182,7 +1200,7 @@
       <section class="welcome-row">
         <div><p class="eyebrow">My future</p><h1 id="stu-path-heading">Choose my path</h1><p class="subcopy">At the Grade 9 checkpoint and in placement pools the school asks you to pick the stream you want &mdash; Science, Commercial or Arts.</p></div>
       </section>
-      <div id="stu-path-body" class="mt16"></div>
+      <div id="stu-path-body" class="mt16" x-data="{ chosen: '' }"></div>
     </div>
 
     <div class="page-wrap" id="view-student-lessons" data-role="Student" hidden>
@@ -1365,7 +1383,8 @@
 </div>
 
 <!-- Add / edit person modal -->
-<div class="modal-overlay" id="add-user-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="add-user-modal" aria-hidden="true"
+     x-data x-show="$store.modals['add-user-modal']">
   <div class="modal">
     <div class="modal-header"><h3 id="nu-modal-title">Add person</h3><button class="close-modal" data-modal="add-user-modal">&times;</button></div>
     <div class="modal-body">
@@ -1419,7 +1438,8 @@
 </div>
 
 <!-- Reset password modal -->
-<div class="modal-overlay" id="reset-password-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="reset-password-modal" aria-hidden="true"
+     x-data x-show="$store.modals['reset-password-modal']">
   <div class="modal">
     <div class="modal-header"><h3 id="rp-title">Reset password</h3><button class="close-modal" data-modal="reset-password-modal">&times;</button></div>
     <div class="modal-body">
@@ -1444,7 +1464,8 @@
 </div>
 
 <!-- Student Achievement Passport (printable) -->
-<div class="modal-overlay" id="passport-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="passport-modal" aria-hidden="true"
+     x-data x-show="$store.modals['passport-modal']">
   <div class="modal passport-modal">
     <div class="modal-header">
       <h3>Student Achievement Passport</h3>
@@ -1464,7 +1485,8 @@
 </div>
 
 <!-- Sensitive action confirm (password gate for progression changes) -->
-<div class="modal-overlay" id="sensitive-confirm-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="sensitive-confirm-modal" aria-hidden="true"
+     x-data x-show="$store.modals['sensitive-confirm-modal']">
   <div class="modal">
     <div class="modal-header"><h3 id="sc-title">Confirm</h3><button class="close-modal" data-modal="sensitive-confirm-modal">&times;</button></div>
     <div class="modal-body">
@@ -1483,7 +1505,8 @@
 </div>
 
 <!-- Pool placement modal -->
-<div class="modal-overlay" id="place-student-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="place-student-modal" aria-hidden="true"
+     x-data x-show="$store.modals['place-student-modal']">
   <div class="modal">
     <div class="modal-header"><h3>Place pool entrant</h3><button class="close-modal" data-modal="place-student-modal">&times;</button></div>
     <div class="modal-body">
@@ -1505,7 +1528,8 @@
 </div>
 
 <!-- Subject choice modal -->
-<div class="modal-overlay" id="choose-subjects-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="choose-subjects-modal" aria-hidden="true"
+     x-data x-show="$store.modals['choose-subjects-modal']">
   <div class="modal">
     <div class="modal-header"><h3>Choose subjects</h3><button class="close-modal" data-modal="choose-subjects-modal">&times;</button></div>
     <div class="modal-body">
@@ -1522,7 +1546,8 @@
 </div>
 
 <!-- Add class modal -->
-<div class="modal-overlay" id="add-class-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="add-class-modal" aria-hidden="true"
+     x-data x-show="$store.modals['add-class-modal']">
   <div class="modal">
     <div class="modal-header"><h3>Add class</h3><button class="close-modal" data-modal="add-class-modal">&times;</button></div>
     <div class="modal-body">
@@ -1565,7 +1590,8 @@
 </div>
 
 <!-- Assign class teacher modal -->
-<div class="modal-overlay" id="class-teacher-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="class-teacher-modal" aria-hidden="true"
+     x-data x-show="$store.modals['class-teacher-modal']">
   <div class="modal">
     <div class="modal-header"><h3 id="ct-modal-title">Assign class teacher</h3><button class="close-modal" data-modal="class-teacher-modal">&times;</button></div>
     <div class="modal-body">
@@ -1586,7 +1612,8 @@
 </div>
 
 <!-- Add subject modal -->
-<div class="modal-overlay" id="add-subject-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="add-subject-modal" aria-hidden="true"
+     x-data x-show="$store.modals['add-subject-modal']">
   <div class="modal">
     <div class="modal-header"><h3>Add subject</h3><button class="close-modal" data-modal="add-subject-modal">&times;</button></div>
     <div class="modal-body">
@@ -1621,7 +1648,8 @@
 </div>
 
 <!-- Add assignment modal -->
-<div class="modal-overlay" id="add-assignment-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="add-assignment-modal" aria-hidden="true"
+     x-data x-show="$store.modals['add-assignment-modal']">
   <div class="modal">
     <div class="modal-header"><h3>Create assignment</h3><button class="close-modal" data-modal="add-assignment-modal">&times;</button></div>
     <div class="modal-body">
@@ -1639,7 +1667,8 @@
 </div>
 
 <!-- Class students modal -->
-<div class="modal-overlay" id="class-students-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="class-students-modal" aria-hidden="true"
+     x-data x-show="$store.modals['class-students-modal']">
   <div class="modal modal-wide">
     <div class="modal-header"><h3 id="class-students-title">Class Students</h3><button class="close-modal" data-modal="class-students-modal">&times;</button></div>
     <div class="modal-body">
@@ -1652,7 +1681,8 @@
 </div>
 
 <!-- Full class register modal (CA + exam for every subject) -->
-<div class="modal-overlay" id="class-register-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="class-register-modal" aria-hidden="true"
+     x-data x-show="$store.modals['class-register-modal']">
   <div class="modal modal-wide">
     <div class="modal-header"><h3 id="register-title">Class Register</h3><button class="close-modal" data-modal="class-register-modal">&times;</button></div>
     <div class="modal-body">
@@ -1671,7 +1701,8 @@
 </div>
 
 <!-- Assign mentor modal -->
-<div class="modal-overlay" id="assign-mentor-modal" aria-hidden="true" hidden>
+<div class="modal-overlay" id="assign-mentor-modal" aria-hidden="true"
+     x-data x-show="$store.modals['assign-mentor-modal']">
   <div class="modal">
     <div class="modal-header"><h3>Assign Mentor</h3><button class="close-modal" data-modal="assign-mentor-modal">&times;</button></div>
     <div class="modal-body">
@@ -1688,7 +1719,12 @@
 </div>
 
 <!-- Toast notification -->
-<div id="toast" class="toast" aria-live="polite" hidden></div>
+<div id="toast"
+     x-data
+     x-show="$store.toast.visible"
+     :class="'toast toast-' + $store.toast.type"
+     aria-live="polite"
+     x-text="$store.toast.message"></div>
 
 <script type="module" src="/data.js"></script>
 <script type="module" src="/src/main.js"></script>

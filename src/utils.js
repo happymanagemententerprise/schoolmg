@@ -13,12 +13,11 @@ export const esc  = s => String(s ?? '').replace(/[&<>"']/g, c =>
 
 // ── Toast notifications ──────────────────────────────────────
 export function toast(msg, type = 'success') {
-  const el = $('toast');
-  el.textContent = msg;
-  el.className   = 'toast toast-' + type;
-  el.hidden      = false;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => { el.hidden = true; }, 3200);
+  Alpine.store('toast', { visible: true, message: msg, type });
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => {
+    Alpine.store('toast', { visible: false, message: '', type: 'info' });
+  }, 3200);
 }
 
 // ── Date and number helpers ──────────────────────────────────

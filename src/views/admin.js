@@ -5,7 +5,7 @@
 import { Data, Academic, Progression, Timetable, Growth } from '../data/index.js';
 import { getCurrentUser } from '../state.js';
 import {
-  _prRows, set_prRows, _sensitiveRun, set_sensitiveRun,
+  _prRows, set_prRows, getSensitiveRun, set_sensitiveRun,
   _placementId, set_placementId, _editingUserId, set_editingUserId,
   _resetUserId
 } from '../state.js';
@@ -16,7 +16,8 @@ import {
   downloadCsv, downloadXlsx, downloadXlsxMulti,
   classRank, yearRank
 } from '../utils.js';
-import { openModal, closeModal, openDrawer, closeMenus } from '../router.js';
+import { openModal, closeModal } from '../modals.js';
+import { openDrawer, closeMenus } from '../router.js';
 import { isTeacher, isAdmin, isStudent, isParent, isHOD, myClassRecord } from '../auth.js';
 import { openStudentReport } from './reports.js';
 import { timetableTable, askSensitiveConfirm, openResetPasswordModal, openClassReportModal,
@@ -280,11 +281,9 @@ export async function saveUserFromForm() {
 }
 
 export function bindPeopleTabs() {
-  $all('#people-tabs .tab-btn').forEach(btn => btn.onclick = () => {
-    $all('#people-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+  $all('#people-tabs .tab-btn').forEach(btn => btn.addEventListener('click', () => {
     renderPeopleTab(btn.dataset.tab);
-  });
+  }));
 }
 
 function myTeacherSubjectsOf(teacherId) {
@@ -598,8 +597,6 @@ export function renderAdminSubjects() {
 
   $('as-filter-level').onchange = draw;
   $('as-filter-group').onchange = draw;
-  $('as-filter-level').value = 'ALL';
-  $('as-filter-group').value = 'ALL';
   draw();
 
   $('add-subject-btn').onclick = () => {
@@ -913,8 +910,28 @@ export function renderAdminSetup() {
   updateUploadLabels(sess);
   renderSetupEventsList();
 
-  $('toggle-test-upload').onclick = () => { const s = Data.session(); s.uploadOpen.test = !s.uploadOpen.test;  Data.saveSession(s); updateUploadLabels(s); };
-  $('toggle-exam-upload').onclick = () => { const s = Data.session(); s.uploadOpen.exam = !s.uploadOpen.exam; Data.saveSession(s); updateUploadLabels(s); };
+  $('toggle-test-upload').onclick = () => {
+    const s = Data.session();
+    s.uploadOpen.test = !s.uploadOpen.test;
+    Data.saveSession(s);
+    updateUploadLabels(s);
+    const setupForm = $('session-setup-form');
+    if (setupForm && window.Alpine) {
+      const data = Alpine.$data(setupForm);
+      if (data) data.testOpen = s.uploadOpen.test;
+    }
+  };
+  $('toggle-exam-upload').onclick = () => {
+    const s = Data.session();
+    s.uploadOpen.exam = !s.uploadOpen.exam;
+    Data.saveSession(s);
+    updateUploadLabels(s);
+    const setupForm = $('session-setup-form');
+    if (setupForm && window.Alpine) {
+      const data = Alpine.$data(setupForm);
+      if (data) data.examOpen = s.uploadOpen.exam;
+    }
+  };
   $('save-session-btn').onclick = () => {
     const s = Data.session();
     s.name = $('setup-session-name').value.trim() || s.name;
@@ -962,9 +979,20 @@ export function renderAdminSetup() {
 export function updateUploadLabels(sess) {
   ['test', 'exam'].forEach(t => {
     const el = $(`upload-${t}-label`);
-    el.textContent = sess.uploadOpen[t] ? 'Open' : 'Closed';
-    el.className   = sess.uploadOpen[t] ? 'open-label' : 'closed-label';
+    if (el) {
+      el.textContent = sess.uploadOpen[t] ? 'Open' : 'Closed';
+      el.className   = sess.uploadOpen[t] ? 'open-label' : 'closed-label';
+    }
   });
+  // Sync Alpine component state
+  const setupForm = $('session-setup-form');
+  if (setupForm && window.Alpine) {
+    const data = Alpine.$data(setupForm);
+    if (data) {
+      data.testOpen = !!sess.uploadOpen.test;
+      data.examOpen = !!sess.uploadOpen.exam;
+    }
+  }
 }
 
 export function renderSetupEventsList() {
@@ -1333,7 +1361,7 @@ export function bindProgressionModals() {
     }
     f.hidden = true;
     closeModal('sensitive-confirm-modal');
-    const run = _sensitiveRun; set_sensitiveRun(null);
+    const run = getSensitiveRun(); set_sensitiveRun(null);
     if (typeof run === 'function') await run();
   });
   bindDayStructureForm();

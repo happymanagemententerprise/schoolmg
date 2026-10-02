@@ -7,6 +7,12 @@ import { wireGlobals } from './router.js';
 import { Data, DB } from './data/index.js';
 import { initAdminModals } from './views/admin.js';
 
+document.addEventListener('alpine:init', () => {
+  Alpine.store('toast', { visible: false, message: '', type: 'info' });
+  Alpine.store('modals', {});
+  Alpine.store('loginError', '');
+});
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Wait for the data layer to load from Supabase (data.js bootstraps
   // itself via window.loadFromSupabase, which is called in data.js's
