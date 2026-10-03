@@ -302,34 +302,33 @@ export function renderSubjectScores() {
     $('st-scores-meta').textContent =
       `${subject?.name} · ${classId ? Data.cls(classId)?.name : `${classIds.length} classes you teach`} · Term ${term}`;
 
-    $('st-scores-table').innerHTML = rows.length ? rows.map(({ s, cid }) => {
-      const entry = Data.studentScores(s.id)[subjectId]?.[term];
-      const ca    = entry?.test  ?? null;
-      const exam  = entry?.exam  ?? null;
-      const total = entry ? ca + exam : null;
-      const grade = total !== null ? gradeLabel(total) : '—';
-      const pass  = total !== null && total >= passMark();
-      const caCell = caOpen
-        ? `<input class="score-input" type="number" min="0" max="40" value="${ca ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="test">`
-        : (ca ?? '—');
-      const examCell = examOpen
-        ? `<input class="score-input" type="number" min="0" max="60" value="${exam ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="exam">`
-        : (exam ?? '—');
-      return `<tr>
-        <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
-        <td>${esc(Data.cls(cid)?.name || '—')}</td>
-        <td>${caCell}</td><td>${examCell}</td>
-        <td><strong>${total ?? '—'}</strong></td>
-        <td><span class="status ${total === null ? 'review' : pass ? 'promoted' : 'repeat'}">${grade}</span></td>
-      </tr>`;
-    }).join('') : '<tr><td colspan="7" class="muted-cell">No students in this class.</td></tr>';
+    const closedNoticeRow = (!caOpen && !examOpen)
+      ? `<tr><td colspan="7" class="muted-cell" style="font-style:italic">Score entry is currently closed. The admin can open CA or Exam upload windows from the dashboard.</td></tr>`
+      : '';
 
-    if (!caOpen && !examOpen) {
-      // Show a notice that entry windows are closed
-      const notice = document.createElement('tr');
-      notice.innerHTML = `<td colspan="7" class="muted-cell" style="font-style:italic">Score entry is currently closed. The admin can open CA or Exam upload windows from the dashboard.</td>`;
-      $('st-scores-table').appendChild(notice);
-    }
+    $('st-scores-table').innerHTML = rows.length
+      ? rows.map(({ s, cid }) => {
+          const entry = Data.studentScores(s.id)[subjectId]?.[term];
+          const ca    = entry?.test  ?? null;
+          const exam  = entry?.exam  ?? null;
+          const total = entry ? ca + exam : null;
+          const grade = total !== null ? gradeLabel(total) : '—';
+          const pass  = total !== null && total >= passMark();
+          const caCell = caOpen
+            ? `<input class="score-input" type="number" min="0" max="40" value="${ca ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="test">`
+            : (ca ?? '—');
+          const examCell = examOpen
+            ? `<input class="score-input" type="number" min="0" max="60" value="${exam ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="exam">`
+            : (exam ?? '—');
+          return `<tr>
+            <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+            <td>${esc(Data.cls(cid)?.name || '—')}</td>
+            <td>${caCell}</td><td>${examCell}</td>
+            <td><strong>${total ?? '—'}</strong></td>
+            <td><span class="status ${total === null ? 'review' : pass ? 'promoted' : 'repeat'}">${grade}</span></td>
+          </tr>`;
+        }).join('') + closedNoticeRow
+      : '<tr><td colspan="7" class="muted-cell">No students in this class.</td></tr>' + closedNoticeRow;
   }
 
   const dlBtn = $('st-download-xls-btn');

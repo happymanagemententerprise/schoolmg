@@ -265,6 +265,10 @@ function ProgressionPool({ refresh, askSensitive, openPlacement, v: _v }) {
   };
 
   const handleDecision = async (studentId, chosenStream) => {
+    if (!currentUser) {
+      toast('Not signed in.', 'error');
+      return;
+    }
     // Find target class: SS year 10, matching stream, not a pool class
     const target = allClasses.find(c =>
       c.level === 'SS' &&

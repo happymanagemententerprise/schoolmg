@@ -20,3 +20,20 @@
 
 ## Skipped
 - Manual browser verification (no headless test harness; project has no automated tests per fix-plan.md).
+
+---
+
+# Fix verification — review findings iteration 2 (blocking findings from fix-review.json)
+
+## What was run
+- `npm run build` — completed successfully, 0 errors, 128 modules transformed.
+
+## Finding `notice-double-row`: Notice row stacks under 'No students' row
+**Fixed in:** `src/views/teacher.js` — `draw()` inside `renderSubjectScores`
+**Change:** Removed the `document.createElement` + `appendChild` pattern. Instead, `closedNoticeRow` is a string set once before the `innerHTML` assignment. It is appended as part of the single `innerHTML =` string: concatenated to the rows when `rows.length > 0`, and concatenated to the "No students" row when `rows.length === 0`. There is now exactly one innerHTML write per `draw()` call and no separate DOM append that could stack.
+**Status:** Build-verified.
+
+## Finding `currentUser-null-crash`: getCurrentUser() null-crash in ProgressionPool
+**Fixed in:** `src/react/components/AdminProgression.jsx` — `handleDecision` in `ProgressionPool`
+**Change:** Added an early-return guard `if (!currentUser) { toast('Not signed in.', 'error'); return; }` at the top of `handleDecision`, before any access to `currentUser.id`. If auth hasn't resolved and `getCurrentUser()` returns null, the function now exits cleanly with an error toast instead of throwing.
+**Status:** Build-verified.

@@ -10,6 +10,9 @@
 
 ## Phase 4: React Component Migration — COMPLETE
 
+## Bug Fixes — Review findings iteration 2 (2026-10-02)
+Bug fixes: notice-double-row in score table, currentUser null-crash guard in ProgressionPool handleDecision (2026-10-02)
+
 ## Bug Fixes — Review findings iteration (2026-10-02)
 Bug fixes: handleDecision assignClass return value check, score listener accumulation guard, window.renderPeopleTab module-level assignment (2026-10-02)
 
