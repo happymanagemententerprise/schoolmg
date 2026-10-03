@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  plugins: [react()],
   root: '.',
   build: {
     outDir: 'dist',
@@ -9,14 +11,12 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'supabase':   ['@supabase/supabase-js'],
-          'data-layer': ['./data.js'],
+          'react-vendor': ['react', 'react-dom'],
+          'supabase':     ['@supabase/supabase-js'],
+          'data-layer':   ['./data.js'],
         }
       }
     }
   },
-  server: {
-    port: 8000,
-    open: true
-  }
+  server: { port: 8000, open: true }
 });

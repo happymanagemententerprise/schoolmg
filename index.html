@@ -289,85 +289,7 @@
 
     <!-- Admin: Progression & placement -->
     <div class="page-wrap" id="view-admin-progression" data-role="Administrator" hidden>
-      <section class="welcome-row">
-        <div><p class="eyebrow">End-of-session academic flow</p><h1>Progression &amp; Placement</h1><p class="subcopy">Decisions are previewed first, then committed. Pool placement, results publication, positions, approvals, and the school day.</p></div>
-        <button class="btn-primary" id="pr-dryrun-btn">Dry run</button>
-        <button class="btn-primary" id="pr-commit-btn">Commit decisions</button>
-      </section>
-
-      <div class="panel mt16">
-        <div class="panel-heading">
-          <div><p class="eyebrow" id="pr-note-eyebrow">Decision preview</p><h2 id="pr-note-title">End-of-session promotion</h2></div>
-          <span class="read-only-badge" id="pr-summary-badge">&mdash;</span>
-        </div>
-        <p class="role-muted" id="pr-note">Nothing is written until you press Commit.</p>
-        <div class="table-wrap mt16">
-          <table>
-            <thead><tr><th>Student</th><th>Class</th><th>EN</th><th>MA</th><th>Avg</th><th>Decision</th><th>Next class</th><th></th></tr></thead>
-            <tbody id="pr-decisions-table"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="setup-grid mt16">
-        <article class="panel">
-          <div class="panel-heading">
-            <div><p class="eyebrow">Grade 9 checkpoint</p><h2>Grade 10 Pool</h2></div>
-            <button class="outline-button" id="pr-close-pool-btn">Close pool</button>
-          </div>
-          <p class="role-muted">Grade 9 exits to the pool unconditionally at the end of Term 2. Unplaced entrants stay here until streamed; closing the pool marks any that remain as inactive.</p>
-          <div class="table-wrap mt16">
-            <table>
-              <thead><tr><th>Student</th><th>Admission no.</th><th>Placement</th></tr></thead>
-              <tbody id="pr-pool-table"></tbody>
-            </table>
-          </div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-heading">
-            <div><p class="eyebrow">Results access</p><h2>Publish</h2></div>
-          </div>
-          <p class="role-muted">A term cannot be published while any class still has an uneentered score cell. Coverage is live below.</p>
-          <div class="setup-form" id="pr-publish-form"></div>
-        </article>
-      </div>
-
-      <div class="panel mt16">
-        <div class="panel-heading">
-          <div><p class="eyebrow">Rankings</p><h2>Positions</h2></div>
-          <select id="pr-pos-term" class="select-inline" aria-label="Positions term">
-            <option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option>
-          </select>
-        </div>
-        <div class="table-wrap mt16">
-          <table>
-            <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Class pos.</th><th>Year pos.</th><th>Term avg</th><th>Session avg</th></tr></thead>
-            <tbody id="pr-positions-table"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="setup-grid mt16">
-        <article class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">Principal review</p><h2>Approvals</h2></div></div>
-          <div id="pr-approvals-list"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">School day</p><h2>Day structure</h2></div></div>
-          <p class="role-muted">Changing the day structure invalidates the saved timetable &mdash; regenerate it afterwards.</p>
-          <div class="setup-form">
-            <div class="form-group mt16"><label for="dstr-periods">Periods per day</label><input id="dstr-periods" type="number" min="4" max="9"></div>
-            <div class="form-group"><label for="dstr-start">First bell</label><input id="dstr-start" type="text" placeholder="08:00"></div>
-            <div class="form-group"><label for="dstr-minutes">Period length (min)</label><input id="dstr-minutes" type="number" min="20" max="90"></div>
-            <label class="dept-check mt8"><input type="checkbox" id="dstr-reset-breaks"><span>Restore default breaks (after 3rd period 20&nbsp;min, after 7th 45&nbsp;min)</span></label>
-            <div id="dstr-breaks-editor"></div>
-            <button class="btn-primary mt16" id="save-day-structure-btn">Save day structure</button>
-            <div id="dstr-feedback" class="form-feedback mt8" hidden></div>
-          </div>
-        </article>
-      </div>
+      <div id="react-admin-progression"></div>
     </div>
 
     <!-- Admin: Timetable -->
@@ -631,52 +553,7 @@
     <!-- └─────────────────────────────────────────────────────┘ -->
 
     <div class="page-wrap" id="view-class-overview" data-role="Class Teacher" hidden>
-      <section class="welcome-row role-welcome">
-        <div>
-          <p class="eyebrow" id="ct-eyebrow">Class teacher portal</p>
-          <h1 id="ct-welcome">Good morning.</h1>
-          <p class="subcopy">Your class attendance and end-of-term feedback are ready.</p>
-        </div>
-        <button class="btn-primary" id="ct-add-feedback-btn">+ Add feedback</button>
-      </section>
-      <section class="stat-grid">
-        <article class="student-stat coral-stat"><span>Class students</span><strong id="ct-stat-students">&mdash;</strong><small id="ct-stat-gender">&mdash;</small></article>
-        <article class="student-stat green-stat"><span>Class attendance</span><strong id="ct-stat-att">&mdash;</strong><small>This term</small></article>
-        <article class="student-stat blue-stat"><span>Class average</span><strong id="ct-stat-avg">&mdash;</strong><small>This term</small></article>
-        <article class="student-stat yellow-stat"><span>On track to promote</span><strong id="ct-stat-promoted">&mdash;</strong><small id="ct-stat-pending">&mdash;</small></article>
-      </section>
-      <section class="role-grid">
-        <article class="panel">
-          <div class="panel-heading">
-            <div><p class="eyebrow">Term close-out</p><h2>Attendance &amp; feedback</h2></div>
-            <div class="form-row tight">
-              <button class="text-button" id="ct-full-report-btn">Class report &nearr;</button>
-              <button class="text-button" id="ct-open-register-btn">Full register &nearr;</button>
-            </div>
-          </div>
-          <div class="role-table mt16" id="ct-student-table"></div>
-          <p class="role-muted">Tip: the <strong>&#9998;</strong> at the end of a student's row jumps to that
-            student's attendance for the term.</p>
-        </article>
-        <article class="panel">
-          <div class="panel-heading">
-            <div><p class="eyebrow">Class health</p><h2>Needs support</h2></div>
-            <span class="check-badge" id="ct-support-count">0</span>
-          </div>
-          <p class="role-muted">Students who need a note or follow-up before reports close.</p>
-          <div id="ct-support-list"></div>
-          <button class="outline-button mt16" data-nav="view-class-attendance">Open attendance register &nearr;</button>
-        </article>
-      </section>
-
-      <div class="panel mt16">
-        <div class="panel-heading">
-          <div><p class="eyebrow">Subject registration</p><h2>Change requests</h2></div>
-          <span class="check-badge" id="ct-approval-count">0</span>
-        </div>
-        <p class="role-muted">Year 11 &amp; 12 students who asked to change their subjects. Approving the request makes the new subject list effective.</p>
-        <div id="ct-approvals-list" class="mt16"></div>
-      </div>
+      <div id="react-class-overview"></div>
     </div>
 
     <!-- Class teacher: whole-class report (all subjects) -->
@@ -714,107 +591,7 @@
     </div>
 
     <div class="page-wrap" id="view-class-attendance" data-role="Class Teacher" hidden>
-      <section class="welcome-row role-welcome">
-        <div>
-          <p class="eyebrow">Attendance register</p>
-          <h1 id="att-page-title">Attendance</h1>
-          <p class="subcopy">Take the daily register Mon–Fri, track late arrivals, and see the term overview at a glance.</p>
-        </div>
-        <div class="form-row tight">
-          <button class="btn-primary" id="ct-save-day">Save day ↑</button>
-        </div>
-      </section>
-
-      <!-- ── Term stat cards ── -->
-      <section class="stat-grid" id="att-stat-grid" aria-label="Attendance summary">
-        <article class="stat-card accent-green">
-          <div class="stat-top"><span class="stat-label">Class attendance</span><span class="stat-icon">%</span></div>
-          <strong id="att-stat-pct">&mdash;</strong>
-          <div class="stat-trend neutral" id="att-stat-sub">Term average</div>
-        </article>
-        <article class="stat-card accent-blue">
-          <div class="stat-top"><span class="stat-label">Present today</span><span class="stat-icon">✓</span></div>
-          <strong id="att-stat-present">&mdash;</strong>
-          <div class="stat-trend neutral" id="att-stat-date">—</div>
-        </article>
-        <article class="stat-card accent-yellow">
-          <div class="stat-top"><span class="stat-label">Late arrivals</span><span class="stat-icon">⏱</span></div>
-          <strong id="att-stat-late">&mdash;</strong>
-          <div class="stat-trend neutral">This week</div>
-        </article>
-        <article class="stat-card accent-coral">
-          <div class="stat-top"><span class="stat-label">At risk</span><span class="stat-icon">!</span></div>
-          <strong id="att-stat-risk">&mdash;</strong>
-          <div class="stat-trend neutral">Below 75% attendance</div>
-        </article>
-      </section>
-
-      <!-- ── Daily register ── -->
-      <div class="panel mt16">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">Daily register</p>
-            <h2 id="ct-daily-title">Mark Attendance</h2>
-          </div>
-          <span class="att-day-count" id="ct-day-count"></span>
-        </div>
-
-        <div class="att-daily-bar mt16" x-data="{ week: '1', day: '0' }">
-          <label>Week
-            <select id="ct-day-week" x-model="week">
-              <option value="1">Week 1</option><option value="2">Week 2</option>
-              <option value="3">Week 3</option><option value="4">Week 4</option>
-            </select>
-          </label>
-          <label>Day
-            <select id="ct-day-of-week" x-model="day">
-              <option value="0">Monday</option><option value="1">Tuesday</option>
-              <option value="2">Wednesday</option><option value="3">Thursday</option>
-              <option value="4">Friday</option>
-            </select>
-          </label>
-          <span class="att-daily-actions">
-            <button type="button" class="btn-sm-save" id="ct-all-present">✓ All present</button>
-            <button type="button" class="btn-sm-save att-all-absent-btn" id="ct-all-absent">✗ All absent</button>
-          </span>
-        </div>
-
-        <div class="table-wrap mt16">
-          <table class="att-register-table">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th class="att-status-col">Status</th>
-                <th class="att-term-col">Term record <span class="muted-cell" style="font-weight:400;font-size:10px">Mon · Tue · Wed · Thu · Fri per week</span></th>
-              </tr>
-            </thead>
-            <tbody id="ct-daily-list"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- ── Weekly rollup table ── -->
-      <div class="panel mt16">
-        <div class="panel-heading">
-          <div><p class="eyebrow" id="att-class-name">&mdash;</p><h2>Weekly summary</h2></div>
-        </div>
-        <div class="table-wrap mt16">
-          <table>
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>W1 <span class="muted-cell" style="font-size:10px;font-weight:400">/5</span></th>
-                <th>W2 <span class="muted-cell" style="font-size:10px;font-weight:400">/5</span></th>
-                <th>W3 <span class="muted-cell" style="font-size:10px;font-weight:400">/5</span></th>
-                <th>W4 <span class="muted-cell" style="font-size:10px;font-weight:400">/5</span></th>
-                <th>Total</th>
-                <th>Rate</th>
-              </tr>
-            </thead>
-            <tbody id="ct-attendance-table"></tbody>
-          </table>
-        </div>
-      </div>
+      <div id="react-class-attendance"></div>
     </div>
 
     <div class="page-wrap" id="view-class-feedback" data-role="Class Teacher" hidden>
@@ -957,30 +734,7 @@
     </div>
 
     <div class="page-wrap" id="view-teacher-quizzes" data-role="Subject Teacher" hidden>
-      <section class="welcome-row role-welcome">
-        <div>
-          <p class="eyebrow">Learning management</p>
-          <h1>Quizzes</h1>
-          <p class="subcopy">Create quick quizzes and see how each class performs.</p>
-        </div>
-        <div class="form-row tight">
-          <select id="qz-pick" class="select-inline" aria-label="Subject and class"></select>
-        </div>
-      </section>
-      <section class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow">New quiz</p><h2>Start a quiz</h2></div></div>
-        <div class="form-row tight">
-          <div class="form-group"><label for="qz-title">Title</label><input id="qz-title" type="text" placeholder="e.g. Parts of speech" maxlength="200"></div>
-          <div class="form-group"><label for="qz-desc">Description <small class="muted-cell" style="font-weight:400">(optional)</small></label><input id="qz-desc" type="text" placeholder="e.g. Quick check on nouns and verbs"></div>
-        </div>
-        <button class="btn-primary" id="qz-create" style="width:auto;margin:0">Create quiz &nbsp;+ Add questions</button>
-        <div id="qz-msg" class="form-feedback mt8" hidden></div>
-      </section>
-      <div class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow">Your quizzes</p><h2>All quizzes</h2></div><span class="count-badge" id="qz-count">0</span></div>
-        <div id="qz-list" class="mt8"></div>
-      </div>
-      <div id="qz-detail" class="mt16"></div>
+      <div id="react-teacher-quizzes"></div>
     </div>
 
     <div class="page-wrap" id="view-teacher-discussions" data-role="Subject Teacher" hidden>
@@ -1215,14 +969,7 @@
     </div>
 
     <div class="page-wrap" id="view-student-quizzes" data-role="Student" hidden>
-      <section class="welcome-row">
-        <div><p class="eyebrow">Learning</p><h1>My quizzes</h1><p class="subcopy">Quizzes published for your class &mdash; each attempt is one shot, so check your answers before submitting.</p></div>
-      </section>
-      <div class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow">Available</p><h2>Quizzes</h2></div></div>
-        <div id="sq-list" class="mt8"></div>
-      </div>
-      <div id="sq-body" class="mt16"></div>
+      <div id="react-student-quizzes"></div>
     </div>
 
     <div class="page-wrap" id="view-student-discussions" data-role="Student" hidden>
@@ -1365,20 +1112,8 @@
   <div class="drawer-backdrop" data-close-drawer></div>
   <aside class="drawer">
     <button class="close-drawer" data-close-drawer aria-label="Close">&times;</button>
-    <p class="eyebrow" id="drawer-eyebrow">Term report</p>
-    <h2 id="drawer-name">Student report</h2>
-    <p class="drawer-meta" id="drawer-meta">&mdash;</p>
-    <div class="report-score">
-      <div><span>Overall score</span><strong id="drawer-score">&mdash;</strong></div>
-      <span class="promotion-badge" id="drawer-status">&mdash;</span>
-    </div>
-    <p class="formula">Score = CA (40) + Exam (60) &middot; Attendance <strong id="drawer-attendance">&mdash;</strong></p>
-    <div class="report-subjects" id="drawer-subjects"></div>
-    <div id="drawer-mentor-chip"></div>
-    <div class="form-row tight mt16" style="align-items:stretch">
-      <button class="btn-primary" id="drawer-download-btn" style="margin:0">Download report &darr;</button>
-      <button class="outline-button" id="drawer-pdf-btn" style="margin:0">Print / PDF &nearr;</button>
-    </div>
+    <!-- React owns everything below this line -->
+    <div id="react-report-drawer"></div>
   </aside>
 </div>
 

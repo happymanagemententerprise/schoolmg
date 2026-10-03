@@ -541,128 +541,17 @@ export async function saveAssignment() {
   if (isTeacher(currentUser)) renderSubjectDashboard();
 }
 
-// ── Class overview ────────────────────────────────────────────
+// ── Class overview (React) ────────────────────────────────────
+import _ClassOverview from '../react/components/ClassOverview.jsx';
+
 export function renderClassOverview() {
-  const currentUser = getCurrentUser();
-  const cl = myClassRecord(currentUser);
-  if (!cl) { toast('You are not assigned a class yet.', 'error'); return; }
-  const students = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');
-  const term     = currentTerm();
-  const fb       = Data.feedback();
-  const pending  = students.filter(s => !fb[s.id]?.submitted).length;
-  const avg      = Academic.classAverage(cl.id, term);
-  const girls    = students.filter(s => s.gender === 'F').length;
-  const boys     = students.filter(s => s.gender === 'M').length;
-  const atts     = students.map(s => +Academic.attendancePct(s.id));
-  const avgAtt   = atts.length ? Math.round(atts.reduce((a, b) => a + b, 0) / atts.length) : 0;
-  const promoted = students.filter(s => Academic.canPromote(s.id, term)).length;
-
-  $('ct-eyebrow').textContent = `${isHOD(currentUser) ? 'HOD · ' : ''}Class teacher · ${cl.name}`;
-  $('ct-welcome').textContent = `Good morning, ${currentUser.name.split(' ')[0]}.`;
-
-  $('ct-stat-students').textContent = students.length;
-  $('ct-stat-gender').textContent   = `${girls} girls · ${boys} boys`;
-  $('ct-stat-pending').textContent  = pending;
-  $('ct-stat-avg').textContent      = avg + '%';
-  $('ct-stat-att').textContent      = avgAtt + '%';
-  $('ct-stat-promoted').textContent = `${promoted}/${students.length}`;
-
-  $('ct-student-table').innerHTML =
-    `<div class="role-table-head"><span>Student</span><span>Attendance</span><span>Feedback</span><span></span></div>` +
-    students.map(s => {
-      const att  = Academic.attendancePct(s.id);
-      const done = fb[s.id]?.submitted;
-      return `<div class="role-table-row">
-        <span class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</span>
-        <strong>${att}</strong>
-        <span class="status ${done ? 'promoted' : 'review'}">${done ? 'Done' : 'Pending'}</span>
-        <span class="role-row-actions">
-          <button class="row-menu ct-att-btn" data-sid="${s.id}" title="Edit attendance">✎</button>
-          <button class="btn-sm-save" data-reset-pw="${s.id}" title="Reset password">Reset</button>
-        </span>
-      </div>`;
-    }).join('');
-
-  $all('.ct-att-btn').forEach(btn => btn.addEventListener('click', () => {
-    showView('view-class-attendance');
-    renderClassAttendance(btn.dataset.sid);
-  }));
-  import('./shared.js').then(({ openResetPasswordModal: orp }) => {
-    $all('[data-reset-pw]').forEach(btn => btn.addEventListener('click', () => orp(btn.dataset.resetPw)));
-  });
-
-  const atRisk = students.filter(s =>
-    +Academic.attendancePct(s.id) < 90 || Academic.promotionStatus(s.id, term) === 'Repeat');
-  $('ct-support-count').textContent = atRisk.length;
-  $('ct-support-list').innerHTML = atRisk.flatMap(s => {
-    const att = +Academic.attendancePct(s.id);
-    const items = [];
-    if (att < 90) items.push({ icon: '!', color: 'coral-bg', msg: `Low attendance (${att}%)`, name: s.name });
-    if (Academic.promotionStatus(s.id, term) === 'Repeat') items.push({ icon: '↘', color: 'yellow-bg', msg: 'Not on track to promote', name: s.name });
-    return items;
-  }).map(i => `<div class="support-item">
-    <span class="support-icon ${i.color}">${i.icon}</span>
-    <div><strong>${i.msg}</strong><small>${esc(i.name)}</small></div><span>↗</span>
-  </div>`).join('') || '<p class="muted-cell">Every student is on track.</p>';
-
-  $('ct-add-feedback-btn').onclick = () => { showView('view-class-feedback'); renderClassFeedback(); };
-  $('ct-open-register-btn').onclick = () => openClassReportModal(cl.id);
-  $('ct-full-report-btn').onclick   = () => { showView('view-class-report'); renderClassReport(); };
-  renderClassApprovals(cl);
+  _reactMount('react-class-overview', _ClassOverview, {});
 }
 
-// ── Class approvals ───────────────────────────────────────────
+// ── Class approvals (now internal to ClassOverview.jsx) ───────
+// renderClassApprovals is kept as a stub so any existing call-sites don't break.
 export function renderClassApprovals(cl) {
-  const currentUser = getCurrentUser();
-  const wrap = $('ct-approvals-list');
-  if (!wrap) return;
-  const mine = new Set(Data.studentsByClass(cl.id).map(s => s.id));
-  const rows = Progression.pendingApprovals()
-    .filter(a => a.actionType === 'subject_change' && mine.has(String(a.entityId)));
-  $('ct-approval-count').textContent = rows.length;
-
-  if (!rows.length) {
-    wrap.innerHTML = '<p class="muted-cell">No pending subject change requests for your class.</p>';
-    return;
-  }
-
-  wrap.innerHTML = rows.map(a => {
-    const st    = Data.student(a.entityId);
-    const ids   = Array.isArray(a.payload?.subjectIds) ? a.payload.subjectIds : [];
-    const names = ids.length ? ids.map(id => Data.subject(String(id))?.name || id).join(', ')
-                             : (a.payload?.summary || 'Requested a change');
-    return `<div class="approval-row">
-      <span class="student"><span class="student-avatar ${st ? toneClass(st.tone) : 'blue'}">${st ? st.initials : '?'}</span></span>
-      <div style="flex:1">
-        <strong class="twelve">${esc(st?.name || 'Student ' + a.entityId)}</strong>
-        <span class="approval-sub">${esc(names)}</span>
-      </div>
-      <span class="status review">Pending</span>
-      <span class="approval-actions">
-        <button class="btn-sm-save" data-approve="${a.id}">Approve</button>
-        <button class="btn-sm-outline" data-reject="${a.id}" title="Reject">Reject</button>
-      </span>
-    </div>`;
-  }).join('');
-
-  $all('[data-approve]').forEach(b => b.addEventListener('click', async () => {
-    const a = rows.find(r => r.id === b.dataset.approve);
-    if (!a) return;
-    const ids = Array.isArray(a.payload?.subjectIds) ? a.payload.subjectIds : [];
-    await Progression.chooseSubjects(a.entityId, ids, { status: 'effective', userId: currentUser.id });
-    await Progression.decideApproval(a.id, true, currentUser.id, 'Approved by class teacher');
-    toast(`${Data.student(a.entityId)?.name.split(' ')[0] || 'Student'}'s subjects are now effective. ✓`);
-    renderClassApprovals(cl);
-  }));
-  $all('[data-reject]').forEach(b => b.addEventListener('click', async () => {
-    const a = rows.find(r => r.id === b.dataset.reject);
-    if (!a) return;
-    const prev = Array.isArray(a.payload?.previous) ? a.payload.previous : [];
-    await Progression.chooseSubjects(a.entityId, prev, { status: 'effective', userId: currentUser.id });
-    await Progression.decideApproval(a.id, false, currentUser.id, 'Declined by class teacher');
-    toast('Change request declined; previous subjects kept.');
-    renderClassApprovals(cl);
-  }));
+  // No-op: ClassOverview.jsx renders approvals inline.
 }
 
 // ── Class report ──────────────────────────────────────────────
@@ -750,11 +639,16 @@ export function renderClassReport() {
   draw();
 }
 
-// ── Attendance ────────────────────────────────────────────────
-const ATT_DAYS     = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-const ATT_DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+// ── Attendance (React) ────────────────────────────────────────
+import { mount as _reactMount } from '../react/mount.js';
+import _ClassAttendance from '../react/components/ClassAttendance.jsx';
 
 export function renderClassAttendance(focusSid = null) {
+  _reactMount('react-class-attendance', _ClassAttendance, { focusSid });
+}
+
+// Legacy attendance code kept below for reference but is no longer called.
+function _legacyRenderClassAttendance(focusSid = null) {
   const currentUser = getCurrentUser();
   const cl = myClassRecord(currentUser);
   if (!cl) { toast('You are not assigned a class yet.', 'error'); return; }
@@ -1208,8 +1102,18 @@ export function renderLessonsTable() {
   });
 }
 
-// ── LMS: Quizzes ──────────────────────────────────────────────
+// ── LMS: Quizzes (React) ──────────────────────────────────────
+import _QuizManager from '../react/components/QuizManager.jsx';
+
 export function renderTeacherQuizzes() {
+  _reactMount('react-teacher-quizzes', _QuizManager, {});
+}
+
+// The functions below (renderQuizList, quizQuestionEditorHTML, bindQuizEditorEvents,
+// openQuizEditor, openQuizResults) are now owned by QuizManager.jsx.
+// Kept as stubs to avoid breaking any direct call-sites.
+
+function _legacyRenderTeacherQuizzes() {
   const currentUser = getCurrentUser();
   const user = currentUser;
   fillComboSelect($('qz-pick'), teacherCombos(user));

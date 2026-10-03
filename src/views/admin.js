@@ -1308,52 +1308,19 @@ export function renderProgressionApprovals() {
 }
 
 export function renderAdminProgression() {
-  renderProgressionDecisions();
-  renderProgressionPool();
-  renderProgressionPublish();
-  renderProgressionApprovals();
-  initDayStructureForm();
-  const posSel = $('pr-pos-term');
-  posSel.value = currentTerm();
-  renderProgressionPositions();
-
-  $('pr-dryrun-btn').addEventListener('click', () => { renderProgressionDecisions(); toast('Preview refreshed — nothing written.'); });
-  $('pr-commit-btn').addEventListener('click', () => {
-    if (!_prRows.length) renderProgressionDecisions();
-    const gate = Data.promotionsGate();
-    if (!gate.open) { toast(gate.reason, 'error'); return; }
-    const counts = {};
-    _prRows.forEach(r => { counts[r.decision.outcome] = (counts[r.decision.outcome] || 0) + 1; });
-    askSensitiveConfirm('Commit promotion decisions',
-      `${_prRows.length} active student(s). ${counts.promoted || 0} promoted to the next class, ` +
-      `${counts.pooled || 0} moved into the Grade 10 Pool, ${counts.graduated || 0} graduate, ` +
-      `${counts.repeat || 0} repeat. Class assignments and promotion records are updated now — this is the end-of-session action.`,
-      runProgressionCommit);
+  import('../react/mount.js').then(({ mount }) => {
+    import('../react/components/AdminProgression.jsx').then(({ default: AdminProgression }) => {
+      mount('react-admin-progression', AdminProgression, {});
+    });
   });
-  $('pr-close-pool-btn').addEventListener('click', () => {
-    const n = Progression.poolEntrants().length;
-    if (!n) return;
-    askSensitiveConfirm('Close the Grade 10 Pool',
-      `${n} unplaced entrant(s) will be marked inactive in the roll. This cannot be undone.`,
-      runClosePool);
-  });
-  posSel.addEventListener('change', renderProgressionPositions);
-  $('pr-commit-btn').disabled = !Data.promotionsGate().open;
 }
 
 export function bindProgressionModals() {
-  $('pl-save-btn').addEventListener('click', runPlacement);
-  $('sc-confirm-btn').addEventListener('click', async () => {
-    const currentUser = getCurrentUser();
-    const f = $('sc-feedback');
-    if (!Data.passwordMatches(currentUser, $('sc-password').value)) {
-      f.textContent = 'That password is not right for this account.'; f.hidden = false; return;
-    }
-    f.hidden = true;
-    closeModal('sensitive-confirm-modal');
-    const run = getSensitiveRun(); set_sensitiveRun(null);
-    if (typeof run === 'function') await run();
-  });
+  // No-op: AdminProgression.jsx owns its own modal state.
+  // The Alpine sensitive-confirm-modal and place-student-modal
+  // in index.html are no longer needed for progression flow
+  // (the React component uses inline modals). Binding is omitted.
+  // DayStructureForm is also handled inside AdminProgression.jsx.
   bindDayStructureForm();
 }
 

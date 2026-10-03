@@ -408,8 +408,18 @@ export function renderStudentLessons() {
   });
 }
 
-// ── Student quizzes ───────────────────────────────────────────
+// ── Student quizzes (React) ───────────────────────────────────
 export function renderStudentQuizzes() {
+  import('../react/mount.js').then(({ mount }) => {
+    import('../react/components/QuizTaker.jsx').then(({ default: QuizTaker }) => {
+      mount('react-student-quizzes', QuizTaker, {});
+    });
+  });
+}
+
+// openQuizTaker and openStudentQuizResult are now internal to QuizTaker.jsx.
+// These stubs ensure no runtime error if called elsewhere.
+function _legacyRenderStudentQuizzes() {
   const currentUser = getCurrentUser();
   const s = Data.student(currentUser.studentId);
   const list = $('sq-list');
