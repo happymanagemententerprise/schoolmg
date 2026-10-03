@@ -191,7 +191,7 @@ function ProgressionDecisions({ refresh, askSensitive, v: _v }) {
                   <td>{ch.avg ?? '—'}</td>
                   <td>{chip}{hint}{overrideTag}</td>
                   <td>{r.next}</td>
-                  <td className="role-row-actions" style={{ whiteSpace: 'nowrap' }}>
+                  <td className="role-row-actions">
                     {override ? (
                       <button
                         className="btn-sm-outline"
@@ -538,7 +538,7 @@ function SensitiveConfirmModal({ open, title, message, onConfirm, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" style={{ display: 'flex' }}>
+    <div className="modal-overlay">
       <div className="modal">
         <div className="modal-header">
           <h3>{title}</h3>
@@ -603,7 +603,7 @@ function PlacementModal({ open, studentId, onClose, onDone }) {
   };
 
   return (
-    <div className="modal-overlay" style={{ display: 'flex' }}>
+    <div className="modal-overlay">
       <div className="modal">
         <div className="modal-header">
           <h3>Place student</h3>

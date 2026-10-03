@@ -1473,3 +1473,47 @@ tr.att-focused { background: var(--blue-soft); }
   height: 16px;
   font-size: 9px;
 }
+
+/* ── React component utilities ─────────────────────────────── */
+/* Smaller avatar used in drawer mentor chip (22×22) */
+.xs-avatar { width: 22px; height: 22px; font-size: 9px; }
+
+/* Drawer action button row: buttons fill equally and have no extra margin */
+.drawer-actions { display: flex; gap: 8px; align-items: stretch; margin-top: 16px; }
+.drawer-actions .btn-primary,
+.drawer-actions .outline-button { flex: 1; margin: 0; width: auto; }
+
+/* Attendance register: per-student attendance % shown below name */
+.att-student-att { padding-left: 32px; display: block; margin-top: 2px; }
+/* Attendance register: status badge at font-size 9px inside small */
+.att-student-att .status,
+.att-student-att-badge { font-size: 9px; }
+
+/* Attendance weekly table: centered data cells */
+.att-weekly-td { text-align: center; }
+
+/* Attendance column header note: font-weight normal */
+.att-term-col-note { font-size: 10px; font-weight: 400; }
+
+/* Quiz: description sub-label */
+.quiz-desc-label { font-weight: 400; }
+/* Quiz: description below quiz title in list */
+.quiz-item-desc { font-size: 10px; margin-top: 2px; }
+/* Quiz editor: question text group takes more width */
+.quiz-q-text-group { flex: 2; }
+/* Quiz editor: remove button aligned with input */
+.quiz-q-remove { margin-top: 22px; }
+/* Quiz: answer input width cap */
+.quiz-answer-input { max-width: 300px; }
+/* Quiz editor / taker: action buttons auto-width */
+.quiz-action-btn { width: auto; margin: 0; }
+
+/* General: flex-1 utility */
+.flex-1 { flex: 1; }
+/* General: text-center utility */
+.text-center { text-align: center; }
+/* General: padding-16 for empty-state messages */
+.p16 { padding: 16px; }
+
+/* AdminProgression: role-row-actions cell already white-space:nowrap via table rule */
+/* modal-overlay already has display:flex in .modal-overlay CSS rule */

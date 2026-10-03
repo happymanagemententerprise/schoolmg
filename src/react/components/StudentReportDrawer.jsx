@@ -54,9 +54,9 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
           </div>
         </div>
         {mentor && <MentorChip mentor={mentor} />}
-        <div className="form-row tight mt16" style={{ alignItems: 'stretch' }}>
-          <button className="btn-primary" disabled style={{ margin: 0 }}>Download report ↓</button>
-          <button className="outline-button" disabled style={{ margin: 0 }}>Print / PDF ↗</button>
+        <div className="drawer-actions">
+          <button className="btn-primary" disabled>Download report ↓</button>
+          <button className="outline-button" disabled>Print / PDF ↗</button>
         </div>
       </div>
     );
@@ -129,9 +129,9 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
         })}
       </div>
       {mentor && <MentorChip mentor={mentor} />}
-      <div className="form-row tight mt16" style={{ alignItems: 'stretch' }}>
-        <button className="btn-primary" onClick={handleDownload} style={{ margin: 0 }}>Download report ↓</button>
-        <button className="outline-button" onClick={printReportPdf} style={{ margin: 0 }}>Print / PDF ↗</button>
+      <div className="drawer-actions">
+        <button className="btn-primary" onClick={handleDownload}>Download report ↓</button>
+        <button className="outline-button" onClick={printReportPdf}>Print / PDF ↗</button>
       </div>
     </div>
   );
@@ -141,10 +141,7 @@ function MentorChip({ mentor }) {
   return (
     <div className="drawer-mentor-chip mt16">
       <span className="chip-label">Mentor</span>
-      <span
-        className={`student-avatar ${toneClass(mentor.tone)}`}
-        style={{ width: 22, height: 22, fontSize: 9 }}
-      >
+      <span className={`student-avatar xs-avatar ${toneClass(mentor.tone)}`}>
         {mentor.initials}
       </span>
       <span>

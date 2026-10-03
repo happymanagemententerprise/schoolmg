@@ -26,7 +26,7 @@ export default function ClassOverview() {
   const [v, setV]   = useState(0);
   const cl = myClassRecord(currentUser);
   if (!cl) {
-    return <p className="muted-cell" style={{ padding: 16 }}>You are not assigned a class yet.</p>;
+    return <p className="muted-cell p16">You are not assigned a class yet.</p>;
   }
 
   const students = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');
@@ -219,7 +219,7 @@ export default function ClassOverview() {
                     {st ? st.initials : '?'}
                   </span>
                 </span>
-                <div style={{ flex: 1 }}>
+                <div className="flex-1">
                   <strong className="twelve">{st?.name || 'Student ' + a.entityId}</strong>
                   <span className="approval-sub">{names}</span>
                 </div>

@@ -14,7 +14,7 @@ export default function ClassAttendance({ focusSid = null }) {
   const currentUser = getCurrentUser();
   const cl = myClassRecord(currentUser);
   if (!cl) {
-    return <p className="muted-cell" style={{ padding: 16 }}>You are not assigned a class yet.</p>;
+    return <p className="muted-cell p16">You are not assigned a class yet.</p>;
   }
 
   const students = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');
@@ -196,7 +196,7 @@ export default function ClassAttendance({ focusSid = null }) {
                 <th className="att-status-col">Status</th>
                 <th className="att-term-col">
                   Term record{' '}
-                  <span className="muted-cell" style={{ fontWeight: 400, fontSize: 10 }}>
+                  <span className="muted-cell att-term-col-note">
                     Mon · Tue · Wed · Thu · Fri per week
                   </span>
                 </th>
@@ -214,10 +214,9 @@ export default function ClassAttendance({ focusSid = null }) {
                         <span className={`student-avatar ${toneClass(s.tone)}`}>{s.initials}</span>
                         <span>{s.name}</span>
                       </div>
-                      <small className="muted-cell" style={{ paddingLeft: 32, display: 'block', marginTop: 2 }}>
+                      <small className="muted-cell att-student-att">
                         <span
-                          className={`status ${pctNum >= 90 ? 'promoted' : pctNum >= 75 ? 'review' : 'repeat'}`}
-                          style={{ fontSize: 9 }}
+                          className={`status att-student-att-badge ${pctNum >= 90 ? 'promoted' : pctNum >= 75 ? 'review' : 'repeat'}`}
                         >
                           {pct}
                         </span>
@@ -270,7 +269,7 @@ function WeeklySummary({ students, cl, term, focusSid, v: _v }) {
               {['W1', 'W2', 'W3', 'W4'].map(w => (
                 <th key={w}>
                   {w}{' '}
-                  <span className="muted-cell" style={{ fontSize: 10, fontWeight: 400 }}>/5</span>
+                  <span className="muted-cell att-term-col-note">/5</span>
                 </th>
               ))}
               <th>Total</th>
@@ -292,11 +291,11 @@ function WeeklySummary({ students, cl, term, focusSid, v: _v }) {
                     </div>
                   </td>
                   {['W1', 'W2', 'W3', 'W4'].map(wk => (
-                    <td key={wk} className="muted-cell" style={{ textAlign: 'center' }}>
+                    <td key={wk} className="muted-cell att-weekly-td">
                       {saved[wk] ?? '—'}
                     </td>
                   ))}
-                  <td style={{ textAlign: 'center' }}><strong>{total}</strong></td>
+                  <td className="att-weekly-td"><strong>{total}</strong></td>
                   <td>
                     <span className={`status ${pctNum >= 90 ? 'promoted' : pctNum >= 75 ? 'review' : 'repeat'}`}>
                       {pct}

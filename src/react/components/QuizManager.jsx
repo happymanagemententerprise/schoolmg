@@ -96,12 +96,12 @@ export default function QuizManager() {
               value={title} onChange={e => setTitle(e.target.value)} />
           </div>
           <div className="form-group">
-            <label htmlFor="qz-desc-r">Description <small className="muted-cell" style={{ fontWeight: 400 }}>(optional)</small></label>
+            <label htmlFor="qz-desc-r">Description <small className="muted-cell quiz-desc-label">(optional)</small></label>
             <input id="qz-desc-r" type="text" placeholder="e.g. Quick check on nouns and verbs"
               value={desc} onChange={e => setDesc(e.target.value)} />
           </div>
         </div>
-        <button className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={handleCreate}>
+        <button className="btn-primary quiz-action-btn" onClick={handleCreate}>
           Create quiz &nbsp;+ Add questions
         </button>
         {msg && (
@@ -136,7 +136,7 @@ export default function QuizManager() {
                       <td>
                         {q.title}
                         {q.description && (
-                          <div className="muted-cell" style={{ fontSize: 10, marginTop: 2 }}>{q.description}</div>
+                          <div className="muted-cell quiz-item-desc">{q.description}</div>
                         )}
                       </td>
                       <td className="muted-cell">{Data.questionsForQuiz(q.id).length}</td>
@@ -269,10 +269,10 @@ function QuizEditorPanel({ quiz, onDone }) {
         ))}
       </div>
       <div className="form-row tight mt16">
-        <button className="outline-button" style={{ width: 'auto', margin: 0 }} onClick={addQ}>
+        <button className="outline-button quiz-action-btn" onClick={addQ}>
           + Add another question
         </button>
-        <button className="btn-primary" style={{ width: 'auto', margin: 0 }} onClick={handleSave}>
+        <button className="btn-primary quiz-action-btn" onClick={handleSave}>
           Save questions
         </button>
       </div>
@@ -291,7 +291,7 @@ function QuestionEditor({ q, onUpdate, onUpdateOpt, onRemove }) {
   return (
     <div className="quiz-question">
       <div className="form-row tight">
-        <div className="form-group" style={{ flex: 2 }}>
+        <div className="form-group quiz-q-text-group">
           <label>Question</label>
           <input className="q-text" value={q.questionText} onChange={e => onUpdate('questionText', e.target.value)} />
         </div>
@@ -307,7 +307,7 @@ function QuestionEditor({ q, onUpdate, onUpdateOpt, onRemove }) {
           <input className="q-points" type="number" min="1" value={q.points} onChange={e => onUpdate('points', Number(e.target.value))} />
         </div>
         <div className="form-group">
-          <button className="text-button" style={{ marginTop: 22 }} onClick={onRemove}>Remove</button>
+          <button className="text-button quiz-q-remove" onClick={onRemove}>Remove</button>
         </div>
       </div>
       <div className="form-row tight">
@@ -327,10 +327,9 @@ function QuestionEditor({ q, onUpdate, onUpdateOpt, onRemove }) {
       <div className="form-group">
         <label>Correct answer</label>
         <input
-          className="q-correct"
+          className="q-correct quiz-answer-input"
           value={q.correctAnswer}
           placeholder="e.g. B  —  or  True / False"
-          style={{ maxWidth: 300 }}
           onChange={e => onUpdate('correctAnswer', e.target.value)}
         />
       </div>

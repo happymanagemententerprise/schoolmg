@@ -12,6 +12,8 @@ import {
 import { openModal, closeModal } from '../modals.js';
 import { openStudentReport } from './reports.js';
 import { timetableTable, renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf, renderStudentGrowth, dayChipsHTML, attendanceGridHTML, assignmentRowsHTML } from './shared.js';
+import { mount as _reactMount } from '../react/mount.js';
+import QuizTaker from '../react/components/QuizTaker.jsx';
 
 // ── Student dashboard ─────────────────────────────────────────
 export function renderStudentDashboard() {
@@ -410,11 +412,7 @@ export function renderStudentLessons() {
 
 // ── Student quizzes (React) ───────────────────────────────────
 export function renderStudentQuizzes() {
-  import('../react/mount.js').then(({ mount }) => {
-    import('../react/components/QuizTaker.jsx').then(({ default: QuizTaker }) => {
-      mount('react-student-quizzes', QuizTaker, {});
-    });
-  });
+  _reactMount('react-student-quizzes', QuizTaker, {});
 }
 
 // openQuizTaker and openStudentQuizResult are now internal to QuizTaker.jsx.

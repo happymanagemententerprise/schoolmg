@@ -1320,8 +1320,11 @@ export function bindProgressionModals() {
   // The Alpine sensitive-confirm-modal and place-student-modal
   // in index.html are no longer needed for progression flow
   // (the React component uses inline modals). Binding is omitted.
-  // DayStructureForm is also handled inside AdminProgression.jsx.
-  bindDayStructureForm();
+  // DayStructureForm is also handled inside AdminProgression.jsx;
+  // bindDayStructureForm() is NOT called here because its target
+  // elements (dstr-reset-breaks, save-day-structure-btn) were
+  // removed from index.html when the progression view was replaced
+  // with the React mount point.
 }
 
 // ── Passport actions binder (print / download) ────────────────

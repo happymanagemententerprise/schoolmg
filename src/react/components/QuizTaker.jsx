@@ -16,7 +16,7 @@ export default function QuizTaker() {
   const [v,       setV]       = useState(0);
 
   if (!s) {
-    return <p className="muted-cell" style={{ padding: 16 }}>This login is not linked to a student record.</p>;
+    return <p className="muted-cell p16">This login is not linked to a student record.</p>;
   }
 
   const quizzes = (Data.quizzesFor(s.classId) || []).filter(q => q.isPublished);
@@ -78,7 +78,7 @@ export default function QuizTaker() {
                           <td>
                             {q.title}
                             {q.description && (
-                              <div className="muted-cell" style={{ fontSize: 10, marginTop: 2 }}>{q.description}</div>
+                              <div className="muted-cell quiz-item-desc">{q.description}</div>
                             )}
                           </td>
                           <td className="muted-cell">{Data.questionsForQuiz(q.id).length}</td>
@@ -173,7 +173,7 @@ export default function QuizTaker() {
                   )}
                 </fieldset>
               ))}
-              <button className="btn-primary mt16" type="submit" style={{ width: 'auto' }}>
+              <button className="btn-primary mt16 quiz-action-btn" type="submit">
                 Submit quiz
               </button>
             </form>
