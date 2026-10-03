@@ -171,7 +171,9 @@ export function renderUploadToggles() {
 
 // ── Admin · People ────────────────────────────────────────────
 export function renderAdminPeople() {
-  // Expose renderPeopleTab globally so Alpine @click can call it
+  // window.renderPeopleTab is assigned at module load so the Alpine @click guard
+  // works even before this function has been called the first time.
+  // This re-assignment is a harmless no-op on subsequent calls.
   window.renderPeopleTab = renderPeopleTab;
   bindPeopleTabs();
   renderPeopleTab('staff');
@@ -362,6 +364,11 @@ export function renderPeopleTab(tab) {
 }
 
 // ── Password reset ────────────────────────────────────────────
+// Assign renderPeopleTab to window at module load so the Alpine @click optional-chain guard
+// (`window.renderPeopleTab?.()`) can resolve it unconditionally, regardless of whether
+// renderAdminPeople has been called yet.
+window.renderPeopleTab = renderPeopleTab;
+
 function bindResetPasswordButtons() {
   $all('[data-reset-pw]').forEach(btn => btn.addEventListener('click', () => {
     openResetPasswordModal(btn.dataset.resetPw);

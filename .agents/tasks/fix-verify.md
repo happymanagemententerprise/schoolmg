@@ -1,50 +1,22 @@
-# Fix Verification — 2026-10-02
+# Fix verification — review findings iteration
 
 ## What was run
-- `npm run build` — Vite production build — **PASSED** (exit 0, zero errors, 5 warnings pre-existing)
-- Manual code inspection of each changed file against the fix plan
+- `npm run build` — completed successfully, 0 errors, 128 modules transformed.
 
-## Fix 1 — People tab selection
-- **Changed**: `index.html` `#people-tabs` Alpine `x-data` attribute — replaced bare `renderPeopleTab(...)` calls with `switchTab(t)` component method that uses `window.renderPeopleTab?.(t)` (optional chaining guards against race).
-- **Status**: PASSED (build). Manual browser verify required: navigate to Admin › People, click Students tab before any prior navigation.
+## Finding 1: `handleDecision` ignores `assignClass` return value
+**Fixed in:** `src/react/components/AdminProgression.jsx`
+**Change:** Captured the boolean return from `Progression.assignClass`. When `false`, shows an error toast ("Could not place student — they may already be in [class], or a connection error occurred.") and returns early without calling `refresh()` or the success toast. When `true`, proceeds with `refresh()` and success toast as before.
+**Status:** Build-verified. Manual verification requires a browser with a configured Grade 10 pool.
 
-## Fix 2 — Grade 10 Pool: Name / Path / Decision
-- **Changed**: `src/react/components/AdminProgression.jsx` — `ProgressionPool` component fully rewritten.
-  - Table columns: Name (+ class name) | Path (student pick badge) | Decision (Approve + override buttons).
-  - Uses `Progression.pathRequest(s.id)` to get chosen stream.
-  - Decision buttons: if stream chosen → [Approve] [other two streams]; if no stream → [Science] [Arts] [Commercial].
-  - Clicking any button calls `Progression.assignClass(...)` then `refresh()` and `toast(...)`.
-  - Dead `streamOptions` helper removed.
-- **Status**: PASSED (build). Manual verify: navigate to Admin › Progression › Grade 10 Pool.
+## Finding 2: Listener accumulates on repeated `renderSubjectScores` calls
+**Fixed in:** `src/views/teacher.js`
+**Change:** Added a `dataset.listenerBound` flag on the `$('st-scores-table')` DOM element. The `addEventListener('change', ...)` call is now guarded — only executes when the flag is absent. After the first call it sets the flag so all subsequent calls to `renderSubjectScores` (from router navigation or after `processScoreUpload`) skip re-attachment. The listener itself is unchanged.
+**Status:** Build-verified. Prevents double `saveGrade` calls and double "Score saved." toasts after file upload.
 
-## Fix 3 — Class sort: alphabetical everywhere
-- **Changed**: `data.js` `Data.classes()` — added name as tertiary sort key using `localeCompare` with `{ numeric: true, sensitivity: 'base' }`. Propagates to all consumers automatically.
-- **Status**: PASSED (build). Manual verify: two same-year classes should appear A before B.
+## Finding 3: `window.renderPeopleTab` assigned inside `renderAdminPeople()`, not at module load
+**Fixed in:** `src/views/admin.js`
+**Change:** Added `window.renderPeopleTab = renderPeopleTab;` at module level, placed immediately after the `renderPeopleTab` function definition (in the `// ── Password reset` section). The assignment inside `renderAdminPeople` is kept but updated to a no-op comment, so the window binding is unconditional from the moment the admin.js module loads — regardless of whether `renderAdminPeople` has been called yet.
+**Status:** Build-verified. The Alpine optional-chain guard (`window.renderPeopleTab?.()`) now resolves immediately on any navigation path, not just after the first visit to Admin › People.
 
-## Fix 4a — Score entry: editable inputs
-- **Changed**: `src/views/teacher.js` `renderSubjectScores()` → `draw()`:
-  - Reads `Data.session().uploadOpen.test` (caOpen) and `.exam` (examOpen).
-  - CA cells render as `<input type="number" max="40">` when caOpen, else display-only text.
-  - Exam cells render as `<input type="number" max="60">` when examOpen, else display-only text.
-  - When both closed, appends a "Score entry is currently closed" notice row.
-  - Persistent delegated `change` listener on `<tbody>` calls `Data.saveGrade(...)` and toasts result.
-- **Changed**: `index.html` — added "↑ Upload scores" button and hidden `st-scores-file-input` inside `#view-subject-scores`.
-- **Changed**: `renderSubjectScores()` — wires the new upload button/input to `processScoreUpload`.
-- **Status**: PASSED (build). Manual verify: open a CA/Exam window from Admin dashboard, visit Teacher › Scores, edit a cell.
-
-## Fix 4b — XLSX upload: async DEFLATE decompression
-- **Changed**: `src/views/teacher.js` `_parseXlsxRows` — now `async`, `zipEntry` now `async`.
-  - Reads compression method from bytes 8–9 of each ZIP local file header.
-  - Stored (method=0): decodes directly via TextDecoder.
-  - DEFLATE (method=8): decompresses via `DecompressionStream('deflate-raw')` (no new dependency).
-  - If `DecompressionStream` not available: throws with descriptive message.
-  - `processScoreUpload` now `await`s `_parseXlsxRows` and catches the new DecompressionStream error with a user-friendly message.
-- **Status**: PASSED (build). Manual verify: download score sheet as .xlsx, fill in scores, upload.
-
-## Skipped / not verified
-- No automated tests exist in this project (confirmed: no test script in package.json).
-- All manual browser verification steps require a running dev server and real data.
-
-## Build output
-- `npm run build`: ✓ 128 modules, built in ~30s, exit 0, zero errors.
-- Warnings are all pre-existing dynamic-import notices, not caused by these changes.
+## Skipped
+- Manual browser verification (no headless test harness; project has no automated tests per fix-plan.md).

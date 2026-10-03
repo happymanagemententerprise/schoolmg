@@ -276,11 +276,15 @@ function ProgressionPool({ refresh, askSensitive, openPlacement, v: _v }) {
       toast(`No class configured for ${chosenStream} stream.`, 'error');
       return;
     }
-    await Progression.assignClass(studentId, target.id, {
+    const ok = await Progression.assignClass(studentId, target.id, {
       reason: 'stream_placement',
       note: `Placed into ${chosenStream} stream`,
       userId: currentUser.id
     });
+    if (!ok) {
+      toast(`Could not place student — they may already be in ${target.name}, or a connection error occurred.`, 'error');
+      return;
+    }
     refresh();
     const s = Data.student(studentId);
     toast(`${s?.name || 'Student'} placed in ${target.name}.`);

@@ -259,18 +259,24 @@ export function renderSubjectScores() {
   termSel.value = currentTerm();
 
   // Attach a single persistent delegated change listener for inline score inputs.
-  // The listener stays on the <tbody> element across innerHTML replacements.
-  $('st-scores-table').addEventListener('change', async e => {
-    const inp = e.target.closest('input.score-input');
-    if (!inp) return;
-    const { sid, sub, term: t, type } = inp.dataset;
-    const entry = Data.studentScores(sid)[sub]?.[+t] || {};
-    const ca    = type === 'test' ? Number(inp.value) : (entry.test  ?? 0);
-    const exam  = type === 'exam' ? Number(inp.value) : (entry.exam  ?? 0);
-    const ok    = await Data.saveGrade(sid, sub, +t, ca, exam);
-    if (ok) { toast('Score saved.'); draw(); }
-    else    { toast('Score not saved — check your connection.', 'error'); }
-  });
+  // Guard with a dataset flag so the listener is only attached once — renderSubjectScores
+  // can be called multiple times (router navigation + after every upload), and
+  // addEventListener accumulates listeners on the same persistent element.
+  const scoresTable = $('st-scores-table');
+  if (!scoresTable.dataset.listenerBound) {
+    scoresTable.dataset.listenerBound = '1';
+    scoresTable.addEventListener('change', async e => {
+      const inp = e.target.closest('input.score-input');
+      if (!inp) return;
+      const { sid, sub, term: t, type } = inp.dataset;
+      const entry = Data.studentScores(sid)[sub]?.[+t] || {};
+      const ca    = type === 'test' ? Number(inp.value) : (entry.test  ?? 0);
+      const exam  = type === 'exam' ? Number(inp.value) : (entry.exam  ?? 0);
+      const ok    = await Data.saveGrade(sid, sub, +t, ca, exam);
+      if (ok) { toast('Score saved.'); draw(); }
+      else    { toast('Score not saved — check your connection.', 'error'); }
+    });
+  }
 
   draw();
 
