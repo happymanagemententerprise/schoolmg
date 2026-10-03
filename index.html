@@ -212,16 +212,17 @@
         <div><p class="eyebrow">Directory</p><h1>People</h1><p class="subcopy">Staff, students, and parents at Happy Man Academy.</p></div>
         <button class="btn-primary" id="add-user-btn">+ Add person</button>
       </section>
-      <div class="tab-bar" id="people-tabs" x-data="{ tab: 'staff' }">
+      <div class="tab-bar" id="people-tabs"
+           x-data="{ tab: 'staff', switchTab(t){ this.tab = t; $nextTick(() => window.renderPeopleTab?.(t)); } }">
         <button class="tab-btn" data-tab="staff"
                 :class="{ active: tab === 'staff' }"
-                @click="tab = 'staff'; $nextTick(() => renderPeopleTab('staff'))">Staff</button>
+                @click="switchTab('staff')">Staff</button>
         <button class="tab-btn" data-tab="students-all"
                 :class="{ active: tab === 'students-all' }"
-                @click="tab = 'students-all'; $nextTick(() => renderPeopleTab('students-all'))">Students</button>
+                @click="switchTab('students-all')">Students</button>
         <button class="tab-btn" data-tab="parents"
                 :class="{ active: tab === 'parents' }"
-                @click="tab = 'parents'; $nextTick(() => renderPeopleTab('parents'))">Parents</button>
+                @click="switchTab('parents')">Parents</button>
       </div>
       <div id="people-tab-content" class="panel mt16">
         <div class="table-wrap" id="people-table-wrap"></div>
@@ -694,6 +695,8 @@
             <option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option>
           </select>
           <button class="outline-button" id="st-download-xls-btn" style="width:auto;margin:0;background:var(--blue-soft);border-color:var(--blue);color:var(--blue)">&darr; Download score sheet</button>
+          <button class="outline-button" id="st-scores-upload-btn" style="width:auto;margin:0">&#8593; Upload scores</button>
+          <input type="file" id="st-scores-file-input" accept=".csv,.xlsx,.xls" hidden>
         </div>
       </section>
       <div class="panel mt16">

@@ -1523,12 +1523,15 @@ const Data = {
 
   // ── Classes ───────────────────────────────────────────────
   classes()  {
-    // Always return sorted by year (7→12) so all dropdowns and tables
-    // display Grade 7 before Grade 8 regardless of insertion order.
+    // Always return sorted by year (7→12), then stream, then name
+    // so all dropdowns and tables display Grade 7 before Grade 8
+    // and Grade 7 A before Grade 7 B regardless of insertion order.
     return [..._cache.classes].sort((a, b) => {
       const ya = a.year ?? 99, yb = b.year ?? 99;
       if (ya !== yb) return ya - yb;
-      return (a.stream || '').localeCompare(b.stream || '');
+      const sa = a.stream || '', sb = b.stream || '';
+      if (sa !== sb) return sa.localeCompare(sb);
+      return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
     });
   },
   cls(id)    { return _cache.classes.find(c => c.id === String(id)) || null; },

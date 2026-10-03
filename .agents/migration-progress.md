@@ -9,6 +9,9 @@
 ## Log
 
 ## Phase 4: React Component Migration — COMPLETE
+
+## Bug Fixes (2026-10-02)
+Bug fixes: People tab, Pool redesign, Class sort, Score entry + XLSX upload (2026-10-02)
 Date: 2026-10-02
 Steps completed: StudentReportDrawer, ClassAttendance, AdminProgression, QuizManager, QuizTaker, ClassOverview — all migrated to React 18. React mount helper, AppContext, CSS utilities added. 3 review findings fixed (bindDayStructureForm crash, renderStudentQuizzes dynamic import, inline styles constraint).
 Build output: 128 modules transformed, 0 errors, dist chunks match verified report.

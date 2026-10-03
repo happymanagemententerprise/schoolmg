@@ -245,8 +245,10 @@ function ProgressionDecisions({ refresh, askSensitive, v: _v }) {
 
 // ── ProgressionPool ───────────────────────────────────────────
 function ProgressionPool({ refresh, askSensitive, openPlacement, v: _v }) {
-  const entrants   = Progression.poolEntrants();
-  const poolClass  = Progression.poolClass();
+  const currentUser = getCurrentUser();
+  const entrants    = Progression.poolEntrants();
+  const poolClass   = Progression.poolClass();
+  const allClasses  = Data.classes();
 
   const handleClosePool = () => {
     const n = entrants.length;
@@ -255,12 +257,33 @@ function ProgressionPool({ refresh, askSensitive, openPlacement, v: _v }) {
       'Close the Grade 10 Pool',
       `${n} unplaced entrant(s) will be marked inactive in the roll. This cannot be undone.`,
       async () => {
-        const currentUser = getCurrentUser();
         const count = await Progression.closePool(currentUser.id);
         refresh();
         toast(count ? `${count} unplaced entrant(s) marked inactive.` : 'Nothing to close.');
       }
     );
+  };
+
+  const handleDecision = async (studentId, chosenStream) => {
+    // Find target class: SS year 10, matching stream, not a pool class
+    const target = allClasses.find(c =>
+      c.level === 'SS' &&
+      c.year  === 10 &&
+      c.stream === chosenStream &&
+      c.selectionMode !== 'pool'
+    );
+    if (!target) {
+      toast(`No class configured for ${chosenStream} stream.`, 'error');
+      return;
+    }
+    await Progression.assignClass(studentId, target.id, {
+      reason: 'stream_placement',
+      note: `Placed into ${chosenStream} stream`,
+      userId: currentUser.id
+    });
+    refresh();
+    const s = Data.student(studentId);
+    toast(`${s?.name || 'Student'} placed in ${target.name}.`);
   };
 
   return (
@@ -277,20 +300,48 @@ function ProgressionPool({ refresh, askSensitive, openPlacement, v: _v }) {
       <div className="table-wrap mt16">
         <table>
           <thead>
-            <tr><th>Student</th><th>Admission no.</th><th>Placement</th></tr>
+            <tr><th>Name</th><th>Path (student pick)</th><th>Decision</th></tr>
           </thead>
           <tbody>
-            {entrants.length ? entrants.map(s => (
-              <tr key={s.id}>
-                <td><strong>{s.name}</strong></td>
-                <td>{s.admissionNo || '—'}</td>
-                <td>
-                  <button className="outline-button" onClick={() => openPlacement(s.id)}>
-                    Place in track
-                  </button>
-                </td>
-              </tr>
-            )) : (
+            {entrants.length ? entrants.map(s => {
+              const pr = Progression.pathRequest(s.id);
+              const chosenStream = pr?.stream || null;
+              const allStreams   = ['Science', 'Arts', 'Commercial'];
+              const pathBadge   = chosenStream
+                ? <span className={`status ${chosenStream === 'Science' ? 'promoted' : chosenStream === 'Arts' ? 'review' : 'repeat'}`}>{chosenStream}</span>
+                : <span className="muted-cell">—</span>;
+
+              let decisionButtons;
+              if (chosenStream) {
+                decisionButtons = (
+                  <>
+                    <button className="btn-sm-save" onClick={() => handleDecision(s.id, chosenStream)}>Approve</button>
+                    {allStreams.filter(st => st !== chosenStream).map(st => (
+                      <button key={st} className="btn-sm-outline" onClick={() => handleDecision(s.id, st)}>{st}</button>
+                    ))}
+                  </>
+                );
+              } else {
+                decisionButtons = (
+                  <>
+                    {allStreams.map(st => (
+                      <button key={st} className="btn-sm-outline" onClick={() => handleDecision(s.id, st)}>{st}</button>
+                    ))}
+                  </>
+                );
+              }
+
+              return (
+                <tr key={s.id}>
+                  <td>
+                    <strong>{s.name}</strong>
+                    <small style={{ display: 'block', color: 'var(--muted)' }}>{Data.cls(s.classId)?.name || '—'}</small>
+                  </td>
+                  <td>{pathBadge}</td>
+                  <td className="role-row-actions">{decisionButtons}</td>
+                </tr>
+              );
+            }) : (
               <tr>
                 <td colSpan={3} className="muted-cell">
                   {poolClass ? 'No entrants in the pool right now.' : 'No pool class configured yet (set one class to selection mode "pool").'}

@@ -258,6 +258,22 @@ export function renderSubjectScores() {
   fillClasses();
   termSel.value = currentTerm();
 
+  // Attach a single persistent delegated change listener for inline score inputs.
+  // The listener stays on the <tbody> element across innerHTML replacements.
+  $('st-scores-table').addEventListener('change', async e => {
+    const inp = e.target.closest('input.score-input');
+    if (!inp) return;
+    const { sid, sub, term: t, type } = inp.dataset;
+    const entry = Data.studentScores(sid)[sub]?.[+t] || {};
+    const ca    = type === 'test' ? Number(inp.value) : (entry.test  ?? 0);
+    const exam  = type === 'exam' ? Number(inp.value) : (entry.exam  ?? 0);
+    const ok    = await Data.saveGrade(sid, sub, +t, ca, exam);
+    if (ok) { toast('Score saved.'); draw(); }
+    else    { toast('Score not saved — check your connection.', 'error'); }
+  });
+
+  draw();
+
   function draw() {
     const subjectId = subSel.value;
     if (!subjectId) {
@@ -272,6 +288,10 @@ export function renderSubjectScores() {
       ? [classId]
       : [...new Set(mine.filter(ts => ts.subjectId === subjectId).map(ts => ts.classId))];
 
+    const sess     = Data.session();
+    const caOpen   = sess?.uploadOpen?.test  ?? false;
+    const examOpen = sess?.uploadOpen?.exam  ?? false;
+
     const rows = classIds.flatMap(cid => Data.studentsByClass(cid).map(s => ({ s, cid })));
     $('st-scores-meta').textContent =
       `${subject?.name} · ${classId ? Data.cls(classId)?.name : `${classIds.length} classes you teach`} · Term ${term}`;
@@ -283,19 +303,43 @@ export function renderSubjectScores() {
       const total = entry ? ca + exam : null;
       const grade = total !== null ? gradeLabel(total) : '—';
       const pass  = total !== null && total >= passMark();
+      const caCell = caOpen
+        ? `<input class="score-input" type="number" min="0" max="40" value="${ca ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="test">`
+        : (ca ?? '—');
+      const examCell = examOpen
+        ? `<input class="score-input" type="number" min="0" max="60" value="${exam ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="exam">`
+        : (exam ?? '—');
       return `<tr>
         <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
         <td>${esc(Data.cls(cid)?.name || '—')}</td>
-        <td>${ca ?? '—'}</td><td>${exam ?? '—'}</td>
+        <td>${caCell}</td><td>${examCell}</td>
         <td><strong>${total ?? '—'}</strong></td>
         <td><span class="status ${total === null ? 'review' : pass ? 'promoted' : 'repeat'}">${grade}</span></td>
       </tr>`;
     }).join('') : '<tr><td colspan="7" class="muted-cell">No students in this class.</td></tr>';
+
+    if (!caOpen && !examOpen) {
+      // Show a notice that entry windows are closed
+      const notice = document.createElement('tr');
+      notice.innerHTML = `<td colspan="7" class="muted-cell" style="font-style:italic">Score entry is currently closed. The admin can open CA or Exam upload windows from the dashboard.</td>`;
+      $('st-scores-table').appendChild(notice);
+    }
   }
-  draw();
 
   const dlBtn = $('st-download-xls-btn');
   if (dlBtn) dlBtn.onclick = () => downloadScoreSheet(true);
+
+  const scoresUploadBtn   = $('st-scores-upload-btn');
+  const scoresFileInput   = $('st-scores-file-input');
+  if (scoresUploadBtn && scoresFileInput) {
+    scoresUploadBtn.onclick  = () => scoresFileInput.click();
+    scoresFileInput.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      e.target.value = '';
+      processScoreUpload(file);
+    };
+  }
 }
 
 export function downloadScoreSheet(asExcel) {
@@ -368,9 +412,12 @@ export async function processScoreUpload(file) {
     }).filter(r => r.some(c => c));
   } else {
     try {
-      rows = _parseXlsxRows(buf);
+      rows = await _parseXlsxRows(buf);
     } catch (err) {
-      toast('Could not read the spreadsheet. Save as .csv and try again.', 'error');
+      const msg = err.message?.includes('DecompressionStream')
+        ? 'Your browser does not support XLSX decompression. Please save as .csv and upload again.'
+        : 'Could not read the spreadsheet. Save as .csv and try again.';
+      toast(msg, 'error');
       return;
     }
   }
@@ -442,38 +489,66 @@ export async function processScoreUpload(file) {
   renderSubjectDashboard();
 }
 
-export function _parseXlsxRows(buf) {
+export async function _parseXlsxRows(buf) {
   const u8  = new Uint8Array(buf);
   const dec = new TextDecoder();
 
-  function zipEntry(name) {
+  async function zipEntry(name) {
     const enc = new TextEncoder().encode(name);
     for (let i = 0; i < u8.length - 30; i++) {
       if (u8[i] !== 0x50 || u8[i+1] !== 0x4B || u8[i+2] !== 0x03 || u8[i+3] !== 0x04) continue;
-      const fLen = u8[i+26] | (u8[i+27] << 8);
-      const xLen = u8[i+28] | (u8[i+29] << 8);
+      const method = u8[i+8] | (u8[i+9] << 8);  // 0 = stored, 8 = deflate
+      const fLen   = u8[i+26] | (u8[i+27] << 8);
+      const xLen   = u8[i+28] | (u8[i+29] << 8);
       if (fLen !== enc.length) continue;
-      const fname = u8.slice(i+30, i+30+fLen);
+      const fname  = u8.slice(i+30, i+30+fLen);
       if (!enc.every((b, j) => b === fname[j])) continue;
       const dataStart = i + 30 + fLen + xLen;
-      const cLen = (u8[i+18] | (u8[i+19]<<8) | (u8[i+20]<<16) | (u8[i+21]<<24)) >>> 0;
-      return dec.decode(u8.slice(dataStart, dataStart + cLen));
+      const cLen      = (u8[i+18] | (u8[i+19]<<8) | (u8[i+20]<<16) | (u8[i+21]<<24)) >>> 0;
+      const uLen      = (u8[i+22] | (u8[i+23]<<8) | (u8[i+24]<<16) | (u8[i+25]<<24)) >>> 0;
+      const raw       = u8.slice(dataStart, dataStart + cLen);
+
+      if (method === 0) {
+        // Stored — no compression
+        return dec.decode(raw);
+      } else if (method === 8) {
+        // DEFLATE — decompress
+        if (typeof DecompressionStream === 'undefined') {
+          throw new Error('DecompressionStream not supported — use CSV upload instead.');
+        }
+        const ds     = new DecompressionStream('deflate-raw');
+        const writer = ds.writable.getWriter();
+        writer.write(raw);
+        writer.close();
+        const chunks = [];
+        const reader = ds.readable.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+        let offset = 0;
+        const out  = new Uint8Array(uLen || chunks.reduce((a, c) => a + c.length, 0));
+        for (const c of chunks) { out.set(c, offset); offset += c.length; }
+        return dec.decode(out);
+      }
+      return null;  // unknown compression method
     }
     return null;
   }
 
-  const ssXml = zipEntry('xl/sharedStrings.xml') || '';
+  const ssXml = (await zipEntry('xl/sharedStrings.xml')) || '';
   const shared = [...ssXml.matchAll(/<si[^>]*>[\s\S]*?<\/si>/g)]
     .map(m => (m[0].match(/<t[^>]*>([\s\S]*?)<\/t>/g) || [])
       .map(t => t.replace(/<[^>]+>/g, '')).join(''));
 
-  const wb   = zipEntry('xl/workbook.xml') || '';
-  const rel  = zipEntry('xl/_rels/workbook.xml.rels') || '';
+  const wb   = (await zipEntry('xl/workbook.xml')) || '';
+  const rel  = (await zipEntry('xl/_rels/workbook.xml.rels')) || '';
   const sheetIdM = wb.match(/<sheet[^>]+sheetId="1"[^>]+r:id="([^"]+)"/);
   const sheetId  = sheetIdM?.[1] || 'rId1';
   const targetM  = rel.match(new RegExp(`Id="${sheetId}"[^>]+Target="([^"]+)"`));
   const target   = targetM?.[1] || 'worksheets/sheet1.xml';
-  const sheetXml = zipEntry('xl/' + target) || zipEntry('xl/worksheets/sheet1.xml') || '';
+  const sheetXml = (await zipEntry('xl/' + target)) || (await zipEntry('xl/worksheets/sheet1.xml')) || '';
 
   const result = [];
   for (const rowM of sheetXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
