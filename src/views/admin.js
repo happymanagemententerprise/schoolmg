@@ -572,6 +572,9 @@ export function refreshTTClassSelect(preselect, lockToClassId = null) {
 
 // ── Admin · Subjects ──────────────────────────────────────────
 export function renderAdminSubjects() {
+  // Expose on window so Alpine @change="renderAdminSubjects()" can call it
+  window.renderAdminSubjects = renderAdminSubjects;
+
   function draw() {
     const level = $('as-filter-level').value;
     const group = $('as-filter-group').value;
@@ -599,8 +602,7 @@ export function renderAdminSubjects() {
     $('as-count').textContent = `${list.length} of ${Data.subjects().length} subjects`;
   }
 
-  $('as-filter-level').onchange = draw;
-  $('as-filter-group').onchange = draw;
+  // onchange handlers removed — Alpine @change on the selects calls renderAdminSubjects() directly.
   draw();
 
   $('add-subject-btn').onclick = () => {

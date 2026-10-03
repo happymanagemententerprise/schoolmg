@@ -261,14 +261,16 @@
           <div><p class="eyebrow">Curriculum</p><h2>All subjects</h2></div>
           <div class="form-row tight" x-data="{ level: 'ALL', group: 'ALL' }">
             <select id="as-filter-level" class="select-inline" aria-label="Filter by level"
-                    x-model="level">
+                    x-model="level"
+                    @change="renderAdminSubjects()">
               <option value="ALL">All levels</option>
               <option value="JSS">Junior (JSS)</option>
               <option value="SS">Senior (SS)</option>
               <option value="BOTH">All levels</option>
             </select>
             <select id="as-filter-group" class="select-inline" aria-label="Filter by track"
-                    x-model="group">
+                    x-model="group"
+                    @change="renderAdminSubjects()">
               <option value="ALL">All tracks</option>
               <option value="General">General</option>
               <option value="Science">Science</option>
@@ -1722,6 +1724,7 @@
 <div id="toast"
      x-data
      x-show="$store.toast.visible"
+     x-transition
      :class="'toast toast-' + $store.toast.type"
      aria-live="polite"
      x-text="$store.toast.message"></div>
