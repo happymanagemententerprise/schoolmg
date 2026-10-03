@@ -10,7 +10,8 @@ import {
   downloadCsv, downloadXlsx, downloadXlsxMulti,
   classRank, ordinal
 } from '../utils.js';
-import { openModal, closeModal, openDrawer, closeMenus } from '../router.js';
+import { openModal, closeModal } from '../modals.js';
+import { openDrawer, closeMenus } from '../router.js';
 
 // showView / renderView loaded lazily to avoid a circular import with router.js
 function showView(page) { import('../router.js').then(m => m.showView(page)); }
