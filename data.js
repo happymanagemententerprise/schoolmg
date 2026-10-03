@@ -16,7 +16,7 @@
 // ============================================================
 
 // ── Supabase client (inline to avoid module issues in plain HTML) ──
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from '@supabase/supabase-js';
 
 const _sb = createClient(
   'https://erlhyrswcqpqpqzbgmgb.supabase.co',

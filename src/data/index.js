@@ -15,6 +15,8 @@
 //    from '../../data.js';
 // ============================================================
 
+import '../../data.js';
+
 // Guard: data.js assigns window.Data synchronously at module
 // top-level (confirmed at line ~3601 of data.js). The check
 // MUST run before the exports so that a missing window.Data

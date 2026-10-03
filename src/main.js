@@ -2,6 +2,9 @@
 //  Happy Man Academy — Bootstrap entry point
 // ============================================================
 
+import Alpine from 'alpinejs';
+window.Alpine = Alpine;
+import './styles.css';
 import { initLogin, login } from './auth.js';
 import { wireGlobals } from './router.js';
 import { Data, DB } from './data/index.js';
@@ -12,6 +15,8 @@ document.addEventListener('alpine:init', () => {
   Alpine.store('modals', {});
   Alpine.store('loginError', '');
 });
+
+Alpine.start();
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Wait for the data layer to load from Supabase (data.js bootstraps
