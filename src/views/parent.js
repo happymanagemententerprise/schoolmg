@@ -2,7 +2,7 @@
 //  Happy Man Academy — Parent views
 // ============================================================
 
-import { Data, Academic } from '../data/index.js';
+import { Data, Academic, Timetable } from '../data/index.js';
 import { getCurrentUser } from '../state.js';
 import {
   $, $all, esc, toast, currentTerm, passMark, gradeLabel, toneClass, subjectChip, statusClass
@@ -142,9 +142,8 @@ export function renderParentTimetable() {
 }
 
 function _renderTimetableFor(classId, containerId) {
-  const { Timetable: T } = window;
   const box = $(containerId); if (!box) return;
-  const all     = T ? T.generateAll() : { schedules: [] };
+  const all = Timetable.generateAll();
   const schedule = all.schedules.find(x => String(x.classId) === String(classId));
   if (!schedule) {
     box.innerHTML = `<div class="panel"><p class="muted-cell">No weekly timetable generated for ${esc(Data.classNameOf(classId))} yet.</p></div>`;

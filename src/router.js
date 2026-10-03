@@ -85,8 +85,11 @@ export function renderView(pageId) {
 }
 
 // ── Modal helpers ────────────────────────────────────────────
-export function openModal(id)  { const m=$(id); if(m){m.hidden=false; m.setAttribute('aria-hidden','false');} }
-export function closeModal(id) { const m=$(id); if(m){m.hidden=true;  m.setAttribute('aria-hidden','true');} }
+// Defined in modals.js (no view imports) to break the static
+// cycle: shared.js → router.js → admin.js → shared.js.
+// Re-exported here so existing callers that import from router.js
+// continue to work without changes.
+export { openModal, closeModal } from './modals.js';
 
 // ── Drawer helpers ───────────────────────────────────────────
 export function openDrawer()   { const d=$('report-drawer'); d.classList.add('open');    d.setAttribute('aria-hidden','false'); }

@@ -12,7 +12,7 @@ import {
   $, esc, toast, toneClass, gradeLabel, formatDate,
   currentTerm, passMark, subjectChip, downloadXlsxMulti
 } from '../utils.js';
-import { openModal } from '../router.js';
+import { openModal } from '../modals.js';
 import { myClassRecord } from '../auth.js';
 
 const ATT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];

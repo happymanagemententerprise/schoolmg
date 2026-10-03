@@ -12,8 +12,9 @@ export let _prRows = [];
 export const set_prRows = v => { _prRows = v; };
 
 // Action queued behind the password confirm
-export let _sensitiveRun = null;
-export const set_sensitiveRun = v => { _sensitiveRun = v; };
+let _sensitiveRun = null;
+export const getSensitiveRun   = ()  => _sensitiveRun;
+export const set_sensitiveRun  = v   => { _sensitiveRun = v; };
 
 // Student being placed from the pool
 export let _placementId = null;
