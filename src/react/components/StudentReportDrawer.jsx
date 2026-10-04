@@ -64,18 +64,33 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
 
   const history = Data.promotionsFor(studentId);
   const scores  = Academic.termScores(studentId, term);
+  const isTerm3 = term === 3;
+
+  // For term 3: pull prior term totals per subject
+  const t2Scores = isTerm3 ? Academic.termScores(studentId, 2) : [];
+  const t1Scores = isTerm3 ? Academic.termScores(studentId, 1) : [];
+  const t2ById   = Object.fromEntries(t2Scores.map(s => [s.subjectId, s.score]));
+  const t1ById   = Object.fromEntries(t1Scores.map(s => [s.subjectId, s.score]));
 
   const handleDownload = () => {
+    const headers = isTerm3
+      ? ['Subject', 'CA (40)', 'Exam (60)', 'T3 Total', 'T2 Total', 'T1 Total', '3-Term Avg', 'Grade']
+      : ['Subject', 'CA (40)', 'Exam (60)', 'Total', 'Grade'];
     const rows = [
       ['Student', s.name], ['Class', cl?.name || ''], ['Term', term],
       ['Average', avg], ['Status', status], [],
-      ['Subject', 'CA (40)', 'Exam (60)', 'Total', 'Grade']
+      headers
     ];
     scores.forEach(sc => {
-      rows.push([
-        sc.name, sc.ca ?? '', sc.exam ?? '', sc.score ?? '',
-        sc.score !== null ? gradeLabel(sc.score) : ''
-      ]);
+      if (isTerm3) {
+        const t2 = t2ById[sc.subjectId] ?? null;
+        const t1 = t1ById[sc.subjectId] ?? null;
+        const vals = [sc.score, t2, t1].filter(v => v !== null);
+        const avg3 = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+        rows.push([sc.name, sc.ca ?? '', sc.exam ?? '', sc.score ?? '', t2 ?? '', t1 ?? '', avg3 ?? '', avg3 !== null ? gradeLabel(avg3) : '']);
+      } else {
+        rows.push([sc.name, sc.ca ?? '', sc.exam ?? '', sc.score ?? '', sc.score !== null ? gradeLabel(sc.score) : '']);
+      }
     });
     downloadXlsx(`report_${s.name.replace(/\s+/g, '_')}_term${term}.xlsx`, rows, `Term ${term}`);
   };
@@ -116,6 +131,32 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
           </div>
         )}
         {scores.map(sc => {
+          if (isTerm3) {
+            const t2   = t2ById[sc.subjectId] ?? null;
+            const t1   = t1ById[sc.subjectId] ?? null;
+            const vals = [sc.score, t2, t1].filter(v => v !== null);
+            const avg3 = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+            const pass = avg3 !== null && avg3 >= passMark();
+            return (
+              <div className="subject-row" key={sc.subjectId || sc.name}>
+                <div>
+                  <span>{sc.name}</span>
+                  <small>
+                    {sc.type === 'core' ? 'Core' : 'Elective'}
+                    {' · '}CA {sc.ca ?? '—'} + Exam {sc.exam ?? '—'}
+                    {' · '}T3 <b>{sc.score ?? '—'}</b>
+                    {' · '}T2 {t2 ?? '—'}
+                    {' · '}T1 {t1 ?? '—'}
+                  </small>
+                </div>
+                <div className="subject-row-score">
+                  <b className={pass ? '' : 'text-danger'}>{avg3 ?? '—'}</b>
+                  <small className="muted-cell"> avg · {avg3 !== null ? gradeLabel(avg3) : '—'}</small>
+                </div>
+              </div>
+            );
+          }
+          // Term 1 & 2
           const pass = (sc.score ?? 0) >= passMark();
           return (
             <div className="subject-row" key={sc.subjectId || sc.name}>
@@ -123,7 +164,10 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
                 <span>{sc.name}</span>
                 <small>{sc.type === 'core' ? 'Core' : 'Elective'} · CA {sc.ca ?? '—'} + Exam {sc.exam ?? '—'}</small>
               </div>
-              <b className={pass ? '' : 'text-danger'}>{sc.score ?? '—'}</b>
+              <div className="subject-row-score">
+                <b className={pass ? '' : 'text-danger'}>{sc.score ?? '—'}</b>
+                <small className="muted-cell"> · {sc.score !== null ? gradeLabel(sc.score) : '—'}</small>
+              </div>
             </div>
           );
         })}

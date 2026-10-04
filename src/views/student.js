@@ -137,22 +137,67 @@ export function renderStudentResults() {
       $('std-results-meta').textContent = `${Data.session().name} · awaiting release`;
       return;
     }
-    $('std-results-table').innerHTML = Academic.termScores(sid, term).map(sub => {
-      const ca    = sub.ca ?? '—';
-      const exam  = sub.exam ?? '—';
-      const total = sub.score;
-      const grade = total !== null ? gradeLabel(total) : '—';
-      const pass  = total !== null && total >= passMark();
-      return `<tr>
-        <td><div class="student">${subjectChip(sub)}${esc(sub.name)}</div></td>
-        <td class="muted-cell">${sub.type === 'core' ? 'Core' : 'Elective'}</td>
-        <td>${ca}</td><td>${exam}</td>
-        <td><strong>${total ?? '—'}</strong></td><td>${grade}</td>
-        <td><span class="status ${total === null ? 'review' : pass ? 'promoted' : 'repeat'}">${total === null ? '—' : pass ? 'Pass' : 'Fail'}</span></td>
-      </tr>`;
-    }).join('');
+    const scores = Academic.termScores(sid, term);
+    const isTerm3 = term === 3;
+
+    // Update column headers to match the selected term
+    const thead = $('std-results-thead');
+    if (thead) {
+      thead.innerHTML = isTerm3
+        ? `<tr><th>Subject</th><th>Type</th><th>CA (40)</th><th>Exam (60)</th><th>T3 Total</th><th>T2 Total</th><th>T1 Total</th><th>3-Term Avg</th><th>Grade</th><th>Status</th></tr>`
+        : `<tr><th>Subject</th><th>Type</th><th>CA (40)</th><th>Exam (60)</th><th>Total</th><th>Grade</th><th>Status</th></tr>`;
+    }
+
+    // For term 3 we show T2 and T1 totals per subject
+    const t2Scores = isTerm3 ? Academic.termScores(sid, 2) : [];
+    const t1Scores = isTerm3 ? Academic.termScores(sid, 1) : [];
+    const t2ById   = Object.fromEntries(t2Scores.map(s => [s.subjectId, s.score]));
+    const t1ById   = Object.fromEntries(t1Scores.map(s => [s.subjectId, s.score]));
+
+    if (isTerm3) {
+      // Term 3: CA | Exam | Total | T2 Total | T1 Total | 3-Term Avg | Grade | Pass/Fail
+      $('std-results-table').innerHTML = scores.map(sub => {
+        const ca    = sub.ca   ?? '—';
+        const exam  = sub.exam ?? '—';
+        const total = sub.score;
+        const t2    = t2ById[sub.subjectId] ?? null;
+        const t1    = t1ById[sub.subjectId] ?? null;
+        const vals  = [total, t2, t1].filter(v => v !== null);
+        const avg3  = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+        const grade = avg3 !== null ? gradeLabel(avg3) : '—';
+        const pass  = avg3 !== null && avg3 >= passMark();
+        return `<tr>
+          <td><div class="student">${subjectChip(sub)}${esc(sub.name)}</div></td>
+          <td class="muted-cell">${sub.type === 'core' ? 'Core' : 'Elective'}</td>
+          <td>${ca}</td><td>${exam}</td>
+          <td><strong>${total ?? '—'}</strong></td>
+          <td class="muted-cell">${t2 ?? '—'}</td>
+          <td class="muted-cell">${t1 ?? '—'}</td>
+          <td><strong>${avg3 ?? '—'}</strong></td>
+          <td>${grade}</td>
+          <td><span class="status ${avg3 === null ? 'review' : pass ? 'promoted' : 'repeat'}">${avg3 === null ? '—' : pass ? 'Pass' : 'Fail'}</span></td>
+        </tr>`;
+      }).join('');
+    } else {
+      // Term 1 & 2: CA | Exam | Total | Grade | Pass/Fail
+      $('std-results-table').innerHTML = scores.map(sub => {
+        const ca    = sub.ca   ?? '—';
+        const exam  = sub.exam ?? '—';
+        const total = sub.score;
+        const grade = total !== null ? gradeLabel(total) : '—';
+        const pass  = total !== null && total >= passMark();
+        return `<tr>
+          <td><div class="student">${subjectChip(sub)}${esc(sub.name)}</div></td>
+          <td class="muted-cell">${sub.type === 'core' ? 'Core' : 'Elective'}</td>
+          <td>${ca}</td><td>${exam}</td>
+          <td><strong>${total ?? '—'}</strong></td>
+          <td>${grade}</td>
+          <td><span class="status ${total === null ? 'review' : pass ? 'promoted' : 'repeat'}">${total === null ? '—' : pass ? 'Pass' : 'Fail'}</span></td>
+        </tr>`;
+      }).join('');
+    }
     $('std-results-meta').textContent =
-      `${Data.session().name} · ${Academic.termScores(sid, term).length} subjects · average ${Academic.termAverage(sid, term)}%`;
+      `${Data.session().name} · ${scores.length} subjects · average ${Academic.termAverage(sid, term)}%`;
   }
   draw();
   termSel.onchange = draw;

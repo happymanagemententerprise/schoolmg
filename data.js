@@ -66,7 +66,13 @@ const DB = {
 const _sources = {
   session:      () => _sb.from('sessions').select('*').eq('is_current', true).limit(1),
   terms:        () => _sb.from('terms').select('*'),
-  users:        () => _sb.from('users').select('*').order('id'),
+  // password_hash and password_salt are intentionally excluded — they are
+  // verified server-side by the /functions/login Edge Function.  The browser
+  // never needs to see them.
+  users:        () => _sb.from('users').select(
+    'id, name, initials, email, role, staff_role, tone, phone, ' +
+    'is_mentor, mentor_subject, mentor_bio, admin_tier'
+  ).order('id'),
   subjects:     () => _sb.from('subjects').select('*').order('name'),
   classes:      () => _sb.from('classes').select('*').order('year'),
   teacherClasses: () => _sb.from('teacher_classes').select('teacher_id, class_id'),
@@ -175,9 +181,7 @@ function _hydrate(raw) {
     tone:         u.tone || 'blue',
     email:        u.email,
     phone:        u.phone || null,
-    // password column is always NULL after the hash migration — never read it
-    passwordHash: u.password_hash || null,
-    passwordSalt: u.password_salt || null,
+    // password_hash / password_salt are NOT fetched — verified server-side only
     isMentor:     !!u.is_mentor,
     mentorSubject: u.mentor_subject || '',
     mentorBio:    u.mentor_bio || 'Experienced educator and mentor.',
@@ -1368,21 +1372,65 @@ const Data = {
   user(id)           { return _cache.users.find(u => u.id === String(id)) || null; },
   teachers()         { return _cache.users.filter(u => ['Subject Teacher','Class Teacher','HOD'].includes(u.role)); },
 
-  // True when `typed` is the right password for this account.
-  // All accounts now use salted SHA-256 — plaintext fallback removed.
-  passwordMatches(user, typed) {
-    if (!user) return false;
-    if (user.passwordHash && user.passwordSalt) {
-      return hashPassword(typed, user.passwordSalt) === user.passwordHash;
-    }
-    // No hash present — account has never had a password set or migration
-    // hasn't run yet; deny access rather than allow an unguarded login.
-    return false;
+  // passwordMatches is intentionally removed — password verification now
+  // happens exclusively in the /functions/login Edge Function (server-side).
+  // Calling this method is a programming error; fail loudly.
+  passwordMatches(_user, _typed) {
+    throw new Error('[HMA] passwordMatches() must not be called client-side. Use loginWithEdgeFunction() in auth.js.');
   },
 
   generateTempPassword: () => generateTempPassword(),
 
-  // Write a new password for an account. Who may do this:
+  // ── Edge-Function-backed auth helpers ───────────────────────
+  //
+  // loginWithEdgeFunction({ email, password })
+  //   Calls the /functions/login Edge Function.  Returns the user
+  //   record on success (no hash/salt included), or null on failure.
+  //   `errorMessage` is set on the returned object when login fails.
+  async loginWithEdgeFunction({ email, password }) {
+    const url = _sb.supabaseUrl.replace(/\/$/, '') +
+                '/functions/v1/login';
+    try {
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': _sb.supabaseKey,
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { error: json.error || 'Invalid email or password' };
+      return { user: json.user };
+    } catch (e) {
+      return { error: 'Could not reach the server. Check your connection.' };
+    }
+  },
+
+  // verifyPassword({ userId, password })
+  //   Re-authenticates a logged-in user for sensitive actions.
+  //   Returns { ok: true } or { error: string }.
+  async verifyPassword({ userId, password }) {
+    const url = _sb.supabaseUrl.replace(/\/$/, '') +
+                '/functions/v1/verify-password';
+    try {
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': _sb.supabaseKey,
+        },
+        body: JSON.stringify({ userId, password }),
+      });
+      const json = await res.json();
+      if (!res.ok) return { ok: false, error: json.error || 'Invalid credentials' };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: 'Could not reach the server.' };
+    }
+  },
+
+
   //   - an Administrator may reset anyone (staff who forgot their password)
   //   - a Class Teacher may reset students in their own class
   // Everything else is refused client-side (the same best-effort boundary

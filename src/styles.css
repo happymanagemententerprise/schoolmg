@@ -748,6 +748,7 @@ tr:last-child td { border-bottom: 0; }
 .subject-row > div > span { display: block; }
 .subject-row small { display: block; color: #a0a4a4; font-size: 9px; margin-top: 2px; }
 .subject-row b { font-size: 13px; }
+.subject-row-score { text-align: right; flex-shrink: 0; }
 .drawer-note { background: #fff8de; padding: 14px; margin-top: 20px; border-radius: 7px; }
 .drawer-note strong { font-size: 11px; }
 .drawer-note p { font-size: 10px; line-height: 1.5; color: #817754; margin-top: 6px; }

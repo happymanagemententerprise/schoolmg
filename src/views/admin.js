@@ -1211,8 +1211,9 @@ export function openPlacementModal(studentId) {
 export async function runPlacement() {
   const currentUser = getCurrentUser();
   const f = $('pl-feedback');
-  if (!Data.passwordMatches(currentUser, $('pl-password').value)) {
-    f.textContent = 'That password is not right for this account.'; f.hidden = false; return;
+  const { ok, error: pwError } = await Data.verifyPassword({ userId: currentUser.id, password: $('pl-password').value });
+  if (!ok) {
+    f.textContent = pwError || 'That password is not right for this account.'; f.hidden = false; return;
   }
   const to = $('pl-class').value;
   if (!to) { f.textContent = 'Choose a target class first.'; f.hidden = false; return; }

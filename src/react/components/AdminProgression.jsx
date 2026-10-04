@@ -580,8 +580,9 @@ function SensitiveConfirmModal({ open, title, message, onConfirm, onClose }) {
 
   const handleConfirm = async () => {
     const currentUser = getCurrentUser();
-    if (!Data.passwordMatches(currentUser, password)) {
-      setError('That password is not right for this account.');
+    const { ok, error } = await Data.verifyPassword({ userId: currentUser.id, password });
+    if (!ok) {
+      setError(error || 'That password is not right for this account.');
       return;
     }
     setError('');
@@ -643,8 +644,9 @@ function PlacementModal({ open, studentId, onClose, onDone }) {
 
   const handlePlace = async () => {
     const currentUser = getCurrentUser();
-    if (!Data.passwordMatches(currentUser, password)) {
-      setError('That password is not right for this account.');
+    const { ok, error: pwError } = await Data.verifyPassword({ userId: currentUser.id, password });
+    if (!ok) {
+      setError(pwError || 'That password is not right for this account.');
       return;
     }
     if (!classId) { setError('Choose a target class first.'); return; }

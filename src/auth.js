@@ -115,25 +115,48 @@ export function initLogin() {
     Alpine.store('loginError', '');
   }));
 
-  $('login-form').addEventListener('submit', e => {
+  $('login-form').addEventListener('submit', async e => {
     e.preventDefault();
-    const email = emailI.value.trim().toLowerCase();
-    const user  = Data.userByEmail(email);
-    if (user && Data.passwordMatches(user, pwI.value)) {
-      if (Data.accountBlocked(user)) {
-        Alpine.store('loginError', 'This account has been archived and can no longer sign in. Contact the school office.');
-        return;
+    const email    = emailI.value.trim().toLowerCase();
+    const password = pwI.value;
+
+    // Disable the button while the request is in flight
+    const submitBtn = $('login-form').querySelector('[type=submit]');
+    if (submitBtn) submitBtn.disabled = true;
+
+    Alpine.store('loginError', '');
+
+    // Password check happens server-side via the Edge Function.
+    // The browser never sees password_hash or password_salt.
+    const { user: authUser, error } = await Data.loginWithEdgeFunction({ email, password });
+
+    if (submitBtn) submitBtn.disabled = false;
+
+    if (!authUser) {
+      // Edge Function returned an error — map it to a user-friendly message
+      if (error && error.toLowerCase().includes('no account')) {
+        Alpine.store('loginError', 'No account with that email. This page may be showing ' +
+          'out-of-date data — reload it, then try again.');
+      } else {
+        Alpine.store('loginError', error || 'Incorrect email or password.');
       }
-      Alpine.store('loginError', ''); login(user); return;
+      return;
     }
-    if (!user && Data.users().length) {
-      Alpine.store('loginError', 'No account with that email. This page may be showing ' +
-                        'out-of-date data - reload it, then try again.');
-    } else if (user) {
-      Alpine.store('loginError', 'That password is not right for ' + user.name + '.');
-    } else {
-      Alpine.store('loginError', 'Incorrect email or password.');
+
+    // Match the auth response back to the in-memory cache record
+    // (the cache row has the full denormalised shape the app needs).
+    const cachedUser = Data.userByEmail(authUser.email);
+    if (!cachedUser) {
+      Alpine.store('loginError', 'Login succeeded but user data is not loaded yet. Reload the page and try again.');
+      return;
     }
+
+    if (Data.accountBlocked(cachedUser)) {
+      Alpine.store('loginError', 'This account has been archived and can no longer sign in. Contact the school office.');
+      return;
+    }
+
+    login(cachedUser);
   });
 }
 
