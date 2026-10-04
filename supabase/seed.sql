@@ -823,11 +823,27 @@ select t.id, 'master_register', s.id, 'All three terms kept within 48 hours of t
 -- stores nothing in the clear. The migration creates password_hash /
 -- password_salt, so hash every plaintext row this seed inserted and
 -- drop the plaintext, mirroring the migration's backfill.
--- (Deterministic salt from the email keeps `db reset` reproducible.)
+-- (Deterministic salt from email keeps `db reset` reproducible and
+--  ensures re-running seed always produces a consistent, correct hash.)
 -- ---------------------------------------------------------------------
+
+-- Step 1: restore the plaintext password for all known demo accounts
+-- so the hash can be (re-)computed even on rows whose password was
+-- previously cleared by an earlier seed run.
+update users set password = 'admin123'     where email = 'admin@happyman.edu';
+update users set password = 'class123'     where email = 'class@happyman.edu';
+update users set password = 'subject123'   where email = 'subject@happyman.edu';
+update users set password = 'hod123'       where email = 'hod@happyman.edu';
+update users set password = 'happyman123'  where email in ('arts@happyman.edu','arts2@happyman.edu');
+update users set password = 'student123'   where email like '%@happyman.edu' and role = 'student';
+update users set password = 'parent123'    where email = 'parent@happyman.edu';
+
+-- Step 2: (re-)hash every account that now has a plaintext password,
+-- using a deterministic salt derived from the email so this is idempotent.
 update users
    set password_salt = encode(digest(email, 'md5'), 'hex'),
        password_hash = encode(digest(encode(digest(email, 'md5'), 'hex') || password, 'sha256'), 'hex')
- where password is not null and password_hash is null;
+ where password is not null;
 
+-- Step 3: clear the plaintext column.
 update users set password = null where password_hash is not null;

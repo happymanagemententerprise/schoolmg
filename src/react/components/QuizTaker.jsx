@@ -16,7 +16,11 @@ export default function QuizTaker() {
   const [v,       setV]       = useState(0);
 
   if (!s) {
-    return <p className="muted-cell p16">This login is not linked to a student record.</p>;
+    return (
+      <div className="panel mt16">
+        <p className="muted-cell">Student record not found. Please contact your administrator.</p>
+      </div>
+    );
   }
 
   const quizzes = (Data.quizzesFor(s.classId) || []).filter(q => q.isPublished);

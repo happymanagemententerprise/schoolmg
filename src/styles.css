@@ -769,16 +769,20 @@ tr:last-child td { border-bottom: 0; }
   background: var(--white); border-radius: 10px;
   width: min(480px, 100%); box-shadow: 0 24px 60px rgba(0,0,0,.2);
   overflow: hidden;
+  /* Keep header + footer always visible; body scrolls when content is tall */
+  max-height: calc(100vh - 40px);
+  display: flex; flex-direction: column;
 }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 24px; border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
 }
 .modal-header h3 { font: 700 17px 'Space Grotesk', sans-serif; }
 .close-modal { font-size: 22px; color: var(--muted); }
 .close-modal:hover { color: var(--coral); }
-.modal-body   { padding: 22px 24px 10px; }
-.modal-footer { padding: 14px 24px 20px; display: flex; justify-content: flex-end; gap: 10px; }
+.modal-body   { padding: 22px 24px 10px; overflow-y: auto; flex: 1; min-height: 0; }
+.modal-footer { padding: 14px 24px 20px; display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
 
 /* ── Setup form ────────────────────────────────────────────── */
 .setup-form { padding-top: 4px; }
