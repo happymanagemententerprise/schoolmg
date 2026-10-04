@@ -1,14 +1,16 @@
 // ============================================================
 //  Happy Man Academy — StudentReportDrawer React component
 // ============================================================
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Data, Academic } from '../../data/index.js';
 import { getCurrentUser } from '../../state.js';
 import {
   esc, toneClass, gradeLabel, statusClass,
-  currentTerm, passMark, downloadXlsx, printReportPdf
+  currentTerm, passMark, downloadXlsx, downloadXlsxMulti, printReportPdf
 } from '../../utils.js';
 import { openDrawer } from '../../router.js';
+import SessionSelector from './SessionSelector.jsx';
+import PreviousSessionPanel from './PreviousSessionPanel.jsx';
 
 export default function StudentReportDrawer({ studentId, term: termProp = null }) {
   const currentUser = getCurrentUser();
@@ -26,6 +28,16 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
   const isConsumerView = !!isConsumer;
   const allTermsPublished = [1, 2, 3].every(t => Data.published(t));
   const showStatus    = !isConsumerView || allTermsPublished;
+
+  // Session selector state — null means "show current session"
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [selectedSessionName, setSelectedSessionName] = useState(null);
+
+  // Reset to current session whenever the displayed student changes
+  useEffect(() => {
+    setSelectedSessionId(null);
+    setSelectedSessionName(null);
+  }, [studentId]);
 
   // Open the drawer after mount / re-render
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,88 +107,161 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
     downloadXlsx(`report_${s.name.replace(/\s+/g, '_')}_term${term}.xlsx`, rows, `Term ${term}`);
   };
 
+  // Build a 3-sheet xlsx for a previous session
+  const handlePrevDownload = (prevData) => {
+    const allSubjects = Data.subjects();
+    const sheets = [1, 2, 3].map(termNum => {
+      const isT3 = termNum === 3;
+      const headers = isT3
+        ? ['Subject', 'CA (40)', 'Exam (60)', 'T3 Total', 'T2 Total', 'T1 Total', '3-Term Avg', 'Grade']
+        : ['Subject', 'CA (40)', 'Exam (60)', 'Total', 'Grade'];
+      const gradeRows = prevData.gradesByTerm[termNum] || [];
+
+      // For T3: build lookups for T2/T1 totals
+      const t2Map = {};
+      const t1Map = {};
+      if (isT3) {
+        (prevData.gradesByTerm[2] || []).forEach(r => {
+          const ca = r.test ?? null;
+          const ex = r.exam ?? null;
+          if (ca !== null && ex !== null) t2Map[String(r.subject_id)] = ca + ex;
+        });
+        (prevData.gradesByTerm[1] || []).forEach(r => {
+          const ca = r.test ?? null;
+          const ex = r.exam ?? null;
+          if (ca !== null && ex !== null) t1Map[String(r.subject_id)] = ca + ex;
+        });
+      }
+
+      const dataRows = gradeRows.map(r => {
+        const sub  = allSubjects.find(x => String(x.id) === String(r.subject_id));
+        const ca   = r.test  ?? null;
+        const exam = r.exam  ?? null;
+        const total = (ca !== null && exam !== null) ? ca + exam : null;
+        if (isT3) {
+          const t2 = t2Map[String(r.subject_id)] ?? null;
+          const t1 = t1Map[String(r.subject_id)] ?? null;
+          const vals = [total, t2, t1].filter(v => v !== null);
+          const avg3 = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+          return [sub?.name ?? '—', ca ?? '', exam ?? '', total ?? '', t2 ?? '', t1 ?? '', avg3 ?? '', avg3 !== null ? gradeLabel(avg3) : ''];
+        }
+        return [sub?.name ?? '—', ca ?? '', exam ?? '', total ?? '', total !== null ? gradeLabel(total) : ''];
+      });
+
+      return {
+        name: `Term ${termNum}`,
+        rows: [['Student', s.name], ['Session', selectedSessionName || ''], [], headers, ...dataRows]
+      };
+    });
+
+    downloadXlsxMulti(
+      `report_${s.name.replace(/\s+/g, '_')}_session_${(selectedSessionName || '').replace(/\s+/g, '_')}.xlsx`,
+      sheets
+    );
+  };
+
   return (
     <div className="drawer-content">
-      <p className="eyebrow">{`Term ${term} report · ${Data.session().name}`}</p>
-      <h2>{s.name}</h2>
-      <p className="drawer-meta">{`${cl?.name || '—'} · ${s.admissionNo || '—'}`}</p>
-      <div className="report-score">
-        <div><span>Overall score</span><strong>{avg}%</strong></div>
-        <span className={`promotion-badge ${showStatus ? statusClass(status) : 'review'}`}>
-          {showStatus ? status : '—'}
-        </span>
-      </div>
-      <p className="formula">
-        Score = CA (40) + Exam (60) · Attendance <strong>{Academic.attendancePct(studentId, term)}</strong>
-      </p>
-      <div className="report-subjects">
-        {s.status === 'archived' && (
-          <div className="subject-row">
-            <div>
-              <span className="status repeat">Archived</span>
-              <small>This student cannot sign in; every previous record is kept in the database.</small>
-            </div>
+      <SessionSelector
+        studentId={studentId}
+        currentSessionName={Data.session().name}
+        selectedSessionId={selectedSessionId}
+        onSelect={(id, name) => {
+          setSelectedSessionId(id);
+          setSelectedSessionName(name);
+        }}
+      />
+      {selectedSessionId !== null ? (
+        <PreviousSessionPanel
+          studentId={studentId}
+          sessionId={selectedSessionId}
+          sessionName={selectedSessionName}
+          onDownload={handlePrevDownload}
+        />
+      ) : (
+        <>
+          <p className="eyebrow">{`Term ${term} report · ${Data.session().name}`}</p>
+          <h2>{s.name}</h2>
+          <p className="drawer-meta">{`${cl?.name || '—'} · ${s.admissionNo || '—'}`}</p>
+          <div className="report-score">
+            <div><span>Overall score</span><strong>{avg}%</strong></div>
+            <span className={`promotion-badge ${showStatus ? statusClass(status) : 'review'}`}>
+              {showStatus ? status : '—'}
+            </span>
           </div>
-        )}
-        {history.length > 0 && (
-          <div className="subject-row">
-            <div>
-              <span>Previous sessions</span>
-              <small>
-                {history.map(h =>
-                  `${h.outcome}${h.avg != null ? ' · avg ' + h.avg + '%' : ''}`
-                ).join(' → ')}
-              </small>
-            </div>
-          </div>
-        )}
-        {scores.map(sc => {
-          if (isTerm3) {
-            const t2   = t2ById[sc.subjectId] ?? null;
-            const t1   = t1ById[sc.subjectId] ?? null;
-            const vals = [sc.score, t2, t1].filter(v => v !== null);
-            const avg3 = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
-            const pass = avg3 !== null && avg3 >= passMark();
-            return (
-              <div className="subject-row" key={sc.subjectId || sc.name}>
+          <p className="formula">
+            Score = CA (40) + Exam (60) · Attendance <strong>{Academic.attendancePct(studentId, term)}</strong>
+          </p>
+          <div className="report-subjects">
+            {s.status === 'archived' && (
+              <div className="subject-row">
                 <div>
-                  <span>{sc.name}</span>
+                  <span className="status repeat">Archived</span>
+                  <small>This student cannot sign in; every previous record is kept in the database.</small>
+                </div>
+              </div>
+            )}
+            {history.length > 0 && (
+              <div className="subject-row">
+                <div>
+                  <span>Previous sessions</span>
                   <small>
-                    {sc.type === 'core' ? 'Core' : 'Elective'}
-                    {' · '}CA {sc.ca ?? '—'} + Exam {sc.exam ?? '—'}
-                    {' · '}T3 <b>{sc.score ?? '—'}</b>
-                    {' · '}T2 {t2 ?? '—'}
-                    {' · '}T1 {t1 ?? '—'}
+                    {history.map(h =>
+                      `${h.outcome}${h.avg != null ? ' · avg ' + h.avg + '%' : ''}`
+                    ).join(' → ')}
                   </small>
                 </div>
-                <div className="subject-row-score">
-                  <b className={pass ? '' : 'text-danger'}>{avg3 ?? '—'}</b>
-                  <small className="muted-cell"> avg · {avg3 !== null ? gradeLabel(avg3) : '—'}</small>
+              </div>
+            )}
+            {scores.map(sc => {
+              if (isTerm3) {
+                const t2   = t2ById[sc.subjectId] ?? null;
+                const t1   = t1ById[sc.subjectId] ?? null;
+                const vals = [sc.score, t2, t1].filter(v => v !== null);
+                const avg3 = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+                const pass = avg3 !== null && avg3 >= passMark();
+                return (
+                  <div className="subject-row" key={sc.subjectId || sc.name}>
+                    <div>
+                      <span>{sc.name}</span>
+                      <small>
+                        {sc.type === 'core' ? 'Core' : 'Elective'}
+                        {' · '}CA {sc.ca ?? '—'} + Exam {sc.exam ?? '—'}
+                        {' · '}T3 <b>{sc.score ?? '—'}</b>
+                        {' · '}T2 {t2 ?? '—'}
+                        {' · '}T1 {t1 ?? '—'}
+                      </small>
+                    </div>
+                    <div className="subject-row-score">
+                      <b className={pass ? '' : 'text-danger'}>{avg3 ?? '—'}</b>
+                      <small className="muted-cell"> avg · {avg3 !== null ? gradeLabel(avg3) : '—'}</small>
+                    </div>
+                  </div>
+                );
+              }
+              // Term 1 & 2
+              const pass = (sc.score ?? 0) >= passMark();
+              return (
+                <div className="subject-row" key={sc.subjectId || sc.name}>
+                  <div>
+                    <span>{sc.name}</span>
+                    <small>{sc.type === 'core' ? 'Core' : 'Elective'} · CA {sc.ca ?? '—'} + Exam {sc.exam ?? '—'}</small>
+                  </div>
+                  <div className="subject-row-score">
+                    <b className={pass ? '' : 'text-danger'}>{sc.score ?? '—'}</b>
+                    <small className="muted-cell"> · {sc.score !== null ? gradeLabel(sc.score) : '—'}</small>
+                  </div>
                 </div>
-              </div>
-            );
-          }
-          // Term 1 & 2
-          const pass = (sc.score ?? 0) >= passMark();
-          return (
-            <div className="subject-row" key={sc.subjectId || sc.name}>
-              <div>
-                <span>{sc.name}</span>
-                <small>{sc.type === 'core' ? 'Core' : 'Elective'} · CA {sc.ca ?? '—'} + Exam {sc.exam ?? '—'}</small>
-              </div>
-              <div className="subject-row-score">
-                <b className={pass ? '' : 'text-danger'}>{sc.score ?? '—'}</b>
-                <small className="muted-cell"> · {sc.score !== null ? gradeLabel(sc.score) : '—'}</small>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {mentor && <MentorChip mentor={mentor} />}
-      <div className="drawer-actions">
-        <button className="btn-primary" onClick={handleDownload}>Download report ↓</button>
-        <button className="outline-button" onClick={printReportPdf}>Print / PDF ↗</button>
-      </div>
+              );
+            })}
+          </div>
+          {mentor && <MentorChip mentor={mentor} />}
+          <div className="drawer-actions">
+            <button className="btn-primary" onClick={handleDownload}>Download report ↓</button>
+            <button className="outline-button" onClick={printReportPdf}>Print / PDF ↗</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
