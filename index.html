@@ -45,7 +45,8 @@
          x-data
          x-show="$store.loginError"
          x-text="$store.loginError"></p>
-      <button type="submit" class="btn-primary login-btn">Sign in</button>
+      <p id="login-status" class="login-status muted-cell" hidden></p>
+      <button id="login-btn" type="submit" class="btn-primary login-btn">Sign in</button>
     </form>
 
     <div class="demo-section">

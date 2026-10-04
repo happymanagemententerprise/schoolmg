@@ -19,31 +19,33 @@ document.addEventListener('alpine:init', () => {
 Alpine.start();
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Wait for the data layer to load from Supabase (data.js bootstraps
-  // itself via window.loadFromSupabase, which is called in data.js's
-  // own DOMContentLoaded or in data.js directly when it's a module).
-  // data.js exposes loadFromSupabase on window; call it here if needed.
-  const loadingEl = document.createElement('div');
-  loadingEl.id      = 'app-loading';
-  loadingEl.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg,#f5f5f5);font-size:15px;color:#888;z-index:9999;';
-  loadingEl.textContent   = 'Connecting to database…';
-  document.body.appendChild(loadingEl);
+  // Wire the shell immediately so the login screen is visible at once.
+  // Data loads in the background; the login button is disabled until ready.
+  wireGlobals();
+  initLogin();
+  initAdminModals();
+
+  // Disable the login button while data is loading and show a subtle
+  // status hint inside the form instead of a full-screen overlay.
+  const loginBtn  = document.getElementById('login-btn');
+  const statusEl  = document.getElementById('login-status');
+  if (loginBtn)  loginBtn.disabled = true;
+  if (statusEl)  { statusEl.textContent = 'Loading…'; statusEl.hidden = false; }
 
   if (typeof window.loadFromSupabase === 'function') {
     await window.loadFromSupabase();
   }
 
-  loadingEl.remove();
-
-  wireGlobals();
-  initLogin();
-  initAdminModals();
+  // Re-enable login once data is ready.
+  if (loginBtn)  loginBtn.disabled = false;
+  if (statusEl)  statusEl.hidden = true;
 
   const failed = Data.failedSources?.();
   if (failed?.length) {
     console.warn('[HMA] unreachable tables:', failed.join(', '));
   }
 
+  // Restore session if the user was already logged in.
   const saved = DB.get('currentUser');
   if (saved?.email) {
     const fresh = Data.userByEmail(saved.email);
