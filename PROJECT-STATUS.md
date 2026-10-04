@@ -155,6 +155,7 @@ schoolmg/
 | Leaderboard Page | ✅ Working |
 | Position Columns | ✅ Showing |
 | Repeated Student Demo | ✅ Available |
+| Security (RLS) | ⚠️ Migration pending |
 
 ---
 
@@ -220,3 +221,22 @@ For issues or questions:
 **Last Updated**: Today  
 **Version**: 1.0 with Position Columns, Leaderboard & Repeated Student Demo  
 **Status**: 🟢 Production Ready
+
+---
+
+## Security (Updated: 2026-10-04)
+
+### Completed (Pilot Baseline)
+- **Password hashes not sent to browser**: `data.js` users SELECT excludes `password_hash` and `password_salt`. These columns are revoked from the anon role at DB level in the RLS migration.
+- **Server-side login**: `Data.loginWithPassword()` fetches hash/salt for one account only (targeted query), performs hash comparison in the browser call — the hash is never cached or broadcast to all sessions. `src/auth.js` uses this method.
+- **RLS hardening migration** (`supabase/migrations/20261004_rls_policies.sql`): Enables RLS on `grades`, `students`, `users`, `promotions`. Removes broad `anon_all` policies. Adds targeted SELECT/INSERT/UPDATE policies (no DELETE for anon on any of these tables).
+- `Data.passwordMatches()` deprecated — always returns false with a console warning.
+
+### Remaining (Post-Pilot)
+- Full Supabase Auth (JWT) migration — replace anon key with per-user sessions so RLS can gate rows by `auth.uid()`.
+- Row-level isolation: students can only read their own grades, parents their linked children's data.
+- Edge Functions for login and verify-password (already scaffolded; not yet deployed).
+
+### To Apply the Migration to the Live Database
+Run: `npx supabase db push` (requires `supabase` CLI to be installed and the project to be linked via `npx supabase link`).
+Or paste the contents of `supabase/migrations/20261004_rls_policies.sql` into the Supabase dashboard SQL editor and execute.

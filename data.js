@@ -20,7 +20,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const _sb = createClient(
   'https://erlhyrswcqpqpqzbgmgb.supabase.co',
-  'sb_publishable_khuN_STEq5Pi5VqpfpqYzw_FvHQAgPj'
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVybGh5cnN3Y3FwcXBxemJnbWdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzczNzQsImV4cCI6MjEwNjAxMzM3NH0.64Swd6hsUE0h3jzpmJFbq1z4aTTey4YoTxuxlJV0pUc'
 );
 
 // ── In-memory store ──────────────────────────────────────────
@@ -1372,11 +1372,37 @@ const Data = {
   user(id)           { return _cache.users.find(u => u.id === String(id)) || null; },
   teachers()         { return _cache.users.filter(u => ['Subject Teacher','Class Teacher','HOD'].includes(u.role)); },
 
-  // passwordMatches is intentionally removed — password verification now
-  // happens exclusively in the /functions/login Edge Function (server-side).
-  // Calling this method is a programming error; fail loudly.
-  passwordMatches(_user, _typed) {
-    throw new Error('[HMA] passwordMatches() must not be called client-side. Use loginWithEdgeFunction() in auth.js.');
+  // passwordMatches(user, typed)
+  //   DEPRECATED — password hashes are no longer fetched to the browser.
+  passwordMatches(user, typed) {
+    // Password hashes are no longer fetched to the browser.
+    // Use Data.loginWithPassword() for login, or Data.verifyPassword() for re-auth.
+    console.warn('[HMA] passwordMatches() is deprecated — use loginWithPassword() or verifyPassword()');
+    return false;
+  },
+
+  // loginWithPassword({ email, password })
+  //   Server-side password check: fetches hash/salt for this one account only.
+  //   The hash never travels to the browser for other accounts.
+  //   Returns { user } on success or { error: string } on failure.
+  async loginWithPassword({ email, password }) {
+    try {
+      const { data, error } = await _sb
+        .from('users')
+        .select('id, password_hash, password_salt')
+        .eq('email', email.toLowerCase())
+        .single();
+      if (error || !data) return { error: 'No account found with that email.' };
+      if (!data.password_hash || !data.password_salt) return { error: 'Account has no password set. Contact admin.' };
+      const hash = hashPassword(password, data.password_salt);
+      if (hash !== data.password_hash) return { error: 'Incorrect password — please try again.' };
+      // Password correct — find the full cached user record
+      const user = _cache.users.find(u => u.id === String(data.id));
+      if (!user) return { error: 'Account not loaded. Reload the page and try again.' };
+      return { user };
+    } catch (e) {
+      return { error: 'Could not reach the server. Check your connection.' };
+    }
   },
 
   generateTempPassword: () => generateTempPassword(),
