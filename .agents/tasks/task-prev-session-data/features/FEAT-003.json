@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Student Results view migration: create StudentResults.jsx React component, update renderStudentResults() in student.js to a one-liner React mount, replace #view-student-results inner HTML in index.html with a single React mount target. Depends on FEAT-002 (SessionSelector and PreviousSessionPanel must already exist).",
+  "status": "completed",
+  "steps": [
+    "Create src/react/components/StudentResults.jsx. This component replaces the vanilla renderStudentResults() function entirely. Imports needed: useState, useEffect from 'react'; Data, Academic from '../../data/index.js'; getCurrentUser from '../../state.js'; gradeLabel, passMark, currentTerm, subjectChip, esc, downloadXlsxMulti from '../../utils.js'; SessionSelector from './SessionSelector.jsx'; PreviousSessionPanel from './PreviousSessionPanel.jsx'; resultsLockedNote from '../../views/shared.js'. IMPORTANT: resultsLockedNote returns an HTML string with a <span> inside it — it is designed for dangerouslySetInnerHTML, so use <td dangerouslySetInnerHTML={{ __html: resultsLockedNote(activeTerm) }} colSpan={7} className='muted-cell' /> when rendering the locked row.",
+
+    "StudentResults component body: const currentUser = getCurrentUser(); const sid = currentUser?.studentId; const [selectedSessionId, setSelectedSessionId] = useState(null); const [selectedSessionName, setSelectedSessionName] = useState(null); const session = Data.session(); const [activeTerm, setActiveTerm] = useState(currentTerm()); if (!sid || !Data.student(sid)) return <p className='muted-cell'>This login is not linked to a student record.</p>;",
+
+    "Current session branch (selectedSessionId === null): compute visibleTerms = session.terms.filter(t => t.term <= currentTerm() && Data.published(t.term)). Compute scores = Academic.termScores(sid, activeTerm). Compute isTerm3 = activeTerm === 3. For T3 compute t2Scores, t1Scores, t2ById, t1ById exactly as in the existing renderStudentResults draw() function. Render: (a) <SessionSelector ...> above everything. (b) If no visibleTerms: a panel with a locked message using resultsLockedNote(currentTerm()) via dangerouslySetInnerHTML. (c) If visibleTerms exist: a <select> for term selection (className='select-inline') with value={activeTerm} onChange={e => setActiveTerm(Number(e.target.value))} populated with visibleTerms options; a <div className='panel mt16'> containing the table with dynamic thead (T3 vs T1/T2 columns) and tbody rows matching the existing HTML output of draw() exactly — same column order: Subject|Type|CA(40)|Exam(60)|T3Total|T2Total|T1Total|3TermAvg|Grade|Status for T3 and Subject|Type|CA(40)|Exam(60)|Total|Grade|Status for T1/T2. Keep the meta line <p className='role-muted'> at the top of the panel as in the original.",
+
+    "Past session branch (selectedSessionId !== null): render <SessionSelector .../> then <PreviousSessionPanel studentId={sid} sessionId={selectedSessionId} sessionName={selectedSessionName} onDownload={handlePrevDownload} />. handlePrevDownload receives fetched data and triggers a 3-sheet xlsx via downloadXlsxMulti with filename `report_${Data.student(sid)?.name.replace(/\\s+/g,'_')}_session_${(selectedSessionName||'').replace(/\\s+/g,'_')}.xlsx`.",
+
+    "Modify src/views/student.js: read the file first. At the top of the file, add `import StudentResults from '../react/components/StudentResults.jsx';` alongside the existing imports. Replace the entire body of the renderStudentResults() function (lines ~105 to ~158 in the current file) with a single call: `_reactMount('react-student-results', StudentResults, {});`. Remove the draw() inner function, all termSel references, all visibleTerms logic, and the termSel.onchange assignment. Keep all other functions in the file completely untouched.",
+
+    "Modify index.html: find the block starting with `<div class=\"page-wrap\" id=\"view-student-results\" data-role=\"Student\" hidden>` (around line 939). Replace all its inner content with a single div: `<div id=\"react-student-results\"></div>`. The outer page-wrap div's opening and closing tags stay intact. Specifically remove: the <section class=\"welcome-row\"> block containing std-results-heading, the <select id=\"std-results-term\">, the <div class=\"panel mt16\"> block containing std-results-meta, std-results-thead, and std-results-table."
+  ],
+  "acceptance_criteria": [
+    "StudentResults.jsx renders SessionSelector as its first element",
+    "When no past session is selected, StudentResults shows current-session term selector and score table matching original renderStudentResults output",
+    "When a past session is selected, StudentResults renders PreviousSessionPanel and hides the current-session term selector",
+    "T1/T2 table has columns: Subject, Type, CA(40), Exam(60), Total, Grade, Status",
+    "T3 table has columns: Subject, Type, CA(40), Exam(60), T3 Total, T2 Total, T1 Total, 3-Term Avg, Grade, Status",
+    "Locked state for current session shows resultsLockedNote message, no blank table",
+    "renderStudentResults() in student.js is a one-liner _reactMount call",
+    "#view-student-results in index.html contains only <div id='react-student-results'></div>",
+    "npm run build exits 0 with no errors"
+  ],
+  "verification": [
+    "cd 'c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg' && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "StudentResults.jsx created with SessionSelector as first element, current-session branch showing term selector + score table (T1/T2: 7 cols, T3: 10 cols with T2/T1/3-Term Avg), locked state via resultsLockedNote dangerouslySetInnerHTML, and past-session branch rendering PreviousSessionPanel. renderStudentResults() in student.js replaced with a one-liner _reactMount call. #view-student-results in index.html now contains only <div id='react-student-results'></div>. subjectChip() returns an HTML string so it is wrapped in a dangerouslySetInnerHTML <span> in JSX. Build exits 0; dynamic import warnings are pre-existing and unrelated to this feature."
+}

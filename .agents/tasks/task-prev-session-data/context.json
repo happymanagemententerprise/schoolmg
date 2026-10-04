@@ -1,0 +1,31 @@
+{
+  "project_type": "Vite SPA — vanilla JS views + React components mounted into static HTML mount points. No SSR.",
+  "language": "JavaScript (ES modules). JSX via @vitejs/plugin-react. No TypeScript.",
+  "build_system": "Vite 5.4 (`npm run build` = `vite build`). No bundler quirks beyond standard Vite React plugin. All imports must use file extensions (.js, .jsx) explicitly.",
+  "test_framework": "None. Only build verification: `npm run build` must exit 0 with no errors.",
+  "build_command": "npm run build",
+  "test_command": "npm run build",
+  "verification_instructions": "Run `npm run build` from the workspace root (c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg). A successful exit (Exit Code 0) with no error lines in output confirms the build is clean.",
+  "snapshot_or_generated_files": null,
+  "environment_constraints": "Windows / pwsh shell. Workspace root: c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg. Always use absolute paths in shell commands. `_sb` is module-private in data.js and NOT on window — prevSessionCache.js must create its own createClient instance using the same public anon credentials (URL: https://erlhyrswcqpqpqzbgmgb.supabase.co, key: sb_publishable_khuN_STEq5Pi5VqpfpqYzw_FvHQAgPj). This is safe — it is a publishable anon key.",
+  "contribution_requirements": "Each commit leaves the build green. No new dependencies — use only packages already in package.json (@supabase/supabase-js, react, react-dom, alpinejs). CSS changes go in src/styles.css only.",
+  "key_patterns": "React components live in src/react/components/*.jsx. They import Data/Academic/etc from ../../data/index.js (never window.*). They import getCurrentUser from ../../state.js. Mount helper: _reactMount(containerId: string, Component, props) in src/react/mount.js — takes a string ID, not a DOM element. Existing pattern in student.js: `_reactMount('react-student-quizzes', QuizTaker, {})`. All JSX files import only { useState, useEffect, ... } from 'react' — no default React import needed with Vite's JSX transform. Styles: CSS variables --muted, --coral, --bg, --white, --line, --ink, --green are defined in styles.css root.",
+  "relevant_files": [
+    "src/data/index.js",
+    "src/data/prevSessionCache.js (CREATE)",
+    "src/react/components/SessionSelector.jsx (CREATE)",
+    "src/react/components/PreviousSessionPanel.jsx (CREATE)",
+    "src/react/components/StudentResults.jsx (CREATE)",
+    "src/react/components/StudentReportDrawer.jsx (MODIFY)",
+    "src/views/student.js (MODIFY — renderStudentResults only)",
+    "src/auth.js (MODIFY — logout() only)",
+    "index.html (MODIFY — #view-student-results inner HTML only)",
+    "src/styles.css (MODIFY — append new classes)",
+    "src/react/mount.js (READ for mount signature)",
+    "src/views/shared.js (READ — resultsLockedNote export confirmed at line 144)",
+    "src/utils.js (READ — gradeLabel, passMark, currentTerm, downloadXlsx, downloadXlsxMulti, subjectChip, esc)",
+    "src/react/components/QuizTaker.jsx (PATTERN — simplest existing React component)",
+    "src/react/components/ClassAttendance.jsx (PATTERN — useEffect + Data usage)"
+  ],
+  "directory_structure": "schoolmg/ — workspace root. src/data/ — data layer. src/react/components/ — React components. src/views/ — vanilla JS view renderers. src/context/ — AppContext React provider. index.html — single HTML shell. data.js — Supabase data layer (module-level, sets window.Data etc at end). src/styles.css — all CSS. .agents/tasks/ — plan/review artifacts (never committed)."
+}

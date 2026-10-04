@@ -1,0 +1,7 @@
+{
+  "task_id": "task-prev-session-data",
+  "task_description": "Add Previous Session Data feature: lazy-fetch + LRU cache module, SessionSelector component, PreviousSessionPanel component, wire both into StudentReportDrawer, migrate StudentResults view to React with session selector, update index.html, clear cache on logout, add CSS.",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

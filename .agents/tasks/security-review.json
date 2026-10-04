@@ -1,0 +1,9 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    "Client-side hash comparison — loginWithPassword() fetches password_hash and password_salt from the DB and compares in the browser; the hash is visible in DevTools. Wire initLogin() to loginWithEdgeFunction() once the Edge Function is deployed.",
+    "Migration not applied to live DB — the REVOKE and ENABLE ROW LEVEL SECURITY statements in 20261004_rls_policies.sql are not yet live; password_hash/password_salt are still readable via direct REST calls. Apply via npx supabase db push or the Supabase dashboard SQL editor.",
+    "users_update policy allows anon to overwrite any user row — USING (true) WITH CHECK (true) lets any anonymous caller change role, email, or password_hash on any account. Add WITH CHECK (app_user_id() = id::text) or document as a known gap in PROJECT-STATUS.md."
+  ],
+  "reviewDoc": "c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg\\.agents\\tasks\\security-review.md"
+}

@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Data layer: create src/data/prevSessionCache.js with lazy-fetch + LRU cache (50 entries). Add CSS to src/styles.css. Wire clearPrevSessionCache into logout in src/auth.js.",
+  "status": "completed",
+  "steps": [
+    "Create src/data/prevSessionCache.js. Import createClient from '@supabase/supabase-js' using URL 'https://erlhyrswcqpqpqzbgmgb.supabase.co' and key 'sb_publishable_khuN_STEq5Pi5VqpfpqYzw_FvHQAgPj'. DO NOT use window._sb — it is not exposed. Use a module-level Map for the LRU cache, keyed by `${studentId}:${sessionId}`. Max 50 entries; when inserting entry #51 delete cache.keys().next().value (oldest). Implement three named exports: (a) getSessionsWithData(studentId): fetch sessions WHERE is_current=false AND is_closed=true ORDER BY created_at DESC; for each session fetch termIds from terms table; count-query grades WHERE term_id IN termIds AND student_id=studentId; return only sessions with count > 0. (b) fetchPrevSession(studentId, sessionId): check cache first (move key to end of Map on hit: delete+reinsert); on miss: fetch terms WHERE session_id=sessionId; fetch grades WHERE term_id IN termIds AND student_id=studentId; fetch attendance_weekly WHERE term_id IN termIds AND student_id=studentId; build gradesByTerm keyed by term number 1/2/3 (match grade.term_id to term._id to get term.term, where term row has fields id and term_number or 'term' — check the terms table shape in the grades query return or use the terms array fetched); each value is array of {subject_id, test, exam}; build attendanceByTerm keyed by term number, each value {[week_label]: days_present}; store {terms, gradesByTerm, attendanceByTerm, fetchedAt: Date.now()} in cache; return it. (c) clearPrevSessionCache(): cache.clear(). NOTE on terms table shape: terms rows have fields id, session_id, name, term (integer 1/2/3 per design.md and data.js _sources.terms). Map term_id in grades to terms[x].id to get terms[x].term for the gradesByTerm key.",
+    "Add CSS to src/styles.css after the .tab-btn.active rule (around line 722). Insert the comment block and these rules: .session-selector-wrap { margin-bottom: 12px; } .session-eyebrow { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; } .session-select { margin-bottom: 12px; } .session-summary-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; } .term-tabs { display: flex; gap: 6px; margin-bottom: 16px; } .prev-session-loading { padding: 32px 0; text-align: center; color: var(--muted); font-size: 13px; } .prev-session-error { background: #fff0f0; border-radius: 8px; padding: 14px; color: var(--coral); font-size: 12px; margin-top: 12px; } .growth-snapshot { display: flex; flex-direction: column; gap: 8px; } .growth-badge-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg); border-radius: 20px; padding: 4px 10px; font-size: 11px; }",
+    "Modify src/auth.js: add `import { clearPrevSessionCache } from './data/prevSessionCache.js';` at the top of the file alongside existing imports. Inside the logout() function body, after the line `DB.set('currentUser', null);`, add `clearPrevSessionCache();`."
+  ],
+  "acceptance_criteria": [
+    "getSessionsWithData returns only closed sessions that have at least one grade row for the student",
+    "fetchPrevSession returns gradesByTerm keyed by term numbers 1/2/3, each an array of {subject_id, test, exam}",
+    "fetchPrevSession returns attendanceByTerm keyed by term numbers 1/2/3",
+    "Second call to fetchPrevSession for same (studentId, sessionId) does not issue new Supabase queries (reads from cache)",
+    "Cache never exceeds 50 entries (LRU eviction)",
+    "clearPrevSessionCache empties the cache",
+    "logout() calls clearPrevSessionCache()",
+    "npm run build exits 0 with no errors"
+  ],
+  "verification": [
+    "cd 'c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg' && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "terms table confirmed shape: fields are id, session_id, name, term (integer 1/2/3). Grades table has fields student_id, term_id, subject_id, test, exam. attendance_weekly table has fields student_id, term_id, week_label, days_present. LRU cache uses Map insertion-order; delete+reinsert pattern used for both eviction and LRU promotion on cache hit. Build exits 0 — prevSessionCache.js transformed cleanly into the supabase chunk. CSS classes added after .tab-btn.active rule in styles.css. clearPrevSessionCache wired into logout() in auth.js."
+}
