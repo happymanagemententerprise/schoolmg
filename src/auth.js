@@ -3,6 +3,7 @@
 // ============================================================
 
 import { Data, DB } from './data/index.js';
+import { clearPrevSessionCache } from './data/prevSessionCache.js';
 import { getCurrentUser, setCurrentUser } from './state.js';
 import { $, $q, $all, toast, avatarInitials } from './utils.js';
 
@@ -173,6 +174,7 @@ export function login(user) {
 export function logout() {
   setCurrentUser(null);
   DB.set('currentUser', null);
+  clearPrevSessionCache();
   $('app-shell').hidden    = true;
   $('login-screen').hidden = false;
   $('login-email').value = '';
