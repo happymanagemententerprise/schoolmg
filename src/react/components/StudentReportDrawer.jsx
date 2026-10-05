@@ -213,47 +213,55 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
                 </div>
               </div>
             )}
-            {scores.map(sc => {
-              if (isTerm3) {
-                const t2   = t2ById[sc.subjectId] ?? null;
-                const t1   = t1ById[sc.subjectId] ?? null;
-                const vals = [sc.score, t2, t1].filter(v => v !== null);
-                const avg3 = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
-                const pass = avg3 !== null && avg3 >= passMark();
-                return (
-                  <div className="subject-row" key={sc.subjectId || sc.name}>
-                    <div>
-                      <span>{sc.name}</span>
-                      <small>
-                        {sc.type === 'core' ? 'Core' : 'Elective'}
-                        {' · '}CA {sc.ca ?? '—'} + Exam {sc.exam ?? '—'}
-                        {' · '}T3 <b>{sc.score ?? '—'}</b>
-                        {' · '}T2 {t2 ?? '—'}
-                        {' · '}T1 {t1 ?? '—'}
-                      </small>
-                    </div>
-                    <div className="subject-row-score">
-                      <b className={pass ? '' : 'text-danger'}>{avg3 ?? '—'}</b>
-                      <small className="muted-cell"> avg · {avg3 !== null ? gradeLabel(avg3) : '—'}</small>
-                    </div>
-                  </div>
-                );
-              }
-              // Term 1 & 2
-              const pass = (sc.score ?? 0) >= passMark();
-              return (
-                <div className="subject-row" key={sc.subjectId || sc.name}>
-                  <div>
-                    <span>{sc.name}</span>
-                    <small>{sc.type === 'core' ? 'Core' : 'Elective'} · CA {sc.ca ?? '—'} + Exam {sc.exam ?? '—'}</small>
-                  </div>
-                  <div className="subject-row-score">
-                    <b className={pass ? '' : 'text-danger'}>{sc.score ?? '—'}</b>
-                    <small className="muted-cell"> · {sc.score !== null ? gradeLabel(sc.score) : '—'}</small>
-                  </div>
-                </div>
-              );
-            })}
+            <div className="table-wrap mt8">
+              <table className="cr-report-table">
+                <thead>
+                  <tr>
+                    <th rowSpan={2} style={{textAlign:'left'}}>Subject</th>
+                    <th colSpan={3}>Score breakdown</th>
+                    {isTerm3 && <><th rowSpan={2}>T2</th><th rowSpan={2}>T1</th><th rowSpan={2}>3-Avg</th></>}
+                    <th rowSpan={2}>Grade</th>
+                  </tr>
+                  <tr className="cr-sub-row">
+                    <th>CA</th><th>Exam</th><th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scores.map(sc => {
+                    if (isTerm3) {
+                      const t2   = t2ById[sc.subjectId] ?? null;
+                      const t1   = t1ById[sc.subjectId] ?? null;
+                      const vals = [sc.score, t2, t1].filter(v => v !== null);
+                      const avg3 = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+                      const pass = avg3 !== null && avg3 >= passMark();
+                      return (
+                        <tr key={sc.subjectId || sc.name}>
+                          <td>{sc.name}<br/><small className="muted-cell">{sc.type === 'core' ? 'Core' : 'Elective'}</small></td>
+                          <td className="cr-split">{sc.ca ?? '—'}</td>
+                          <td className="cr-split">{sc.exam ?? '—'}</td>
+                          <td className="cr-split"><b className={pass ? '' : 'text-danger'}>{sc.score ?? '—'}</b></td>
+                          <td className="cr-split muted-cell">{t2 ?? '—'}</td>
+                          <td className="cr-split muted-cell">{t1 ?? '—'}</td>
+                          <td className="cr-split"><b>{avg3 ?? '—'}</b></td>
+                          <td><small>{avg3 !== null ? gradeLabel(avg3) : '—'}</small></td>
+                        </tr>
+                      );
+                    }
+                    // Term 1 & 2
+                    const pass = (sc.score ?? 0) >= passMark();
+                    return (
+                      <tr key={sc.subjectId || sc.name}>
+                        <td>{sc.name}<br/><small className="muted-cell">{sc.type === 'core' ? 'Core' : 'Elective'}</small></td>
+                        <td className="cr-split">{sc.ca ?? '—'}</td>
+                        <td className="cr-split">{sc.exam ?? '—'}</td>
+                        <td className="cr-split"><b className={pass ? '' : 'text-danger'}>{sc.score ?? '—'}</b></td>
+                        <td><small>{sc.score !== null ? gradeLabel(sc.score) : '—'}</small></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
           {mentor && <MentorChip mentor={mentor} />}
           <div className="drawer-actions">

@@ -83,12 +83,28 @@ export function openClassReportModal(classId) {
     $('register-title').textContent = `${klass.name} — full class register`;
 
     $('register-table-wrap').innerHTML = report.subjects.length && report.students.length
-      ? `<table><thead><tr><th>Student</th>${report.subjects.map(s =>
-          `<th>${esc(s.code)}<br><span class="cr-sub-name">${esc(s.name)}</span></th>`).join('')}<th>Avg</th><th>Remark</th></tr></thead><tbody>` +
+      ? `<table><thead>
+          <tr>
+            <th rowspan="2">Student</th>
+            ${report.subjects.map(s =>
+              `<th colspan="3" class="cr-sub-head">${esc(s.code)}<br><span class="cr-sub-name">${esc(s.name)}</span></th>`
+            ).join('')}
+            <th rowspan="2">Avg</th>
+            <th rowspan="2">Remark</th>
+          </tr>
+          <tr class="cr-sub-row">
+            ${report.subjects.map(() => `<th>CA</th><th>Exam</th><th>Total</th>`).join('')}
+          </tr>
+        </thead><tbody>` +
         report.students.map(row => `<tr>
           <td><div class="student"><span class="student-avatar ${toneClass(row.student.tone)}">${row.student.initials}</span>${esc(row.student.name)}</div></td>
-          ${row.rows.map(r => `<td class="cr-caexam">${
-            r.ca === null ? '—' : `${r.ca} <span class="cr-plus">+</span> ${r.exam} <span class="cr-eq">=</span> <b>${r.score}</b>`}</td>`).join('')}
+          ${row.rows.map(r =>
+            `<td class="cr-split">${r.ca   !== null ? r.ca   : '—'}</td>
+             <td class="cr-split">${r.exam !== null ? r.exam : '—'}</td>
+             <td class="cr-split cr-cell">
+               ${r.ca !== null ? `<b>${r.score}</b>` : '—'}
+             </td>`
+          ).join('')}
           <td><strong>${row.average}%</strong></td>
           <td class="muted-cell cr-remark">${esc(row.remark || '—')}</td>
         </tr>`).join('') + '</tbody></table>'

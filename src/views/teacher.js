@@ -655,13 +655,29 @@ export function renderClassReport() {
     $('cr-promoted').textContent      = `${report.students.filter(s => s.status === 'Promoted').length}/${report.students.length}`;
 
     $('cr-report-table').innerHTML = subjects.length && report.students.length
-      ? `<table><thead><tr><th>Student</th>${subjects.map(s =>
-          `<th class="cr-sub-head" title="${esc(s.name)}">${subjectChip(s)}</th>`).join('')}<th>Avg</th><th>Status</th><th></th></tr></thead><tbody>` +
+      ? `<table><thead>
+          <tr>
+            <th rowspan="2">Student</th>
+            ${subjects.map(s =>
+              `<th colspan="3" class="cr-sub-head" title="${esc(s.name)}">${subjectChip(s)}${esc(s.code)}</th>`
+            ).join('')}
+            <th rowspan="2">Avg</th>
+            <th rowspan="2">Status</th>
+            <th rowspan="2"></th>
+          </tr>
+          <tr class="cr-sub-row">
+            ${subjects.map(() => `<th>CA</th><th>Exam</th><th>Total</th>`).join('')}
+          </tr>
+        </thead><tbody>` +
         report.students.map(row => `<tr>
           <td><div class="student"><span class="student-avatar ${toneClass(row.student.tone)}">${row.student.initials}</span>${esc(row.student.name)}</div></td>
-          ${row.rows.map(r => `<td class="cr-cell ${r.score === null ? 'cr-empty' : ''}">${
-            r.score === null ? '—' :
-            `<span class="${r.score >= passMark() ? 'cr-pass' : 'cr-fail'}">${r.score}</span>`}</td>`).join('')}
+          ${row.rows.map(r =>
+            `<td class="cr-split">${r.ca   !== null ? r.ca   : '<small>—</small>'}</td>
+             <td class="cr-split">${r.exam !== null ? r.exam : '<small>—</small>'}</td>
+             <td class="cr-split cr-cell ${r.score === null ? 'cr-empty' : ''}">
+               ${r.score === null ? '—' : `<b class="${r.score >= passMark() ? 'cr-pass' : 'cr-fail'}">${r.score}</b>`}
+             </td>`
+          ).join('')}
           <td><strong>${row.average}%</strong></td>
           <td><span class="status ${statusClass(row.status)}">${row.status}</span></td>
           <td><button class="btn-sm-save" data-cr-student="${row.student.id}">Detail</button></td>

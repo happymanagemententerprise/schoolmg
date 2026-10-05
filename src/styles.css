@@ -952,6 +952,12 @@ tr.att-focused { background: var(--blue-soft); }
 .cr-plus  { color: var(--muted); }
 .cr-eq    { color: var(--muted); padding: 0 2px; }
 .cr-remark { max-width: 190px; white-space: normal; font-size: 11px; }
+/* Sub-header rows for CA / Exam split columns */
+.cr-sub-row th { font-size: 9px; font-weight: 600; color: var(--muted);
+                 text-transform: uppercase; letter-spacing: .5px; padding: 2px 6px 5px; }
+.cr-split     { font-size: 11px; white-space: nowrap; text-align: center; }
+.cr-split b   { display: block; font-size: 13px; font-weight: 700; }
+.cr-split small { color: var(--muted); font-size: 9px; }
 
 /* ── Timetable ──────────────────────────────────────────────── */
 .tt-class-block {

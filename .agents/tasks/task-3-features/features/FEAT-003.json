@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Class-report tables: split each subject column into three sub-columns (CA / Exam / Total) using a two-row <thead> with colspan=3 for subject headers and rowspan=2 for Student/Avg/Status. Changes touch 4 files: teacher.js (renderClassReport draw), shared.js (openClassReportModal draw), StudentReportDrawer.jsx (replace div list with table), StudentResults.jsx (replace flat thead with two-row thead). CSS: add .cr-sub-row and .cr-split classes. Academic.classReport() already returns r.ca and r.exam in each row — no data-layer changes needed.",
+  "status": "completed",
+  "steps": [
+    "Step 1 — src/styles.css: After the `.cr-remark` rule (~line 954), append these 4 rules: `.cr-sub-row th { font-size: 9px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; padding: 2px 6px 5px; }` `.cr-split { font-size: 11px; white-space: nowrap; text-align: center; }` `.cr-split b { display: block; font-size: 13px; font-weight: 700; }` `.cr-split small { color: var(--muted); font-size: 9px; }`",
+    "Step 2 — src/views/teacher.js, renderClassReport() draw() function (~line 635-660): Replace the single-row <thead> with a two-row version: row 1 has Student(rowspan=2) + subjects(colspan=3 each) + Avg(rowspan=2) + Status(rowspan=2) + empty(rowspan=2); row 2 class='cr-sub-row' has CA+Exam+Total repeated per subject. Replace each per-subject <td> (currently one td with cr-cell) with 3 tds: CA cell, Exam cell, Total cell using class='cr-split'. Exact HTML in feature3-plan.md §3A.",
+    "Step 3 — src/views/shared.js, openClassReportModal() draw() function (~line 71-90): Same two-row thead transformation. Row 1: Student(rowspan=2) + subjects(colspan=3) + Avg(rowspan=2) + Remark(rowspan=2). Row 2: CA+Exam+Total per subject. Replace the single cr-caexam td per subject with 3 cr-split tds. Exact HTML in feature3-plan.md §3B.",
+    "Step 4 — src/react/components/StudentReportDrawer.jsx: Replace the <div className='report-subjects'> subject rows (the scores.map(...) section that renders div.subject-row items) with a <table className='cr-report-table'> using the same two-row thead pattern. For T1/T2: columns are Subject | CA | Exam | Total | Grade. For T3: Subject | CA | Exam | Total | T2 | T1 | 3-Avg | Grade. Body rows are <tr> with <td className='cr-split'> cells. history rows and archived/session-history divs stay outside the table. Exact JSX in feature3-plan.md §3C.",
+    "Step 5 — src/react/components/StudentResults.jsx: The component already uses a <table>. Replace the isTerm3 conditional single-row thead with a two-row thead using React fragments (<>...</>). Non-T3: Subject(rowspan=2) + Type(rowspan=2) + 'Score breakdown'(colspan=3) + Grade(rowspan=2) + Status(rowspan=2); sub-row: CA(40) + Exam(60) + Total. T3: same but with extra rowspan=2 columns T2 Total, T1 Total, 3-Term Avg, Grade, Status after the colspan=3 group. Body <tr> cells are unchanged. Exact JSX in feature3-plan.md §3D.",
+    "Run `npm run build` and confirm zero errors."
+  ],
+  "acceptance_criteria": [
+    "npm run build produces zero errors",
+    "Teacher class-report page shows a two-row table header: subject chips in row 1 spanning 3 cols, CA / Exam / Total labels in row 2",
+    "Admin 'Full class report' modal shows the same two-row header",
+    "Student / admin report drawer replaces the flat subject-row divs with a table that has CA, Exam, Total columns",
+    "Student Results page two-row header: Score breakdown spans CA / Exam / Total; other columns have rowspan=2",
+    "No data is missing — CA and Exam values from Academic.classReport() appear in the correct sub-columns"
+  ],
+  "verification": [
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "Implemented all 5 steps. CSS rules appended to styles.css after .cr-remark. teacher.js renderClassReport draw() updated with two-row thead and 3 td per subject (CA, Exam, Total). shared.js openClassReportModal draw() updated with same two-row thead pattern. StudentReportDrawer.jsx scores.map div list replaced with a cr-report-table with two-row thead and tr rows (history/archived divs kept outside). StudentResults.jsx thead replaced with two-row thead using React fragments for both T3 and non-T3. npm run build passed with zero errors."
+}

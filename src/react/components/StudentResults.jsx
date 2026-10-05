@@ -195,28 +195,34 @@ export default function StudentResults() {
             <table>
               <thead>
                 {isTerm3 ? (
-                  <tr>
-                    <th>Subject</th>
-                    <th>Type</th>
-                    <th>CA (40)</th>
-                    <th>Exam (60)</th>
-                    <th>T3 Total</th>
-                    <th>T2 Total</th>
-                    <th>T1 Total</th>
-                    <th>3-Term Avg</th>
-                    <th>Grade</th>
-                    <th>Status</th>
-                  </tr>
+                  <>
+                    <tr>
+                      <th rowSpan={2} style={{textAlign:'left'}}>Subject</th>
+                      <th rowSpan={2}>Type</th>
+                      <th colSpan={3}>Score breakdown</th>
+                      <th rowSpan={2}>T2 Total</th>
+                      <th rowSpan={2}>T1 Total</th>
+                      <th rowSpan={2}>3-Term Avg</th>
+                      <th rowSpan={2}>Grade</th>
+                      <th rowSpan={2}>Status</th>
+                    </tr>
+                    <tr className="cr-sub-row">
+                      <th>CA (40)</th><th>Exam (60)</th><th>T3 Total</th>
+                    </tr>
+                  </>
                 ) : (
-                  <tr>
-                    <th>Subject</th>
-                    <th>Type</th>
-                    <th>CA (40)</th>
-                    <th>Exam (60)</th>
-                    <th>Total</th>
-                    <th>Grade</th>
-                    <th>Status</th>
-                  </tr>
+                  <>
+                    <tr>
+                      <th rowSpan={2} style={{textAlign:'left'}}>Subject</th>
+                      <th rowSpan={2}>Type</th>
+                      <th colSpan={3}>Score breakdown</th>
+                      <th rowSpan={2}>Grade</th>
+                      <th rowSpan={2}>Status</th>
+                    </tr>
+                    <tr className="cr-sub-row">
+                      <th>CA (40)</th><th>Exam (60)</th><th>Total</th>
+                    </tr>
+                  </>
                 )}
               </thead>
               <tbody>
