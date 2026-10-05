@@ -1,0 +1,25 @@
+{
+  "project_type": "Single-page app — Vite + AlpineJS + React (islands). No backend beyond Supabase.",
+  "language": "JavaScript (ES modules) + JSX for React islands",
+  "build_system": "Vite 5.4 (`vite build`). No TypeScript. React islands mounted via `src/react/mount.js`. Alpine x-data / x-show drives vanilla modals.",
+  "test_framework": "No automated tests. Manual verification via browser smoke-test after `npm run build`.",
+  "build_command": "npm run build",
+  "test_command": "npm run dev  (manual smoke test in browser)",
+  "verification_instructions": "1. Run `npm run build` and confirm zero errors. 2. `npm run dev` and open http://localhost:5173. 3. Sign in as admin, teacher, and student to exercise each feature.",
+  "snapshot_or_generated_files": null,
+  "environment_constraints": "Windows workspace. Dev server runs on port 5173 by default. Do NOT restart the dev server mid-implementation — just rebuild.",
+  "contribution_requirements": "No AGENTS.md or CONTRIBUTING.md found. Changes go straight to the working branch; do not push.",
+  "key_patterns": "Vanilla views: DOM helpers `$()`, `$q()`, `$all()` from utils.js. Modals opened with `openModal(id)` / `closeModal(id)` from modals.js. Toast via `toast(msg)` or `toast(msg, 'error')`. Data access via `Data.*` and `Progression.*` from data/index.js. React islands use `_reactMount(containerId, Component, props)` from react/mount.js. CSS classes for report cells: `.cr-cell`, `.cr-pass`, `.cr-fail`, `.cr-sub-head`, `.cr-caexam`, `.cr-split` (to be added).",
+  "relevant_files": [
+    "src/views/student.js",
+    "src/views/admin.js",
+    "src/views/teacher.js",
+    "src/views/shared.js",
+    "src/react/components/StudentReportDrawer.jsx",
+    "src/react/components/StudentResults.jsx",
+    "src/styles.css",
+    "index.html",
+    "data.js"
+  ],
+  "directory_structure": "Root: index.html, data.js (monolithic data/state layer), app.js (legacy copy), package.json. src/: main.js (boot), state.js, utils.js, modals.js, auth.js, router.js. src/views/: admin.js, teacher.js, student.js, shared.js, reports.js. src/data/: index.js (re-exports data.js). src/react/: mount.js, components/. .agents/tasks/: planning artifacts."
+}

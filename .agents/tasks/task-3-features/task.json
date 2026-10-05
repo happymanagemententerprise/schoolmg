@@ -1,0 +1,7 @@
+{
+  "task_id": "task-3-features",
+  "task_description": "Implement three school-management features: (1) Year-10 subject-selection panel note shows stream name, (2) Admin UI to reclassify SS students to a different stream class, (3) Class-report tables split into CA / Exam / Total sub-columns across teacher, shared, and React report views.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
