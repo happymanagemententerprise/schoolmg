@@ -1372,37 +1372,19 @@ const Data = {
   user(id)           { return _cache.users.find(u => u.id === String(id)) || null; },
   teachers()         { return _cache.users.filter(u => ['Subject Teacher','Class Teacher','HOD'].includes(u.role)); },
 
-  // passwordMatches(user, typed)
-  //   DEPRECATED — password hashes are no longer fetched to the browser.
+  // passwordMatches(user, typed) — REMOVED. No password hashes are available client-side.
   passwordMatches(user, typed) {
-    // Password hashes are no longer fetched to the browser.
-    // Use Data.loginWithPassword() for login, or Data.verifyPassword() for re-auth.
-    console.warn('[HMA] passwordMatches() is deprecated — use loginWithPassword() or verifyPassword()');
+    console.warn('[HMA] passwordMatches() is deprecated and always returns false.');
     return false;
   },
 
-  // loginWithPassword({ email, password })
-  //   Server-side password check: fetches hash/salt for this one account only.
-  //   The hash never travels to the browser for other accounts.
-  //   Returns { user } on success or { error: string } on failure.
-  async loginWithPassword({ email, password }) {
-    try {
-      const { data, error } = await _sb
-        .from('users')
-        .select('id, password_hash, password_salt')
-        .eq('email', email.toLowerCase())
-        .single();
-      if (error || !data) return { error: 'No account found with that email.' };
-      if (!data.password_hash || !data.password_salt) return { error: 'Account has no password set. Contact admin.' };
-      const hash = hashPassword(password, data.password_salt);
-      if (hash !== data.password_hash) return { error: 'Incorrect password — please try again.' };
-      // Password correct — find the full cached user record
-      const user = _cache.users.find(u => u.id === String(data.id));
-      if (!user) return { error: 'Account not loaded. Reload the page and try again.' };
-      return { user };
-    } catch (e) {
-      return { error: 'Could not reach the server. Check your connection.' };
-    }
+  // loginWithPassword — REMOVED. Use Data.signIn({ email, password }) instead.
+  // The old SHA-256 path is no longer supported.
+  async loginWithPassword() {
+    throw new Error(
+      '[HMA] loginWithPassword() has been removed. ' +
+      'Call Data.signIn({ email, password }) to sign in via Supabase Auth.'
+    );
   },
 
   generateTempPassword: () => generateTempPassword(),
