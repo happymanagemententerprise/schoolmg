@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Year-10 subject-selection panel: update the note text in renderStudentSubjectsPanel to include the student's stream name when a Year-10 student with no subjects is viewing the panel. canChoose(10) already returns true and saveChooseSubjects already saves with status:'effective', so no data-layer change is needed. This is a one-line cosmetic fix.",
+  "status": "completed",
+  "steps": [
+    "Read src/views/student.js renderStudentSubjectsPanel (~line 113-166). Identify the final else-branch (no effective subjects) where note.textContent is set to 'Pick your subjects for this ...'.",
+    "Before that note line, derive streamLabel: `const streamLabel = cl?.stream ? ` (${cl.stream} stream)` : '';`",
+    "Change the note.textContent to: `Pick your subjects for ${Data.session().name}${streamLabel} — your choice takes effect immediately.`",
+    "Run `npm run build` and confirm zero errors."
+  ],
+  "acceptance_criteria": [
+    "npm run build produces zero errors",
+    "A Year-10 student with no subjects sees 'Pick your subjects for ... (Science stream) — your choice takes effect immediately.' (or without stream suffix if class has no stream set)",
+    "The 'Choose subjects' button label is unchanged (already correct in the existing code)"
+  ],
+  "verification": [
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "One-line change in renderStudentSubjectsPanel's final else-branch: derived streamLabel from cl?.stream and updated note.textContent. Build passes with zero errors. The cl variable was already in scope from line ~125."
+}

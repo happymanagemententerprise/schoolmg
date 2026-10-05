@@ -168,7 +168,8 @@ export function renderStudentSubjectsPanel() {
     return;
   }
 
-  note.textContent = `Pick your subjects for this ${Data.session().name} — you can adjust them later.`;
+  const streamLabel = cl?.stream ? ` (${cl.stream} stream)` : '';
+  note.textContent = `Pick your subjects for ${Data.session().name}${streamLabel} — your choice takes effect immediately.`;
   btn.hidden = false;
   btn.textContent = 'Choose subjects';
   grid.innerHTML = `<p class="muted-cell">No subjects chosen yet.</p>` + topicBlock;
