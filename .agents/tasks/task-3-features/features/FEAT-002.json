@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Admin 'Change stream' modal for SS (Year 11/12) students. Data layer already has Progression.assignClass(studentId, toClassId, {reason, note, userId}) used by runPlacement() and AdminProgression.jsx. This FEAT adds: (A) modal HTML in index.html, (B) 'Change stream' menu item in studentRowMenu() for SS students only, (C) handler in bindStudentRowMenus(), (D) new openChangeStreamModal(sid) function in admin.js.",
+  "status": "completed",
+  "steps": [
+    "Step A — index.html: Insert the change-stream-modal block BEFORE the '<!-- Toast notification -->' comment (which is the last element before </body>). Follow the same pattern as assign-mentor-modal: modal-overlay div with x-data x-show, modal > modal-header + modal-body + modal-footer. Use element ids: cs-modal-title, cs-modal-student, cs-modal-class (select), cs-modal-note (input text), cs-modal-feedback (div), cs-modal-save-btn (button). Cancel button has data-modal='change-stream-modal'. Full HTML in feature3-plan.md §Feature 2A.",
+    "Step B — src/views/admin.js, studentRowMenu() (~line 93): Read the current function. Add `const cl = s ? Data.cls(s.classId) : null;` and `const isSS = cl?.level === 'SS';`. Add a conditional menu item: `${isSS ? `<button data-student-stream=\"${sid}\">Change stream</button>` : ''}` after the 'Assign mentor' button.",
+    "Step C — src/views/admin.js, bindStudentRowMenus() (~line 104): After the existing $all('[data-student-reset]') block, add: `$all('[data-student-stream]').forEach(btn => btn.addEventListener('click', () => { closeMenus(); openChangeStreamModal(btn.dataset.studentStream); }));`",
+    "Step D — src/views/admin.js: Add new exported function openChangeStreamModal(sid) immediately after bindStudentRowMenus and before renderUploadToggles. Function: looks up student and class, builds a <select> of all SS classes except the current one, populates cs-modal-* elements, sets cs-modal-save-btn.onclick to call Progression.assignClass then closeModal + toast + renderPeopleTab. Full code in feature3-plan.md §Feature 2D.",
+    "Run `npm run build` and confirm zero errors."
+  ],
+  "acceptance_criteria": [
+    "npm run build produces zero errors",
+    "Admin opens People → Students All → clicks ••• on a Year-11 or Year-12 student → 'Change stream' appears in the menu",
+    "The 'Change stream' menu item does NOT appear for JSS (Year 7-9) students",
+    "Clicking 'Change stream' opens the modal with the student's current class shown and a dropdown of other SS classes",
+    "Clicking 'Move student' calls Progression.assignClass, closes the modal, shows a toast, and refreshes the students table",
+    "No password confirmation is required (mirrors the class-teacher-modal pattern)"
+  ],
+  "verification": [
+    "npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "All four steps implemented successfully. index.html received the change-stream-modal block (ids: cs-modal-title, cs-modal-student, cs-modal-class, cs-modal-note, cs-modal-feedback, cs-modal-save-btn). studentRowMenu() updated to resolve the student's class and gate the 'Change stream' button on isSS. bindStudentRowMenus() gained a [data-student-stream] handler. openChangeStreamModal(sid) added as a named export before renderUploadToggles. npm run build: zero errors (24.63s)."
+}

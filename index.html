@@ -1443,6 +1443,37 @@
   </div>
 </div>
 
+<!-- Change stream modal (admin reclassifies an SS student) -->
+<div class="modal-overlay" id="change-stream-modal" aria-hidden="true"
+     x-data x-show="$store.modals['change-stream-modal']">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="cs-modal-title">Change stream</h3>
+      <button class="close-modal" data-modal="change-stream-modal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="role-muted" id="cs-modal-student"></p>
+      <p class="role-muted" style="margin-top:8px">
+        Moving the student to a new stream class changes their subject list immediately.
+        A transfer record is saved for the audit trail.
+      </p>
+      <div class="form-group mt16">
+        <label for="cs-modal-class">New class / stream</label>
+        <select id="cs-modal-class"></select>
+      </div>
+      <div class="form-group">
+        <label for="cs-modal-note">Reason note <small class="muted-cell">(optional)</small></label>
+        <input id="cs-modal-note" type="text" placeholder="e.g. academic performance — moved from Science">
+      </div>
+      <div id="cs-modal-feedback" class="form-feedback mt8" hidden></div>
+    </div>
+    <div class="modal-footer">
+      <button class="outline-button" data-modal="change-stream-modal" style="width:auto;margin:0">Cancel</button>
+      <button class="btn-primary" id="cs-modal-save-btn" style="width:auto;margin:0">Move student</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast notification -->
 <div id="toast"
      x-data

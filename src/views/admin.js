@@ -97,13 +97,16 @@ export function renderAdminStudentTable(query = '') {
 }
 
 export function studentRowMenu(sid) {
-  const s = Data.student(sid);
+  const s        = Data.student(sid);
+  const cl       = s ? Data.cls(s.classId) : null;
   const archived = !!(s && s.status === 'archived');
+  const isSS     = cl?.level === 'SS';
   return `<div class="row-menu-wrap">
     <button class="row-menu" data-menu-toggle aria-label="Student actions">•••</button>
     <div class="row-menu-list" hidden>
       <button data-student="${sid}">Open full report</button>
       <button data-student-mentor="${sid}">Assign mentor</button>
+      ${isSS ? `<button data-student-stream="${sid}">Change stream</button>` : ''}
       <button data-student-reset="${sid}">Reset password</button>
       <button data-student-archive="${sid}">${archived ? 'Restore student' : 'Archive student'}</button>
     </div>
@@ -129,6 +132,10 @@ export function bindStudentRowMenus() {
   $all('[data-student-reset]').forEach(btn => btn.addEventListener('click', () => {
     closeMenus(); openResetPasswordModal(btn.dataset.studentReset);
   }));
+  $all('[data-student-stream]').forEach(btn => btn.addEventListener('click', () => {
+    closeMenus();
+    openChangeStreamModal(btn.dataset.studentStream);
+  }));
   $all('[data-student-archive]').forEach(btn => btn.addEventListener('click', () => {
     closeMenus();
     const sid = btn.dataset.studentArchive;
@@ -145,6 +152,47 @@ export function bindStudentRowMenus() {
         toast(archived ? `${s.name} restored.` : `${s.name} archived.`);
       });
   }));
+}
+
+export function openChangeStreamModal(sid) {
+  const currentUser = getCurrentUser();
+  const s  = Data.student(sid);
+  const cl = s ? Data.cls(s.classId) : null;
+  if (!s || !cl) return;
+
+  // Offer every SS class except the one the student is already in
+  const targets = Data.classes().filter(c =>
+    c.level === 'SS' && String(c.id) !== String(s.classId)
+  );
+
+  $('cs-modal-title').textContent   = `Change stream — ${s.name}`;
+  $('cs-modal-student').textContent = `Currently in ${cl.name}${cl.stream ? ' · ' + cl.stream : ''}`;
+  $('cs-modal-class').innerHTML = targets.length
+    ? targets.map(c =>
+        `<option value="${c.id}">${esc(c.name)}${c.stream ? ' · ' + c.stream : ''}</option>`
+      ).join('')
+    : '<option value="">— No other SS classes —</option>';
+  $('cs-modal-note').value = '';
+  const fb = $('cs-modal-feedback'); fb.textContent = ''; fb.hidden = true;
+
+  $('cs-modal-save-btn').onclick = async () => {
+    const toClassId = $('cs-modal-class').value;
+    if (!toClassId) {
+      fb.textContent = 'Select a class first.'; fb.hidden = false; return;
+    }
+    closeModal('change-stream-modal');
+    await Progression.assignClass(sid, toClassId, {
+      reason: 'stream_change',
+      note: $('cs-modal-note').value.trim(),
+      userId: currentUser.id
+    });
+    const newCl = Data.cls(toClassId);
+    toast(`${s.name} moved to ${newCl?.name || 'new class'}.`);
+    // Refresh the students table in whichever tab is active
+    renderPeopleTab($q('#people-tabs .tab-btn.active')?.dataset.tab || 'students-all');
+  };
+
+  openModal('change-stream-modal');
 }
 
 export function renderUploadToggles() {
