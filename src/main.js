@@ -45,10 +45,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('[HMA] unreachable tables:', failed.join(', '));
   }
 
-  // Restore session if the user was already logged in.
-  const saved = DB.get('currentUser');
-  if (saved?.email) {
-    const fresh = Data.userByEmail(saved.email);
-    if (fresh) login(fresh);
+  // Restore session from Supabase Auth (handles cookie/localStorage automatically)
+  const session = await Data.getSession();
+  if (session?.user?.email) {
+    const fresh = Data.userByEmail(session.user.email);
+    if (fresh && !Data.accountBlocked(fresh)) login(fresh);
   }
 });

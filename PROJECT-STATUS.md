@@ -240,3 +240,7 @@ For issues or questions:
 ### To Apply the Migration to the Live Database
 Run: `npx supabase db push` (requires `supabase` CLI to be installed and the project to be linked via `npx supabase link`).
 Or paste the contents of `supabase/migrations/20261004_rls_policies.sql` into the Supabase dashboard SQL editor and execute.
+
+## Supabase Auth
+✅ Integrated — run `scripts/provision-auth-users.js` with the service role key to provision auth accounts for existing users.
+Service role key: get from https://supabase.com/dashboard/project/erlhyrswcqpqpqzbgmgb/settings/api (never commit it).

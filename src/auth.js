@@ -120,26 +120,29 @@ export function initLogin() {
     e.preventDefault();
     const email    = emailI.value.trim().toLowerCase();
     const password = pwI.value;
-
     Alpine.store('loginError', '');
 
-    const { user, error } = await Data.loginWithPassword({ email, password });
-    if (!user) {
+    const { session, error } = await Data.signIn({ email, password });
+    if (!session) {
       Alpine.store('loginError', error || 'Incorrect email or password.');
       return;
     }
-    if (Data.accountBlocked(user)) {
-      Alpine.store('loginError', 'This account has been archived and can no longer sign in. Contact the school office.');
+
+    const user = Data.userByEmail(session.user.email);
+    if (!user) {
+      Alpine.store('loginError', 'Account not loaded. Reload the page and try again.');
       return;
     }
-
+    if (Data.accountBlocked(user)) {
+      Alpine.store('loginError', 'This account has been archived. Contact the school office.');
+      return;
+    }
     login(user);
   });
 }
 
 export function login(user) {
   setCurrentUser(user);
-  DB.set('currentUser', { email: user.email });
   $('login-screen').hidden = true;
   $('app-shell').hidden    = false;
   buildNav(user);
@@ -147,9 +150,9 @@ export function login(user) {
   routeToDefaultView(user);
 }
 
-export function logout() {
+export async function logout() {
+  await Data.signOut();
   setCurrentUser(null);
-  DB.set('currentUser', null);
   clearPrevSessionCache();
   $('app-shell').hidden    = true;
   $('login-screen').hidden = false;

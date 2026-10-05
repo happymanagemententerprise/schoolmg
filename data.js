@@ -2411,6 +2411,18 @@ const Data = {
     _cache.lmsPosts = [...(_cache.lmsPosts || []), record];
     DB.set('lmsPosts', _cache.lmsPosts);
     return record;
+  },
+
+  async signIn({ email, password }) {
+    const { data, error } = await _sb.auth.signInWithPassword({ email, password });
+    return { session: data?.session || null, error: error?.message || null };
+  },
+  async signOut() {
+    await _sb.auth.signOut();
+  },
+  async getSession() {
+    const { data } = await _sb.auth.getSession();
+    return data?.session || null;
   }
 };
 
