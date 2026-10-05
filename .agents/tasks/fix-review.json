@@ -1,13 +1,5 @@
 {
   "verdict": "APPROVED",
-  "findings": [
-    {
-      "id": "closed-notice-double-row",
-      "severity": "minor",
-      "confidence": "possible",
-      "summary": "Closed-window notice row stacks under 'No students' row",
-      "detail": "When rows.length === 0 and both upload windows are closed, the <tbody> renders the 'No students' row followed by the closed-window notice row, making both visible simultaneously. Suppress the notice when rows.length === 0, or fold the closed-window message into the 'No students' cell."
-    }
-  ],
+  "findings": [],
   "reviewDoc": "c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg\\.agents\\tasks\\fix-review.md"
 }

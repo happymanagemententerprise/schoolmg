@@ -1,0 +1,10 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    "Most tables still open to anon — ~20 tables (attendance_weekly, attendance_daily, assignments, remarks, lms_lessons, lms_quizzes, lms_attempts, lms_discussions, timetables, sessions, terms, teacher_classes, teacher_subjects, parent_students, portfolio_artifacts, commendations, parent_engagements, teacher_recognitions, promotion_overrides) still have USING (true) anon_all policies from prior migrations. The new migration only locks grades, students, users, and promotions. Extend the migration to drop anon_all and add authenticated-only policies on all remaining tables.",
+    "teacher_class_ids() queries wrong table — the helper reads from teacher_subjects, not teacher_classes. A class teacher with no subject rows in teacher_subjects gets an empty array, silently locking them out of all grades and students reads for their class. Fix by UNIONing both tables in the helper.",
+    "loginWithPassword not removed — the old SHA-256 auth method is still present in data.js and callable from the browser console via window.Data.loginWithPassword(). Remove it or convert it to a hard throw to eliminate the fallback auth path.",
+    "Deterministic temporary passwords without forced reset — the HMA@<first4chars>2026 scheme is computable from any email address and the pattern is public in the codebase. There is no force_reset guard in the login handler. Add a must_change_password flag or use Supabase invite/magic-link flow instead."
+  ],
+  "reviewDoc": "c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg\\.agents\\tasks\\supabase-auth-review.md"
+}

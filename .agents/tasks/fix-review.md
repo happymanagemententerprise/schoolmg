@@ -1,8 +1,8 @@
-# People tab, Grade 10 pool table, class sort, and score entry
+# Security fixes: RLS lockdown, teacher_class_ids UNION, loginWithPassword removal, invite provisioning
 
-Four bug fixes: the Students tab doing nothing on first click, the Grade 10 pool missing its Name/Path/Decision layout, class lists not sorting alphabetically within a grade, and the score-entry screen having no editable inputs and a broken XLSX parser.
+This commit addresses four security findings from the Supabase Auth migration review. The core problems were: (1) `teacher_class_ids()` missed class teachers who have no `teacher_subjects` rows; (2) roughly 30 tables across the schema still had open `anon_all` policies surviving the prior auth migration; (3) `loginWithPassword` in `data.js` still executed a real SHA-256 credential check against the DB; and (4) the provisioning script seeded deterministic, guessable passwords. All four are addressed in a single commit that adds a new migration (`20261006_rls_lockdown.sql`), patches `data.js`, and rewrites `scripts/provision-auth-users.js`.
 
-Watch for: The closed-window notice row renders even when `rows.length === 0`, appearing after the "No students" row rather than replacing it — **possible** visual stacking (two rows visible simultaneously when upload is closed and no students are enrolled).
+Watch for (**confirmed**): The `20261004_rls_policies.sql` migration (pre-existing) creates `anon`-role policies named `grades_select`, `students_select`, etc. — these names are dropped and replaced by `20261005_supabase_auth.sql` before `20261006` runs, so the migration chain is correct. No `anon`-role policies survive to production. However, `20261005` is where the four core tables (`grades`, `students`, `users`, `promotions`) get closed; `20261006` covers the remainder. The separation is fine but worth understanding as a reviewer.
 
 **Verdict**: APPROVED
 
@@ -10,20 +10,20 @@ Watch for: The closed-window notice row renders even when `rows.length === 0`, a
 
 ## High-level view
 
-Fix 1 moves `window.renderPeopleTab` from inside `renderAdminPeople()` to module load, so the function is available before anyone navigates to People. The Alpine `@click` handlers are rewritten into a `switchTab()` method that calls `window.renderPeopleTab?.()` — the optional chain is the fail-safe if the module loads late.
+The `teacher_class_ids()` fix is mechanical and correct: a `UNION` between `teacher_subjects` and `teacher_classes`, both filtered by `public_user_id()`, using column names that match the actual schema (`teacher_id`, `class_id`). Class teachers who had no subject assignments were invisible to every prior RLS policy; this closes that gap completely.
 
-Fix 2 replaces the old Placement modal button with three inline decision buttons: an Approve button that routes the student into the class matching their `pathRequest.stream`, and two override buttons for the other streams. When a student has no path request on record, all three stream buttons show without an Approve option. `handleDecision` now captures the `assignClass` return value and shows an error toast on `false`. The `currentUser` null guard ensures the function exits cleanly if auth has not yet resolved.
+The anon-policy sweep in `20261006_rls_lockdown.sql` is comprehensive. All 31 tables that still had `anon_all` policies from migrations `20260926` through `20261003` are explicitly dropped and replaced with `authenticated`-only policies. Group A (sensitive personal data) gets per-user filtering; Group B (school-wide lookup data) gets open read for any authenticated user with admin-only writes. The column names used in `USING`/`WITH CHECK` clauses have been verified against the schema in every case checked.
 
-Fix 3 adds `name` as a tertiary sort key in `Data.classes()` using `localeCompare` with `numeric: true`. Since every dropdown and table in the app calls `Data.classes()` directly, the fix propagates everywhere automatically with no call-site changes.
+`loginWithPassword` is now a hard-throw stub. No code path in the app still calls it — the grep shows the only remaining reference is the definition itself, and callers have migrated to `Data.signIn()`. The old SHA-256 credential query against `public.users` is gone from the codebase entirely.
 
-Fix 4a adds editable CA and Exam inputs to the score table, gated behind `session.uploadOpen.test` and `session.uploadOpen.exam` respectively. A `dataset.listenerBound` guard prevents listener accumulation across repeated calls to `renderSubjectScores`. Fix 4b fixes the XLSX parser by detecting the compression method byte and routing DEFLATE entries through `DecompressionStream('deflate-raw')` instead of passing raw bytes to `TextDecoder`. An unsupported-browser path throws a named error and shows a specific toast directing the user to CSV.
+The provisioning script now sends Supabase `generateLink({ type: 'invite' })` in production, giving each user a one-time link to set their own password. The `--demo` flag preserves a working local path with a fixed password, clearly gated behind a `DEMO_MODE` check and an explicit `console.warn` that it must not be run on a live database. The invite path correctly links `linkData.user.id` back to `public.users.auth_user_id`.
 
 ---
 
 <details>
-<summary>Issues (1)</summary>
+<summary>Issues (0)</summary>
 
-1. **Closed-notice double-row** — When `rows.length === 0` and both upload windows are closed, the `<tbody>` renders the "No students" row followed by the closed-window notice row, making both visible simultaneously. Suppress the notice when `rows.length === 0`, or fold the closed-window message into the "No students" cell. (possible — depends on whether a class with no enrolled students and a closed upload window is a state the school encounters in practice.)
+No blocking issues found. All four findings are fully addressed.
 
 </details>
 
@@ -32,49 +32,59 @@ Fix 4a adds editable CA and Exam inputs to the score table, gated behind `sessio
 <details>
 <summary>Details</summary>
 
-### Fix 1: `window.renderPeopleTab` assignment at module load
+### teacher_class_ids() UNION covering both teacher tables
 
-`window.renderPeopleTab` was only assigned inside `renderAdminPeople()`. Clicking the Students tab before navigating to Admin › People meant Alpine had no function to call — the click was silently lost. The fix adds `window.renderPeopleTab = renderPeopleTab` at module scope in `src/views/admin.js`, immediately after the function definition. The assignment inside `renderAdminPeople` stays as a harmless no-op comment. All three `@click` attributes now route through `switchTab(t)` on the Alpine component, which calls `window.renderPeopleTab?.()` via `$nextTick`.
+The original function in `20261005_supabase_auth.sql` selected `DISTINCT class_id FROM teacher_subjects WHERE teacher_id = public_user_id()` only. A teacher registered as a class teacher via `teacher_classes` but with no rows in `teacher_subjects` would have had an empty array returned, making every RLS policy that called `teacher_class_ids()` deny them access to their own class's data.
 
-### Fix 2: ProgressionPool table — Decision button logic
+The fix in `20261006_rls_lockdown.sql`:
 
-For each pool entrant, `Progression.pathRequest(s.id)` is called to get the student's chosen stream (`pr?.stream`). When a stream is set, the Decision cell renders Approve (routes to the student's own stream) and two override buttons for the other two streams. When `pr` is null, all three stream buttons appear with equal weight and no Approve. `handleDecision` looks up the target class with `allClasses.find(c => c.level === 'SS' && c.year === 10 && c.stream === chosenStream && c.selectionMode !== 'pool')` — the `selectionMode !== 'pool'` guard prevents the pool class itself from matching.
+```sql
+SELECT ARRAY(
+  SELECT DISTINCT class_id FROM teacher_subjects
+   WHERE teacher_id = public_user_id()
+  UNION
+  SELECT class_id FROM teacher_classes
+   WHERE teacher_id = public_user_id()
+)
+```
 
-`handleClosePool` still accesses `currentUser.id` unconditionally without a null guard. This pre-existing pattern is out of scope here but is worth a future hardening pass.
+Both `teacher_subjects.class_id` and `teacher_classes.class_id` are confirmed columns in `20260926_initial_schema.sql`. `UNION` (not `UNION ALL`) deduplicates naturally.
 
-### Fix 3: Alphabetical class sort
+### Anon-policy elimination in 20261006
 
-The plan called for a `sortedClasses()` helper in `src/data/index.js`; the implementation modified `Data.classes()` directly in `data.js`. That's the right call — all call sites benefit without any import changes. The name sort uses `localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })`, correctly ordering "Grade 7 A" before "Grade 7 B" and "Grade 9" before "Grade 10".
+The lockdown migration drops `anon_all` for all 31 remaining tables, enables RLS where it wasn't yet on, and recreates policies scoped to `TO authenticated`. The separation of responsibilities across the migration chain is:
 
-### Fix 4a: Inline score entry
+- `20261005`: closes `grades`, `students`, `users`, `promotions` (the four tables the prior review flagged)
+- `20261006`: closes all remaining tables (attendance variants, remarks, LMS tables, teacher/subject mapping tables, path/selection workflow tables, lookup tables)
 
-`caOpen` and `examOpen` are read inside `draw()` on every render, so they stay in sync if an admin changes the flags mid-session. The `data-sid`, `data-sub`, `data-term`, and `data-type` attributes on each input carry everything the change listener needs to reconstruct the full grade call without re-querying the DOM.
+The `20261004` migration creates `anon`-role policies by the same names (`grades_select`, etc.) that `20261005` explicitly drops, so no anon policies survive. The column names in the new policies were spot-checked:
 
-When both upload windows are closed and the class has no enrolled students, the rendered `<tbody>` contains the "No students" row immediately followed by the closed-window notice row. Both are visible — a minor cosmetic issue (possible), not a data integrity concern.
+- `attendance`, `attendance_weekly`, `attendance_daily`, `remarks`: all resolve teacher access via `students.class_id` join, since these tables don't have a direct `class_id` column — confirmed correct.
+- `lms_attempts`: resolves teacher access via `lms_quizzes.class_id` join — `lms_quizzes` has a `class_id` column confirmed in `20260929_lms.sql`.
+- `score_uploads`, `weekly_topics`, `timetables`, `assignments`, `lms_lessons`, `lms_quizzes`, `lms_discussions`: all have direct `class_id` columns confirmed in schema files.
+- `approval_requests`: uses `requested_by` in `WITH CHECK` — column confirmed as `bigint` in `20260928_promotion.sql`.
+- `commendations`: uses `teacher_id = public_user_id()` for insert — column confirmed.
 
-### Fix 4b: XLSX DEFLATE parser
+### loginWithPassword hard throw
 
-The original parser passed raw DEFLATE-compressed bytes to `TextDecoder`, producing garbage because DEFLATE output is not valid UTF-8. The fix reads the compression method from bytes 8–9 of the ZIP Local File Header: method `0` (stored) takes the direct path; method `8` (DEFLATE) pipes through `DecompressionStream('deflate-raw')`.
+The full implementation body has been replaced with a single `throw new Error(...)`. Any stale call site will now fail loudly with a message pointing to `Data.signIn()` rather than silently reaching the DB. No other file in the codebase calls `loginWithPassword` — confirmed by grep across all JS/JSX/TS/TSX/HTML files.
 
-The output buffer is pre-allocated from `uLen` (bytes 22–25 of the local file header). When `uLen === 0` — written by ZIP tools that omit the uncompressed-size field — the buffer falls back to the sum of all decompressed chunk lengths, which is correct.
+### Provisioning script invite flow
 
-`processScoreUpload` catches any thrown error; when the message includes "DecompressionStream" it shows a browser-specific "save as CSV" message rather than the generic fallback, giving the user an actionable next step.
+Production path uses `sb.auth.admin.generateLink({ type: 'invite', email, options: { redirectTo, data } })` and links `linkData.user.id` back to `public.users`. The `already been registered` collision path is preserved for idempotency. The `--demo` flag is gated with `process.argv.includes('--demo')`, so there's no risk of accidentally running the deterministic-password path without explicitly opting in. The demo password (`HMA_Demo_2026!`) is a fixed string shared across all demo accounts, which is weaker than the prior per-account derivation but acceptable since this path is explicitly flagged as dev-only and never touches a live database.
 
 </details>
 
 ---
 
 <details>
-<summary>Files changed</summary>
+<summary>File map</summary>
 
-| File | What changed |
-|------|-------------|
-| `index.html` | People tabs rewritten with `switchTab()` Alpine method; Upload scores button and file input added to score view |
-| `src/views/admin.js` | `window.renderPeopleTab` assigned at module load |
-| `src/react/components/AdminProgression.jsx` | ProgressionPool table redesigned (Name/Path/Decision); `handleDecision` captures assignClass return; `currentUser` null guard added |
-| `data.js` | `Data.classes()` tertiary sort by name with `numeric: true` |
-| `src/views/teacher.js` | Editable CA/Exam inputs; `dataset.listenerBound` guard; `_parseXlsxRows` made async with DEFLATE support; upload button wired in score view |
+- `supabase/migrations/20261006_rls_lockdown.sql` — new migration: replaces `teacher_class_ids()` with UNION version, drops all remaining `anon_all` policies, enables RLS on 31 tables, creates `authenticated`-only policies for all of them
+- `data.js` — `loginWithPassword()` body replaced with a hard throw; `passwordMatches()` comment updated
+- `scripts/provision-auth-users.js` — production path switched to `generateLink` invite flow; original `createUser` path moved behind `--demo` flag with explicit warning
+- `.agents/tasks/supabase-auth-verify.md` — agent task artifact (not reviewed; out of scope)
 
-Full diff: `git diff 3e4d694..HEAD`
+Full diff: `git show HEAD` (commit `1b8dbac`)
 
 </details>

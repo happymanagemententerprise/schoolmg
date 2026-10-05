@@ -1,451 +1,430 @@
-# Implementation Plan — Happy Man Academy Bug Fixes
+# Implementation Plan — Supabase Auth Security Fixes
 
-> Generated from direct code inspection. All line numbers and signatures verified in the source.
+> Generated from direct migration file inspection. All table names, column names, and line
+> numbers verified against the actual source files.
 
 ---
 
-## Fix 1 — People tab: Students tab click does nothing
+## Schema facts confirmed before planning
 
-### Root cause (confirmed)
-`index.html` `#people-tabs` Alpine `@click` expressions call `renderPeopleTab(...)` by bare
-name. Alpine v3 falls back to `window.renderPeopleTab` only after it initialises the component
-at page-load, but `window.renderPeopleTab` is not assigned until `renderAdminPeople()` runs
-(admin.js line 175). If the user clicks the tab before navigating to People the first time,
-or if `renderAdminPeople()` has not yet run in this page-load, the call is silently lost.
+All tables listed in the task prompt exist in the migrations. Confirmed column names:
 
-### Changes
+| Table | Relevant columns |
+|---|---|
+| `attendance_weekly` | `student_id`, `term_id`, `week_number` (no `class_id`) |
+| `attendance_daily` | `student_id`, `term_id`, `week_number`, `day_index` |
+| `remarks` | `student_id`, `term_id` |
+| `lms_attempts` | `quiz_id`, `student_id` |
+| `lms_quizzes` | `class_id`, `teacher_id` |
+| `lms_lessons` | `class_id`, `teacher_id` |
+| `lms_discussions` | `class_id`, `teacher_id` |
+| `lms_posts` | `user_id`, `discussion_id` |
+| `parent_students` | `parent_id`, `student_id` |
+| `portfolio_artifacts` | `student_id`, `created_by`, `verified_by` |
+| `commendations` | `student_id`, `teacher_id` |
+| `parent_engagements` | `parent_id` |
+| `promotion_overrides` | `student_id`, `session_id`, `set_by` |
+| `teacher_recognitions` | `teacher_id` |
+| `teacher_classes` | `teacher_id`, `class_id` |
+| `teacher_subjects` | `teacher_id`, `subject_id`, `class_id` |
 
-**File: `index.html`** (lines 218–226 — the `#people-tabs` div)
+**Note on `attendance_weekly`**: This table has no `class_id` column directly. The class must be
+resolved via `students.class_id` (i.e. `student_id = current_student_id()` or join to `students`
+for teacher access). The plan uses this join pattern.
 
-Replace the `x-data` attribute and all three `@click` expressions:
+**Note on `attendance` (original)**: Created in `20260926_initial_schema.sql` with an `anon_all`
+policy. It is separate from `attendance_daily` and `attendance_weekly`. It must also be locked
+down. The task prompt called it `attendance_daily` in its sensitive list — both `attendance` and
+`attendance_daily` need per-user policies.
 
-```html
-<!-- BEFORE -->
-<div class="tab-bar" id="people-tabs" x-data="{ tab: 'staff' }">
-  <button … @click="tab = 'staff'; $nextTick(() => renderPeopleTab('staff'))">Staff</button>
-  <button … @click="tab = 'students-all'; $nextTick(() => renderPeopleTab('students-all'))">Students</button>
-  <button … @click="tab = 'parents'; $nextTick(() => renderPeopleTab('parents'))">Parents</button>
-</div>
+**Tables with no `anon_all` to drop**: `sessions`, `terms`, `classes`, `subjects`, `rooms`,
+`time_slots` — all still have open `anon_all` policies and need authenticated-only open-read.
+Also `events`, `departments`, `timetables`, `timetable_settings`, `assignments`, `score_uploads`,
+`weekly_topics`, `subject_selection_rules`, `approval_requests`, `student_transfers`,
+`path_requests`, `subject_selections`, `lms_questions`, `teacher_classes`, `teacher_subjects`,
+`teacher_recognitions`, `promotions` (locked only for grades/students/users/promotions —
+but `promotions` already has full per-user policy in `20261005`, so skip it).
 
-<!-- AFTER -->
-<div class="tab-bar" id="people-tabs"
-     x-data="{ tab: 'staff', switchTab(t){ this.tab = t; $nextTick(() => window.renderPeopleTab?.(t)); } }">
-  <button … @click="switchTab('staff')">Staff</button>
-  <button … @click="switchTab('students-all')">Students</button>
-  <button … @click="switchTab('parents')">Parents</button>
-</div>
+---
+
+## Fix 1 — Drop all remaining `anon_all` policies and add authenticated-only policies
+
+**Decision**: Write a new follow-on migration file `20261006_rls_lockdown.sql`. Do not edit
+`20261005_supabase_auth.sql` because it may already be applied to the live database. A new file
+applies cleanly on top and is re-runnable via `DROP POLICY IF EXISTS`.
+
+### Breakdown of tables and policy shape
+
+#### Group A — Sensitive: per-user filtered SELECT (no INSERT/UPDATE from these policies)
+
+These tables contain personal data. SELECT is filtered. INSERT/UPDATE is admin-or-owner-only.
+
+1. **`attendance_weekly`** — student sees own; teacher sees their class (via `students` join);
+   parent sees children; admin sees all.
+   - `student_id = current_student_id()`
+   - `EXISTS(SELECT 1 FROM students s WHERE s.id = attendance_weekly.student_id AND s.class_id = ANY(teacher_class_ids()))`
+   - `student_id = ANY(parent_student_ids())`
+   - `is_admin_user()`
+   - INSERT/UPDATE: `EXISTS(SELECT 1 FROM students s WHERE s.id = attendance_weekly.student_id AND s.class_id = ANY(teacher_class_ids())) OR is_admin_user()`
+
+2. **`attendance`** (original table) — same pattern as `attendance_weekly`:
+   - Same USING expression as above.
+   - INSERT/UPDATE: teacher for their class OR admin.
+
+3. **`attendance_daily`** — same pattern as `attendance_weekly` (same columns: `student_id`, `term_id`):
+   - Same USING expression.
+   - INSERT/UPDATE: teacher for their class OR admin.
+
+4. **`remarks`** — student sees own; teacher sees class; parent sees children; admin sees all.
+   - `student_id = current_student_id()`
+   - `EXISTS(SELECT 1 FROM students s WHERE s.id = remarks.student_id AND s.class_id = ANY(teacher_class_ids()))`
+   - `student_id = ANY(parent_student_ids())`
+   - `is_admin_user()`
+   - INSERT/UPDATE: teacher or admin only.
+
+5. **`lms_attempts`** — student sees own; teacher sees attempts for their class's quizzes; parent sees children's; admin sees all.
+   - `student_id = current_student_id()`
+   - `EXISTS(SELECT 1 FROM lms_quizzes q WHERE q.id = lms_attempts.quiz_id AND q.class_id = ANY(teacher_class_ids()))`
+   - `student_id = ANY(parent_student_ids())`
+   - `is_admin_user()`
+   - INSERT: student inserts own (`student_id = current_student_id()`).
+   - UPDATE: student updates own (`student_id = current_student_id()`).
+
+6. **`parent_students`** — parent sees own links; admin sees all; teacher does not need to read this table directly.
+   - `parent_id = public_user_id() OR is_admin_user()`
+   - INSERT/UPDATE: admin only.
+
+7. **`portfolio_artifacts`** — student sees own; teacher who is `created_by` or `verified_by` sees it; admin sees all.
+   - `student_id = current_student_id()`
+   - `EXISTS(SELECT 1 FROM students s WHERE s.id = portfolio_artifacts.student_id AND s.class_id = ANY(teacher_class_ids()))`
+   - `student_id = ANY(parent_student_ids())`
+   - `is_admin_user()`
+   - INSERT: student (`student_id = current_student_id()`) or admin.
+   - UPDATE: teacher (verified_by) or admin.
+
+8. **`commendations`** — student sees own; teacher who wrote it (`teacher_id = public_user_id()`) sees it; parent sees children's; admin sees all.
+   - `student_id = current_student_id()`
+   - `teacher_id = public_user_id()`
+   - `student_id = ANY(parent_student_ids())`
+   - `is_admin_user()`
+   - INSERT: teacher (`teacher_id = public_user_id()`) or admin.
+
+9. **`parent_engagements`** — parent sees own; admin sees all.
+   - `parent_id = public_user_id() OR is_admin_user()`
+   - INSERT: own record (`parent_id = public_user_id()`) or admin.
+
+10. **`promotion_overrides`** — student sees own; parent sees children's; admin sees all; teacher sees students in their class.
+    - `student_id = current_student_id()`
+    - `EXISTS(SELECT 1 FROM students s WHERE s.id = promotion_overrides.student_id AND s.class_id = ANY(teacher_class_ids()))`
+    - `student_id = ANY(parent_student_ids())`
+    - `is_admin_user()`
+    - INSERT/UPDATE/DELETE: admin only.
+
+11. **`teacher_recognitions`** — teacher sees own; admin sees all.
+    - `teacher_id = public_user_id() OR is_admin_user()`
+    - INSERT: admin only.
+
+#### Group B — School-wide lookup: open SELECT for any authenticated user; writes restricted to admin/teacher
+
+These tables are school configuration or teaching content. Any authenticated user may read them.
+
+Tables: `sessions`, `terms`, `classes`, `subjects`, `rooms`, `time_slots`, `events`,
+`departments`, `timetables`, `timetable_settings`, `assignments`, `score_uploads`, `weekly_topics`,
+`subject_selection_rules`, `subject_selections`, `path_requests`, `student_transfers`,
+`approval_requests`, `teacher_classes`, `teacher_subjects`, `lms_lessons`, `lms_quizzes`,
+`lms_questions`, `lms_discussions`, `lms_posts`.
+
+Policy pattern for SELECT: `TO authenticated USING (true)` — no USING filter.
+
+For INSERT/UPDATE on write-capable tables, use `is_admin_user()` as a minimum gate. Some
+tables have more natural write rules:
+- `lms_lessons`, `lms_quizzes`, `lms_questions`, `lms_discussions`: teachers can insert/update
+  for their own class (`class_id = ANY(teacher_class_ids()) OR is_admin_user()`).
+- `lms_posts`: any authenticated user can insert their own post (`user_id = public_user_id()`);
+  delete own post.
+- `weekly_topics`: teacher for their class or admin.
+- `score_uploads`: teacher for their class or admin.
+- `assignments`: teacher for their class or admin.
+- `subject_selections`: student selects own or admin; teacher approves for their class.
+- `path_requests`: student requests own or admin; teacher/admin approves.
+- `student_transfers`, `approval_requests`: admin only.
+- `timetable_settings`, `subject_selection_rules`: admin only (single-row tables).
+- `sessions`, `terms`, `classes`, `subjects`, `rooms`, `time_slots`, `events`, `departments`,
+  `teacher_classes`, `teacher_subjects`: admin only for writes.
+
+### Files to create/modify
+
+- **Create**: `supabase/migrations/20261006_rls_lockdown.sql`
+
+### Exact migration structure
+
+```sql
+-- Drop all remaining anon_all policies (idempotent)
+-- [one DROP per table listed above]
+
+-- Enable RLS where not already enabled
+-- [ALTER TABLE ... ENABLE ROW LEVEL SECURITY for any not yet covered]
+
+-- Group A: per-user SELECT policies
+-- [CREATE POLICY ... FOR SELECT TO authenticated USING (...) for each sensitive table]
+
+-- Group A: per-user INSERT/UPDATE policies
+-- [CREATE POLICY ... FOR INSERT/UPDATE TO authenticated WITH CHECK/USING (...)]
+
+-- Group B: open authenticated SELECT
+-- [CREATE POLICY ... FOR SELECT TO authenticated USING (true) for each lookup table]
+
+-- Group B: authenticated writes
+-- [CREATE POLICY ... FOR INSERT/UPDATE TO authenticated WITH CHECK (is_admin_user() [or teacher clause]) for each write-capable table]
 ```
 
-Key points:
-- `window.renderPeopleTab?.()` uses optional chaining — silently no-ops if the function is not
-  yet assigned (race-condition guard).
-- Wrapping in a component method (`switchTab`) avoids Alpine's unreliable bare-name `window`
-  fallback.
-- The `:class="{ active: tab === … }"` bindings already exist on the buttons; keep them intact.
-
-**File: `src/views/admin.js`** — no change needed. `window.renderPeopleTab = renderPeopleTab`
-at line 175 continues to be set on every navigation to People.
+All `CREATE POLICY` statements preceded by `DROP POLICY IF EXISTS` for idempotency.
 
 ### Verify
-Open the app in a browser, navigate straight to Admin › People without any prior navigation.
-Click "Students" — the student table should render. Click "Parents" — the parents table should
-render. Navigate away and back; tabs must still switch correctly on return.
+
+```sql
+-- Run in Supabase SQL editor with anon key (no JWT):
+-- Every query below should return 0 rows or error, not real data.
+SELECT count(*) FROM attendance_weekly;
+SELECT count(*) FROM lms_attempts;
+SELECT count(*) FROM remarks;
+-- Run same queries with a student JWT — should return only own rows.
+```
+
+Manual: Use Supabase Table Editor with anon role — confirm "Row Level Security is enabled" badge
+appears and zero rows are returned on each sensitive table without a JWT.
 
 ---
 
-## Fix 2 — Grade 10 Pool: Name / Path / Decision table
+## Fix 2 — `teacher_class_ids()` UNION with `teacher_classes`
 
-### Confirmed field names (from data.js lines 332–342)
-
-`Data.pathRequests()` returns an array of objects shaped:
-```
-{
-  id:            string,
-  studentId:     string,
-  sessionId:     string,
-  stream:        "Science" | "Commercial" | "Arts" | null,   ← the student's chosen path
-  targetClassId: string | null,
-  status:        "pending" | "approved" | "rejected",
-  requestedBy:   string | null,
-  decidedBy:     string | null,
-  note:          string,
-  at:            string | null
-}
-```
-
-`Progression.pathRequest(studentId)` (data.js lines 2721–2727) returns the most-recent
-`pathRequest` record for the student in the current session, or `null` if none.
-
-### Confirmed `Progression.assignClass` signature (data.js line 2869)
-```js
-async assignClass(studentId, toClassId, { reason = 'stream_change', note = '', userId } = {})
-```
-Returns `false` if the student is already in `toClassId`. Writes to Supabase and updates
-`_cache.students`.
-
-### Logic for "target class" lookup
-To find the class a student should go into when the admin picks a stream:
-```js
-Data.classes().find(c =>
-  c.level === 'SS' &&
-  c.year  === 10 &&
-  c.stream === targetStream &&
-  c.selectionMode !== 'pool'
-)
-```
-If no such class exists for a stream, that stream option should be disabled.
-
-### Changes
-
-**File: `src/react/components/AdminProgression.jsx`** — `ProgressionPool` component (lines ~246–293)
-
-1. Add a local `currentUser` ref at the top of the component (needed for `assignClass`'s `userId`).
-2. Change `<thead>` from `Student | Admission no. | Placement` to `Name | Path (student pick) | Decision`.
-3. In the `tbody`, for each `s` in `entrants`:
-   a. Look up `const pr = Progression.pathRequest(s.id)` — `pr?.stream` is the chosen path (or `null`).
-   b. Render the **Path** cell as `pr?.stream || '—'`.
-   c. Render the **Decision** cell as a `<select>` with these options:
-      - `<option value="">— Decide —</option>` (disabled placeholder)
-      - `<option value="Approve">Approve</option>` (routes the student into the class matching `pr.stream`)
-      - The two non-chosen streams as options (e.g. if `pr.stream === 'Science'`, add `Commercial` and `Arts`)
-      - If `pr` is `null`, show all three streams without an "Approve" option (admin must pick one outright)
-   d. On `onChange` of the select:
-      - Determine `targetStream`: if `value === 'Approve'`, use `pr.stream`; else use the selected stream.
-      - Find `targetClass` via the lookup above.
-      - If no class found, `toast('No class configured for ' + targetStream, 'error')` and reset select.
-      - Else call `await Progression.assignClass(s.id, targetClass.id, { reason: 'stream_placement', userId: currentUser.id })` then call `refresh()` and `toast(s.name + ' placed in ' + targetClass.name)`.
-4. Remove the `PlacementModal` and `openPlacement` prop from `AdminProgression` root component and
-   from the `ProgressionPool` call-site **only if** you fully replace its usage — otherwise keep
-   `PlacementModal` as-is for backward compat and simply stop using it from `ProgressionPool`.
-   Preferred: keep `PlacementModal` available (it may be used elsewhere), just remove the button
-   from `ProgressionPool` rows.
-
-### Verify
-Navigate to Admin › Progression › Grade 10 Pool. Each pool student should show their requested
-stream in the Path column. Selecting a stream from the Decision dropdown should move them to the
-correct class and remove them from the pool list.
-
----
-
-## Fix 3 — Class sort: alphabetical within same grade
-
-### Confirmed current sort (data.js lines 1524–1532)
-```js
-classes() {
-  return [..._cache.classes].sort((a, b) => {
-    const ya = a.year ?? 99, yb = b.year ?? 99;
-    if (ya !== yb) return ya - yb;
-    return (a.stream || '').localeCompare(b.stream || '');
-  });
-}
-```
-When `year` and `stream` are both equal (e.g. two JSS classes, both `year: 7, stream: null`),
-the comparator returns `0` and insertion order is preserved — not alphabetical.
+**Decision**: Extend `20261005_supabase_auth.sql` by adding a `CREATE OR REPLACE FUNCTION`
+block **or** add it at the top of the new `20261006_rls_lockdown.sql`. Since the lockdown
+migration must exist anyway (Fix 1), add the function fix there so it is applied in the same
+migration run. `CREATE OR REPLACE` is safe — it replaces the function regardless of whether
+the old version exists.
 
 ### Change
 
-**File: `data.js`** — `Data.classes()` (line ~1524)
+In `supabase/migrations/20261006_rls_lockdown.sql`, at the top (before the policy statements),
+replace `teacher_class_ids()`:
 
-Add `name` as a tertiary sort key:
+```sql
+CREATE OR REPLACE FUNCTION teacher_class_ids() RETURNS bigint[]
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+  AS $$
+    SELECT ARRAY(
+      SELECT DISTINCT class_id FROM teacher_subjects
+      WHERE teacher_id = public_user_id()
+      UNION
+      SELECT class_id FROM teacher_classes
+      WHERE teacher_id = public_user_id()
+    )
+  $$;
+```
+
+No RLS policy changes needed — all existing policies already call `teacher_class_ids()` so
+they inherit the fix automatically once the function is replaced.
+
+### Files to modify
+
+- `supabase/migrations/20261006_rls_lockdown.sql` (new file, at top)
+
+### Verify
+
+Provision a test user as a class teacher in `teacher_classes` only (no rows in `teacher_subjects`).
+Log in as that user. Confirm `SELECT * FROM grades` returns rows for their class (would return zero
+rows before the fix).
+
+---
+
+## Fix 3 — Remove `loginWithPassword` from `data.js`
+
+**Decision**: Replace the function body with a hard `throw` rather than deleting the property
+entirely. Deletion would cause a silent `undefined is not a function` TypeError anywhere that
+still calls it; a `throw` gives a clear message pointing developers to the correct method. The
+`passwordMatches()` stub above it also needs its comment updated so it no longer points to
+`loginWithPassword()`.
+
+### Exact change in `data.js`
+
+Lines 1384–1407 (the `loginWithPassword` method) — replace body with:
 
 ```js
-classes() {
-  return [..._cache.classes].sort((a, b) => {
-    const ya = a.year ?? 99, yb = b.year ?? 99;
-    if (ya !== yb) return ya - yb;
-    const sa = a.stream || '', sb = b.stream || '';
-    if (sa !== sb) return sa.localeCompare(sb);
-    return (a.name || '').localeCompare(b.name || '');   // ← NEW
+// loginWithPassword — REMOVED. Use Data.signIn({ email, password }) instead.
+// The old SHA-256 path is no longer supported.
+async loginWithPassword() {
+  throw new Error(
+    '[HMA] loginWithPassword() has been removed. ' +
+    'Call Data.signIn({ email, password }) to sign in via Supabase Auth.'
+  );
+},
+```
+
+Also update the `passwordMatches()` stub comment at line 1379 to remove the reference to
+`loginWithPassword()`:
+
+```js
+// passwordMatches(user, typed) — REMOVED. No password hashes are available client-side.
+passwordMatches(user, typed) {
+  console.warn('[HMA] passwordMatches() is deprecated and always returns false.');
+  return false;
+},
+```
+
+### Files to modify
+
+- `data.js` — lines ~1376–1407
+
+### Verify
+
+Open browser devtools console. Type `Data.loginWithPassword({email:'x', password:'y'})`.
+The promise should reject with the error message above, not execute a Supabase query.
+Confirm no `password_hash` or `password_salt` columns appear in any network request.
+
+---
+
+## Fix 4 — Switch provisioning script to `generateLink` invite flow
+
+**Decision**: Replace `sb.auth.admin.createUser({ password: tempPassword })` with
+`sb.auth.admin.generateLink({ type: 'invite', email })`. This emails the user a one-time invite
+link that forces them to set their own password — no guessable credential is created.
+
+Add a `--demo` flag (`process.argv.includes('--demo')`) that falls back to the old
+`createUser({ password: tempPassword })` path for local dev environments where the email
+service is not configured. The `--demo` flag must print a loud warning.
+
+### Exact change in `scripts/provision-auth-users.js`
+
+1. Add at the top after the `SERVICE_KEY` guard:
+```js
+const DEMO_MODE = process.argv.includes('--demo');
+if (DEMO_MODE) {
+  console.warn('⚠  DEMO MODE: Using deterministic passwords. Do NOT run this on a live database.');
+}
+```
+
+2. Replace the `createUser` call block (currently lines ~30–56) with:
+```js
+if (DEMO_MODE) {
+  // Dev/demo fallback: deterministic password (never for production)
+  const tempPassword = `HMA@${u.email.slice(0, 4)}2026`;
+  const { data: authData, error: authErr } = await sb.auth.admin.createUser({
+    email: u.email,
+    password: tempPassword,
+    email_confirm: true,
+    user_metadata: { name: u.name, role: u.role }
   });
-}
-```
-
-This is a single-line addition. Because every dropdown and table that lists classes calls
-`Data.classes()` (confirmed: admin.js, teacher.js, AdminProgression.jsx all consume this
-method's return value directly), the fix propagates automatically.
-
-**No other files need changes for Fix 3.**
-
-### Verify
-Add two classes in the same grade with names "Grade 7 B" and "Grade 7 A" (if not already
-present). Navigate to Admin › Classes — Grade 7 A must appear before Grade 7 B, and Grade 7
-must appear before Grade 8.
-
----
-
-## Fix 4a — Score entry: add editable CA / Exam inputs
-
-### Confirmed current state (teacher.js lines ~268–290)
-`renderSubjectScores()` builds the `st-scores-table` rows with static text:
-```js
-<td>${ca ?? '—'}</td>      // CA — display only
-<td>${exam ?? '—'}</td>    // Exam — display only
-```
-No `<input>` elements exist. The page is read-only.
-
-### Confirmed `Data.saveGrade` signature (data.js line 1645)
-```js
-async saveGrade(studentId, subjectId, term, ca, exam) → Promise<boolean>
-```
-- Clamps `ca` to `[0, 40]` and `exam` to `[0, 60]` internally before writing to Supabase.
-- Returns `true` on success, `false` on error.
-
-### Upload gate (admin-controlled)
-`Data.session().uploadOpen` is `{ test: boolean, exam: boolean }`.
-- `uploadOpen.test` gates CA entry.
-- `uploadOpen.exam` gates exam entry.
-The admin sets these flags via the "Upload periods" toggles on the Admin dashboard
-(`admin.js` lines ~155–167).
-
-The inline score-entry UI should respect the same flags: a CA input should be disabled when
-`!sess.uploadOpen.test`, and the exam input when `!sess.uploadOpen.exam`. This prevents
-teachers from editing scores outside open windows.
-
-### Changes
-
-**File: `src/views/teacher.js`** — `renderSubjectScores()` (lines ~268–290, inside `draw()`)
-
-1. At the top of `draw()`, read the session flags:
-   ```js
-   const sess      = Data.session();
-   const caOpen    = sess.uploadOpen?.test  ?? false;
-   const examOpen  = sess.uploadOpen?.exam  ?? false;
-   ```
-2. Replace the CA cell template:
-   ```js
-   // BEFORE
-   <td>${ca ?? '—'}</td>
-   // AFTER
-   <td><input class="score-input" type="number" min="0" max="40"
-        value="${ca ?? ''}" placeholder="—" ${caOpen ? '' : 'disabled'}
-        data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="test"></td>
-   ```
-3. Replace the exam cell template similarly with `max="60"`, `data-type="exam"`, and `examOpen`.
-4. After the table is built (`$('st-scores-table').innerHTML = ...`), attach a **delegated
-   `change` listener** on the `<tbody>` element:
-   ```js
-   $('st-scores-table').addEventListener('change', async e => {
-     const inp = e.target.closest('input.score-input');
-     if (!inp) return;
-     const { sid, sub, term: t, type } = inp.dataset;
-     const entry = Data.studentScores(sid)[sub]?.[+t] || {};
-     const ca    = type === 'test' ? Number(inp.value) : (entry.test  ?? 0);
-     const exam  = type === 'exam' ? Number(inp.value) : (entry.exam  ?? 0);
-     const ok    = await Data.saveGrade(sid, sub, +t, ca, exam);
-     if (!ok) toast('Score not saved — check your connection.', 'error');
-   });
-   ```
-   Using `change` (fires on blur/enter) rather than `input` (fires on every keypress) avoids
-   flooding Supabase with intermediate partial values.
-
-**File: `index.html`** — `#view-subject-scores` section (line ~686)
-
-Add an "Upload scores ↑" button to the `welcome-row` actions area so a teacher can trigger the
-upload from the scores page as well as from the dashboard. This button should call
-`$('st-file-input').click()` and requires the `st-file-input` element to be accessible from this
-view. The `st-file-input` element currently lives in `view-subject-dashboard`. Two options:
-- **Option A (preferred)**: Move `st-file-input` to a location outside both pages (e.g. at the
-  bottom of `<body>`) so it is always present.
-- **Option B**: Add a second `<input type="file" id="st-scores-file-input" hidden>` inside
-  `view-subject-scores` and wire it in `renderSubjectScores()` with a separate `onchange` handler.
-
-Use **Option B** to avoid touching the dashboard layout. Add to `index.html` inside
-`#view-subject-scores`:
-```html
-<button class="outline-button" id="st-scores-upload-btn" style="width:auto;margin:0">
-  ↑ Upload scores
-</button>
-<input type="file" id="st-scores-file-input" accept=".csv,.xlsx,.xls" hidden>
-```
-Wire in `renderSubjectScores()`:
-```js
-$('st-scores-upload-btn').onclick  = () => $('st-scores-file-input').click();
-$('st-scores-file-input').onchange = e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  e.target.value = '';
-  processScoreUpload(file);
-};
-```
-
-### Verify
-Navigate to Teacher › Student Scores. When an upload window is open (`uploadOpen.test === true`),
-the CA column should show number inputs. Typing a value and pressing Tab/Enter should save the
-score (no page refresh needed). When the window is closed, inputs should appear disabled.
-
----
-
-## Fix 4b — XLSX upload: fix DEFLATE decompression
-
-### Confirmed bug location (teacher.js lines ~458–464)
-```js
-const cLen = (u8[i+18] | (u8[i+19]<<8) | (u8[i+20]<<16) | (u8[i+21]<<24)) >>> 0;
-return dec.decode(u8.slice(dataStart, dataStart + cLen));
-```
-Bytes 18–21 in a ZIP Local File Header are the **compressed** byte count. The code passes the
-raw DEFLATE-compressed bytes directly to `TextDecoder` — they are not valid UTF-8, so XML
-parsing returns no matches and `_parseXlsxRows` returns `[]`.
-
-Bytes 8–9 hold the **compression method**: `0x0000` = stored (no compression),
-`0x0008` = DEFLATE. The code never checks this field.
-
-### Decision: use `DecompressionStream` (no new dependency)
-`DecompressionStream('deflate-raw')` is available in all modern browsers (Chrome 80+,
-Firefox 113+, Safari 16.4+). This avoids adding a new npm dependency (the bug report asks
-for `xlsx@0.18.5` but SheetJS at that version is 800 KB and would replace the existing
-custom parser entirely — that is a much larger change than needed). The `DecompressionStream`
-approach is a targeted fix to the existing parser.
-
-If the school must support Safari < 16.4 or older browsers, note this caveat and fall back
-to the CSV path with a toast: "Your browser does not support XLSX decompression. Use CSV
-instead."
-
-### Changes
-
-**File: `src/views/teacher.js`**
-
-1. Make `zipEntry()` inside `_parseXlsxRows` `async` and add compression-method detection:
-
-```js
-async function zipEntry(name) {
-  const enc = new TextEncoder().encode(name);
-  for (let i = 0; i < u8.length - 30; i++) {
-    if (u8[i] !== 0x50 || u8[i+1] !== 0x4B || u8[i+2] !== 0x03 || u8[i+3] !== 0x04) continue;
-    const method = u8[i+8] | (u8[i+9] << 8);          // 0 = stored, 8 = deflate
-    const fLen   = u8[i+26] | (u8[i+27] << 8);
-    const xLen   = u8[i+28] | (u8[i+29] << 8);
-    if (fLen !== enc.length) continue;
-    const fname  = u8.slice(i+30, i+30+fLen);
-    if (!enc.every((b, j) => b === fname[j])) continue;
-    const dataStart = i + 30 + fLen + xLen;
-    const cLen      = (u8[i+18] | (u8[i+19]<<8) | (u8[i+20]<<16) | (u8[i+21]<<24)) >>> 0;
-    const uLen      = (u8[i+22] | (u8[i+23]<<8) | (u8[i+24]<<16) | (u8[i+25]<<24)) >>> 0;
-    const raw       = u8.slice(dataStart, dataStart + cLen);
-
-    if (method === 0) {
-      // Stored — no compression, read directly
-      return dec.decode(raw);
-    } else if (method === 8) {
-      // DEFLATE — decompress with DecompressionStream
-      if (typeof DecompressionStream === 'undefined') {
-        throw new Error('DecompressionStream not supported — use CSV upload instead.');
-      }
-      const ds     = new DecompressionStream('deflate-raw');
-      const writer = ds.writable.getWriter();
-      writer.write(raw);
-      writer.close();
-      const chunks = [];
-      const reader = ds.readable.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-      }
-      let offset = 0;
-      const out  = new Uint8Array(uLen || chunks.reduce((a, c) => a + c.length, 0));
-      for (const c of chunks) { out.set(c, offset); offset += c.length; }
-      return dec.decode(out);
-    }
-    return null;  // unknown compression method — skip
+  if (authErr) {
+    // ... existing error/link handling unchanged
+  } else {
+    await sb.from('users').update({ auth_user_id: authData.user.id }).eq('id', u.id);
+    console.log(`  Provisioned (demo): ${u.email} — temp password: ${tempPassword}`);
   }
-  return null;
+} else {
+  // Production: send invite email, user sets own password
+  const { data: linkData, error: linkErr } = await sb.auth.admin.generateLink({
+    type: 'invite',
+    email: u.email,
+    options: { data: { name: u.name, role: u.role } }
+  });
+  if (linkErr) {
+    if (linkErr.message?.includes('already been registered')) {
+      // Same existing "find and link" fallback as before
+      const { data: existing } = await sb.auth.admin.listUsers();
+      const found = existing?.users?.find(au => au.email === u.email);
+      if (found) {
+        await sb.from('users').update({ auth_user_id: found.id }).eq('id', u.id);
+        console.log(`  Linked existing auth user: ${u.email}`);
+      } else {
+        console.warn(`  Could not link: ${u.email}`);
+      }
+      continue;
+    }
+    console.error(`  ERROR for ${u.email}:`, linkErr.message);
+    continue;
+  }
+  // Link auth_user_id back to public.users using the new auth user's id
+  const { error: updateErr } = await sb
+    .from('users')
+    .update({ auth_user_id: linkData.user.id })
+    .eq('id', u.id);
+  if (updateErr) {
+    console.error(`  Failed to link ${u.email}:`, updateErr.message);
+  } else {
+    console.log(`  Invite sent: ${u.email}`);
+  }
 }
 ```
-(Bytes 22–25 are the **uncompressed** size; used to pre-allocate the output buffer.)
 
-2. Make `_parseXlsxRows` `async` and `await` all `zipEntry(...)` calls:
-```js
-export async function _parseXlsxRows(buf) {
-  ...
-  const ssXml = (await zipEntry('xl/sharedStrings.xml')) || '';
-  ...
-  const wb    = (await zipEntry('xl/workbook.xml')) || '';
-  const rel   = (await zipEntry('xl/_rels/workbook.xml.rels')) || '';
-  ...
-  const sheetXml = (await zipEntry('xl/' + target)) ||
-                   (await zipEntry('xl/worksheets/sheet1.xml')) || '';
-  ...
-}
+3. Update the usage comment at the top of the file:
+```
+// Usage (production): SUPABASE_SERVICE_KEY=<key> node scripts/provision-auth-users.js
+//         (dev only): SUPABASE_SERVICE_KEY=<key> node scripts/provision-auth-users.js --demo
 ```
 
-3. In `processScoreUpload` (already `async`), the XLSX branch currently calls `_parseXlsxRows`
-   synchronously:
-   ```js
-   // BEFORE
-   rows = _parseXlsxRows(buf);
-   // AFTER
-   rows = await _parseXlsxRows(buf);
-   ```
-   The surrounding `try/catch` already exists, so error handling is unchanged.
+### Files to modify
 
-4. **`DecompressionStream` not supported fallback**: In the `catch` block of `processScoreUpload`,
-   add a specific message for this error:
-   ```js
-   } catch (err) {
-     const msg = err.message?.includes('DecompressionStream')
-       ? 'Your browser does not support XLSX decompression. Please save as .csv and upload again.'
-       : 'Could not read the spreadsheet. Save as .csv and try again.';
-     toast(msg, 'error');
-     return;
-   }
-   ```
-
-**No changes to `package.json` are needed** — `xlsx@0.18.5` (SheetJS) is not required; the
-existing custom parser is fixed in-place. If the team later wants to adopt SheetJS, that is a
-separate refactor.
+- `scripts/provision-auth-users.js`
 
 ### Verify
-Download the template score sheet from the scores page (`.xlsx`). Fill in two CA and two exam
-scores, save, and upload. The toast should report "Uploaded 2 scores" (not "file appears to be
-empty"). The scores should immediately appear in the table.
+
+Run `node scripts/provision-auth-users.js --demo` against a local Supabase instance.
+Confirm it prints `⚠  DEMO MODE` warning and creates users with the temp-password pattern.
+
+Run without `--demo` against a staging project. Confirm Supabase sends invite emails and
+`auth_user_id` is linked in `public.users`. No `HMA@...` password should appear in any log.
 
 ---
 
 ## Dependency order
 
-| Step | Depends on |
-|------|-----------|
-| Fix 1 (index.html Alpine) | Independent — do first |
-| Fix 3 (data.js sort) | Independent — do second (smallest change, propagates everywhere) |
-| Fix 2 (ProgressionPool JSX) | Fix 3 must be done first so class lookups in the Decision dropdown are in alphabetical order |
-| Fix 4a (score inputs) | Independent of 1–3, but do after Fix 3 |
-| Fix 4b (XLSX parser) | Independent of all others |
+| Step | Depends on | Reason |
+|---|---|---|
+| Fix 2 (`teacher_class_ids()`) | Must be in `20261006_rls_lockdown.sql` | Function used by Group A policies in the same file |
+| Fix 1 (RLS lockdown) | Fix 2 must appear first in the file | Policies reference the corrected function |
+| Fix 3 (`loginWithPassword`) | Independent | Pure JS change |
+| Fix 4 (provision script) | Independent | Pure JS change |
+
+Recommended execution order: **Fix 2 → Fix 1 (same file) → Fix 3 → Fix 4**.
 
 ---
 
 ## Build & test commands
 
-From the workspace root (`c:\Users\Happy\Documents\Happy Management\schoolmg\schoolmg`):
-
 ```
-npm run build     # Vite build — must complete with zero errors
-npm run dev       # Dev server for manual verification
+npm run build     # must complete with zero errors after Fix 3/4
 ```
 
-There are no automated tests in this project (no test script in `package.json`). Every fix
-requires manual browser verification as described in each section's **Verify** block.
+Supabase migration application:
+```
+npx supabase db push   # applies 20261006_rls_lockdown.sql
+```
+
+There are no automated tests. Verification is manual per section above.
 
 ---
 
 ## Caveats / open questions
 
-1. **`PlacementModal` usage after Fix 2**: The `PlacementModal` component and
-   `placementModal` state in `AdminProgression` root are currently wired through
-   `openPlacement` prop. Once `ProgressionPool` no longer needs a modal (Decision is inline),
-   the `PlacementModal` and its state can be removed from the root — but check first whether
-   any other panel uses `openPlacement`. From reading the file, only `ProgressionPool` receives
-   it, so removal is safe.
+1. **`attendance` (original table)**: The original `attendance` table from `20260926_initial_schema.sql`
+   has an `anon_all` policy. The app's active attendance tables are `attendance_weekly` and
+   `attendance_daily`, but the original table still exists and is open. The lockdown migration
+   should cover it. It is included in Group A (per-user filter) since it has `student_id`.
 
-2. **Stream casing**: `pathRequest.stream` values are stored as `"Science"`, `"Commercial"`,
-   `"Arts"` (title case) from the Supabase `path_requests.requested_stream` column. Class
-   `stream` field values must match exactly. Verify casing in the `Data.classes()` output
-   before comparing with `===`.
+2. **`lms_posts.user_id`**: This column is nullable (`references users(id) on delete set null`).
+   The INSERT policy `user_id = public_user_id()` will work correctly because `public_user_id()`
+   returns the authenticated user's id; the nullable FK is only for post-deletion cleanup, not for
+   policy evaluation.
 
-3. **DecompressionStream on Safari < 16.4**: The fix will silently fail on old Safari with a
-   helpful toast. If the school has iPads running older iOS, consider also offering a note
-   in the upload UI suggesting Safari 16.4+ or Chrome.
+3. **`subject_selection_rules` and `timetable_settings`**: Both are single-row configuration
+   tables. The SELECT policy is `TO authenticated USING (true)`. INSERT is not needed (rows
+   seeded at migration time); UPDATE is admin-only.
 
-4. **`uploadOpen` gate on score inputs**: The spec says "score entry" but does not specify
-   whether the admin gate should apply to inline entry as well as upload. The plan applies
-   it for consistency — if the school wants inline entry always open regardless of the upload
-   window, remove the `disabled` attribute logic from Fix 4a.
+4. **`parent_students` write-path**: The app creates parent-student links at user-creation time
+   (admin action). INSERT/UPDATE should be admin-only. No self-service parent link creation
+   is expected from reading the codebase.
+
+5. **RLS on `departments`**: The `departments` table has a `subject_ids text[]` column, not
+   foreign keys. No per-user filtering is needed — any authenticated user may read; only admin
+   may write.
