@@ -922,18 +922,24 @@ export function renderClassFeedback() {
   const fb       = Data.feedback();
 
   $('ct-feedback-list').innerHTML = students.map(s => {
-    const existing  = fb[s.id]?.text || '';
-    const submitted = fb[s.id]?.submitted || false;
+    const entry     = fb[s.id] || {};
+    const existing  = entry.text || '';
+    const status    = entry.status || (entry.submitted ? 'pending' : 'draft');
+    const chip      = { approved: 'promoted', pending: 'review', rejected: 'repeat' }[status] || '';
+    const label     = { approved: 'Approved', pending: 'Awaiting approval', rejected: 'Returned' }[status] || 'Not written';
+    const returned  = status === 'rejected' && entry.rejectReason
+      ? `<p class="form-feedback mt8 text-danger">Returned by admin: ${esc(entry.rejectReason)}</p>` : '';
     return `<article class="panel feedback-card">
       <div class="feedback-student">
         <span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>
         <div><strong>${esc(s.name)}</strong><small>${esc(Data.cls(s.classId)?.name || '')}</small></div>
-        <span class="status ${submitted ? 'promoted' : 'review'} ml-auto">${submitted ? 'Submitted' : 'Pending'}</span>
+        <span class="status ${chip} ml-auto">${label}</span>
       </div>
       <textarea class="feedback-textarea" data-student-fb="${s.id}" rows="3"
         placeholder="Write end-of-term remarks for ${esc(s.name.split(' ')[0])}…">${esc(existing)}</textarea>
+      ${returned}
       <button class="btn-primary fb-save-btn" data-save-fb="${s.id}"
-        style="width:auto;margin-top:10px;padding:9px 16px">${submitted ? 'Update' : 'Submit'} feedback</button>
+        style="width:auto;margin-top:10px;padding:9px 16px">${existing ? 'Update &amp; resubmit' : 'Submit'} feedback</button>
     </article>`;
   }).join('');
 
@@ -941,9 +947,9 @@ export function renderClassFeedback() {
     const sid  = btn.dataset.saveFb;
     const text = $(`[data-student-fb="${sid}"]`).value.trim();
     if (!text) { toast('Write the feedback first.', 'error'); return; }
-    fb[sid] = { term: currentTerm(), text, submitted: true };
-    await Data.saveFeedback(fb);
-    toast(`Feedback for ${Data.student(sid)?.name} submitted.`);
+    fb[sid] = { term: currentTerm(), text, submitted: true, status: 'pending' };
+    await Data.saveFeedback(fb, currentUser.id);
+    toast(`Feedback for ${Data.student(sid)?.name} submitted for approval.`);
     renderClassFeedback();
   }));
 }
@@ -1436,20 +1442,31 @@ export function renderThread(discussionId, containerId) {
   const box = $(containerId); if (!box) return;
   const discussion = (Data.lmsDiscussions() || []).find(x => String(x.id) === String(discussionId));
   if (!discussion) { box.innerHTML = ''; return; }
-  const posts = Data.postsFor(discussion.id);
   const opening = `<div class="thread-card">
     <p class="muted-cell">${esc(Data.subject(discussion.subjectId)?.name || '')} · ${esc(Data.classNameOf(discussion.classId))} · opened by ${esc(Data.user(discussion.teacherId)?.name || '—')} · ${formatDate(discussion.createdAt)}</p>
     <strong>${esc(discussion.title)}</strong>
     ${discussion.body ? `<p style="white-space:pre-wrap;margin:8px 0 0">${esc(discussion.body)}</p>` : ''}
   </div>`;
-  const replies = posts.map(post => {
+
+  const postCard = (post, depth) => {
     const author = Data.user(post.userId);
     const role = author && isTeacher(author) ? 'Teacher' : isAdmin(author) ? 'Administrator' : 'Student';
-    return `<div class="thread-card">
-      <p class="muted-cell" style="margin:0 0 4px"><strong>${esc(author?.name || '—')}</strong> · ${role} · ${formatDate(post.createdAt)}</p>
-      <p style="white-space:pre-wrap;margin:0">${esc(post.body)}</p>
+    return `<div class="thread-post" style="margin-left:${Math.min(depth, 5) * 22}px">
+      <div class="thread-card">
+        <p class="muted-cell" style="margin:0 0 4px"><strong>${esc(author?.name || '—')}</strong> · ${role} · ${formatDate(post.createdAt)}</p>
+        <p style="white-space:pre-wrap;margin:0">${esc(post.body)}</p>
+        <button class="text-button mt8" data-reply-to="${post.id}">Reply</button>
+        <div class="thread-reply-box" data-reply-box="${post.id}" hidden>
+          <textarea rows="2" placeholder="Reply to ${esc(author?.name || 'this post')}…" data-reply-text="${post.id}"></textarea>
+          <button class="btn-primary" style="width:auto;margin-top:6px" data-reply-send="${post.id}">Post reply</button>
+        </div>
+      </div>
+      ${post.replies.map(r => postCard(r, depth + 1)).join('')}
     </div>`;
-  }).join('');
+  };
+  const tree = Data.threadFor(discussion.id);
+  const replies = tree.length ? tree.map(p => postCard(p, 0)).join('') : '';
+
   box.innerHTML = `<div class="panel">
     <div class="panel-heading"><div><p class="eyebrow">Discussion</p><h2>${esc(discussion.title)}</h2></div></div>
     ${opening}
@@ -1466,6 +1483,17 @@ export function renderThread(discussionId, containerId) {
     await Data.addDiscussionPost(discussion.id, currentUser.id, body);
     renderThread(discussionId, containerId);
   };
+  box.querySelectorAll('[data-reply-to]').forEach(b => b.onclick = () => {
+    const el = box.querySelector(`[data-reply-box="${b.dataset.replyTo}"]`);
+    if (el) el.hidden = !el.hidden;
+  });
+  box.querySelectorAll('[data-reply-send]').forEach(b => b.onclick = async () => {
+    const pid  = b.dataset.replySend;
+    const body = (box.querySelector(`[data-reply-text="${pid}"]`)?.value || '').trim();
+    if (!body) return;
+    await Data.addDiscussionPost(discussion.id, currentUser.id, body, pid);
+    renderThread(discussionId, containerId);
+  });
 }
 
 // ── Internal helper ───────────────────────────────────────────

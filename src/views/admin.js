@@ -870,6 +870,28 @@ export function renderAdminAnalytics() {
       </tr>`;
     }).join('');
 
+    // Monthly attendance — the class's weeks grouped into month blocks.
+    const monthRows = students.map(s => Academic.monthlyAttendance(s.id, term));
+    const blockCount = monthRows.reduce((max, m) => Math.max(max, m.length), 0);
+    const labels = blockCount ? (monthRows.find(m => m.length === blockCount) || []).map(b => b.label) : [];
+    $('analytics-attendance-month-head').innerHTML =
+      `<tr><th>Student</th>${labels.map(l => `<th>${esc(l)}</th>`).join('')}<th>Term %</th></tr>`;
+    $('analytics-attendance-month').innerHTML = blockCount
+      ? students.map((s, si) => {
+          const pct = +Academic.attendancePct(s.id, term);
+          const cells = labels.map((_, i) => {
+            const b = monthRows[si][i];
+            if (!b) return '<td class="muted-cell">—</td>';
+            const rc = b.pct >= 90 ? 'promoted' : b.pct >= 75 ? 'review' : 'repeat';
+            return `<td><span class="status ${rc}">${b.pct}%</span></td>`;
+          }).join('');
+          return `<tr>
+            <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+            ${cells}<td><strong>${pct}%</strong></td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="2" class="muted-cell">No attendance recorded for this term.</td></tr>';
+
     const mb = Data.session().midtermBreak || {};
     $('midterm-break-label').textContent = (mb.start || mb.end)
       ? `${mb.start ? formatDate(mb.start) : '—'} → ${mb.end ? formatDate(mb.end) : '—'}`
@@ -1020,11 +1042,82 @@ export function renderAdminSetup() {
   }
 
   $('term-dates-list').innerHTML = sess.terms.map(t =>
-    `<div class="event-mini-row">
-      <span class="event-dot ${t.term === sess.currentTerm ? 'event-academic' : 'event-session'}"></span>
-      <div><strong>${esc(t.name)}${t.term === sess.currentTerm ? ' · current' : ''}</strong>
-      <small>${t.start ? formatDate(t.start) : '—'} → ${t.end ? formatDate(t.end) : '—'}</small></div>
+    `<div class="term-date-row" data-term="${t.term}">
+      <div class="term-date-head">
+        <strong>${esc(t.name)}${t.term === sess.currentTerm ? ' · current' : ''}</strong>
+        ${t.term === sess.currentTerm ? '' : `<button class="text-button" data-term-activate="${t.term}">Set current</button>`}
+      </div>
+      <div class="form-row tight mt8">
+        <input type="date" data-term-start value="${t.start || ''}" aria-label="${esc(t.name)} start">
+        <input type="date" data-term-end value="${t.end || ''}" aria-label="${esc(t.name)} end">
+        <button class="outline-button" data-term-save="${t.term}" style="width:auto;margin:0">Save dates</button>
+      </div>
     </div>`).join('');
+
+  $all('[data-term-save]').forEach(btn => btn.onclick = async () => {
+    const row = btn.closest('.term-date-row');
+    const termNum = +btn.dataset.termSave;
+    await Data.saveTermDates(termNum, row.querySelector('[data-term-start]').value, row.querySelector('[data-term-end]').value);
+    toast(`${termNameOf(termNum)} dates saved.`);
+  });
+  $all('[data-term-activate]').forEach(btn => btn.onclick = async () => {
+    const termNum = +btn.dataset.termActivate;
+    await Data.setCurrentTerm(termNum);
+    $('sidebar-session').textContent = `${Data.session().name} · Term ${termNum}`;
+    const termBadge = $('admin-term-badge');
+    if (termBadge) termBadge.innerHTML = `<span class="live-dot"></span>Term ${termNum} · Active`;
+    toast(`Active term set to ${termNameOf(termNum)}.`);
+    renderAdminSetup();
+  });
+
+  renderSessionsList();
+}
+
+function renderSessionsList() {
+  const el = $('sessions-list'); if (!el) return;
+  const sessions = Data.sessions();
+  el.innerHTML = sessions.length ? sessions.map(s => `
+    <div class="session-row">
+      <div>
+        <strong>${esc(s.name)}</strong>
+        <small>${s.isCurrent ? 'Active session' : s.isClosed ? 'Closed' : 'Not active'}</small>
+      </div>
+      <div class="table-actions">
+        ${s.isCurrent ? '<span class="read-only-badge">Current</span>'
+          : `<button class="text-button" data-session-activate="${s.id}">Activate</button>`}
+        ${s.isClosed
+          ? `<button class="text-button" data-session-reopen="${s.id}">Reopen</button>`
+          : (!s.isCurrent ? `<button class="text-button" data-session-close="${s.id}">Close</button>` : '')}
+      </div>
+    </div>`).join('') : '<p class="muted-cell">No sessions recorded yet.</p>';
+
+  const cu = getCurrentUser();
+  $all('[data-session-activate]').forEach(b => b.onclick = async () => {
+    await Data.activateSession(b.dataset.sessionActivate);
+    toast('Session activated.');
+    renderAdminSetup();
+    if (window.renderSessionScopedViews) window.renderSessionScopedViews();
+  });
+  $all('[data-session-close]').forEach(b => b.onclick = async () => {
+    await Data.closeSession(b.dataset.sessionClose, cu?.id);
+    toast('Session closed.');
+    renderSessionsList();
+  });
+  $all('[data-session-reopen]').forEach(b => b.onclick = async () => {
+    await Data.reopenSession(b.dataset.sessionReopen);
+    toast('Session reopened.');
+    renderSessionsList();
+  });
+
+  const createBtn = $('create-session-btn');
+  if (createBtn) createBtn.onclick = async () => {
+    const name = $('new-session-name').value.trim();
+    if (!name) { toast('Enter a session name first.', 'error'); return; }
+    await Data.createSession(name, cu?.id);
+    $('new-session-name').value = '';
+    toast(`Session ${name} created.`);
+    renderSessionsList();
+  };
 }
 
 export function updateUploadLabels(sess) {

@@ -381,6 +381,16 @@
         </div>
       </div>
       <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Attendance performance</p><h2>Monthly attendance by student</h2></div>
+          <span class="role-muted">term weeks grouped into month blocks</span></div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead id="analytics-attendance-month-head"></thead>
+            <tbody id="analytics-attendance-month"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel mt16">
         <div class="panel-heading"><div><p class="eyebrow">Mid-term report</p><h2>CA scores uploaded so far</h2></div>
           <div class="midterm-actions">
             <button class="outline-button" id="midterm-download-btn" style="width:auto;margin:0;background:var(--blue-soft);border-color:var(--blue);color:var(--blue)">&darr; Download mid-term report (.xlsx)</button>
@@ -515,8 +525,21 @@
 
         <article class="panel">
           <div class="panel-heading"><div><p class="eyebrow">Term calendar</p><h2>Term dates</h2></div></div>
-          <p class="role-muted">Read-only here &mdash; term dates are maintained in the database.</p>
+          <p class="role-muted">Edit the start and end dates for each term of the current session.</p>
           <div id="term-dates-list" class="mt16"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading"><div><p class="eyebrow">Academic years</p><h2>Sessions</h2></div></div>
+          <p class="role-muted">Open a new academic year, switch the active session, or close one.</p>
+          <div class="setup-form">
+            <div class="form-group mt16">
+              <label for="new-session-name">New session name</label>
+              <input id="new-session-name" type="text" placeholder="e.g. 2027 / 2028">
+            </div>
+            <button class="btn-primary mt16" id="create-session-btn" style="width:auto">Create session</button>
+          </div>
+          <div id="sessions-list" class="mt16"></div>
         </article>
 
         <article class="panel">
@@ -979,7 +1002,12 @@
         <select id="stu-att-term" class="select-inline" aria-label="Term"></select>
       </section>
       <div class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow" id="stu-att-meta">&mdash;</p><h2>Weekly attendance</h2></div></div>
+        <div class="panel-heading"><div><p class="eyebrow" id="stu-att-meta">&mdash;</p><h2>Attendance</h2></div>
+          <div class="segmented" id="stu-att-mode">
+            <button type="button" data-mode="weekly" class="active">Weekly</button>
+            <button type="button" data-mode="monthly">Monthly</button>
+          </div>
+        </div>
         <div id="stu-att-grid" class="mt16"></div>
       </div>
     </div>
@@ -1065,7 +1093,12 @@
         <select id="par-att-child" class="select-inline" aria-label="Select child"></select>
       </section>
       <div class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow" id="par-att-meta">&mdash;</p><h2>Weekly attendance</h2></div></div>
+        <div class="panel-heading"><div><p class="eyebrow" id="par-att-meta">&mdash;</p><h2>Attendance</h2></div>
+          <div class="segmented" id="par-att-mode">
+            <button type="button" data-mode="weekly" class="active">Weekly</button>
+            <button type="button" data-mode="monthly">Monthly</button>
+          </div>
+        </div>
         <div id="par-att-grid" class="mt16"></div>
       </div>
     </div>

@@ -38,7 +38,9 @@ const _cache = {
   departments:    [],
   attendance:     {},     // { term: { studentId: { W1: days, ... } } }
   attendanceDaily:{},     // { term: { Wk: { studentId: [P/L/A per weekday] } } }
-  feedback:       {},     // { studentId: { term, text, submitted } }
+  feedback:       {},     // { studentId: { term, text, status, submitted } }
+  remarks:        [],     // { studentId, term, text, status, decidedBy, ... }
+  sessionsAll:    [],     // every academic session (current + archived)
   timetables:     [],     // generated timetable rows
   timeSlots:      [],
   lmsLessons:     [],
@@ -65,6 +67,7 @@ const DB = {
 // ── Query map: one failure must not break the whole app ─────
 const _sources = {
   session:      () => _sb.from('sessions').select('*').eq('is_current', true).limit(1),
+  sessionsAll:  () => _sb.from('sessions').select('*').order('id', { ascending: false }),
   terms:        () => _sb.from('terms').select('*'),
   // password_hash and password_salt are intentionally excluded — they are
   // verified server-side by the /functions/login Edge Function.  The browser
@@ -118,6 +121,18 @@ const _sources = {
 function _hydrate(raw) {
   // ── session + terms
   _cache.session = _mapSession(raw.session, raw.terms);
+
+  // ── every academic session, newest first (session management screen)
+  _cache.sessionsAll = (raw.sessionsAll || [])
+    .map(s => ({
+      id:        String(s.id),
+      name:      s.name,
+      isCurrent: !!s.is_current,
+      isClosed:  !!s.is_closed,
+      createdAt: s.created_at || null,
+      closedAt:  s.closed_at  || null
+    }))
+    .sort((a, b) => String(b.name).localeCompare(String(a.name)));
 
   // ── subjects
   _cache.subjects = raw.subjects.map(s => ({
@@ -282,18 +297,37 @@ function _hydrate(raw) {
     _cache.attendanceDaily[term][wk][sid] = arr;
   }
 
-  // ── teacher remarks — prefer the remark for the current term
+  // ── teacher remarks — prefer the remark for the current term.
+  //    Each remark carries its approval status so the admin queue and the
+  //    report card can tell a pending remark from a published one.
+  _cache.remarks = (raw.remarks || []).map(r => ({
+    id:           String(r.id),
+    studentId:    String(r.student_id),
+    term:         _termNumFromId(r.term_id),
+    termId:       r.term_id ? String(r.term_id) : null,
+    text:         r.teacher_remark || '',
+    principalNote:r.principal_remark || '',
+    status:       r.status || 'approved',
+    submittedBy:  r.submitted_by ? String(r.submitted_by) : null,
+    submittedAt:  r.submitted_at || null,
+    decidedBy:    r.decided_by ? String(r.decided_by) : null,
+    decidedAt:    r.decided_at || null,
+    rejectReason: r.reject_reason || ''
+  }));
   _cache.feedback = {};
   const curTerm = _cache.session?.currentTerm;
-  for (const r of raw.remarks) {
-    const sid  = String(r.student_id);
-    const term = _termNumFromId(r.term_id);
+  for (const r of _cache.remarks) {
+    const sid  = r.studentId;
+    const term = r.term;
     const existing = _cache.feedback[sid];
     if (!existing || (term === curTerm && existing.term !== curTerm)) {
       _cache.feedback[sid] = {
         term,
-        text:      r.teacher_remark || '',
-        submitted: !!(r.teacher_remark && r.teacher_remark.trim())
+        text:         r.text,
+        status:       r.status,
+        rejectReason: r.rejectReason,
+        remarkId:     r.id,
+        submitted:    !!(r.text && r.text.trim())
       };
     }
   }
@@ -483,6 +517,7 @@ function _hydrate(raw) {
     discussionId: String(p.discussion_id),
     userId:       p.user_id ? String(p.user_id) : null,
     body:         p.body,
+    parentId:     p.parent_id ? String(p.parent_id) : null,
     createdAt:    p.created_at || null
   }));
 
@@ -691,6 +726,15 @@ function _loadSeedFallback() {
   _cache.attendance     = DB.get('attendance')     || {};
   _cache.attendanceDaily= DB.get('attendanceDaily')|| {};
   _cache.feedback       = DB.get('feedback')       || {};
+  _cache.remarks        = DB.get('remarks')        || [];
+  _cache.sessionsAll    = DB.get('sessionsAll')    || [{
+    id:        _cache.session?._id || 'current',
+    name:      _cache.session?.name || '2026 / 2027',
+    isCurrent: true,
+    isClosed:  false,
+    createdAt: null,
+    closedAt:  null
+  }];
   _cache.mentors        = _cache.users
     .filter(u => STAFF_ROLES.includes(u.role))
     .map(u => ({ id: u.id, name: u.name, initials: u.initials, tone: u.tone,
@@ -1181,7 +1225,8 @@ function _loadDemoSchool() {
     .map(c => ({ class_id: c.id, teacher_id: c.teacher_classes[0].teacher_id }));
 
   _hydrate({
-    session, terms, users, subjects, classes, students, parents: [
+    session, terms, sessionsAll: session,
+    users, subjects, classes, students, parents: [
       { parent_id: parentId, student_id: students[0].id },
       { parent_id: parentId, student_id: students[5].id }
     ],
@@ -1220,6 +1265,112 @@ const Data = {
       s.terms.filter(t => t.term !== s.currentTerm).forEach(t => {
         if (t._id) _sb.from('terms').update({ is_current: false }).eq('id', t._id).then(() => {});
       });
+    }
+  },
+
+  // ── Session & term management ──────────────────────────────
+  // The admin Setup screen lists every academic session and lets the
+  // school open a new one, switch the active session, close one, and
+  // edit the current session's term dates. All synchronous views read
+  // the optimistic cache first, so each mutation updates it immediately
+  // and persists in the background.
+  sessions() { return _cache.sessionsAll || []; },
+  terms()    { return _cache.session?.terms || []; },
+
+  async createSession(name, userId) {
+    const label = (name || '').trim() || nextSessionLabel(_cache.session?.name);
+    let row = { id: uid('sess_'), name: label, isCurrent: false, isClosed: false };
+    try {
+      const { data, error } = await _sb.from('sessions')
+        .insert({ name: label, is_current: false, upload_open: { test: false, exam: false } })
+        .select().single();
+      if (error) throw error;
+      row = { id: String(data.id), name: label, isCurrent: false, isClosed: false };
+      await _sb.from('terms').insert([
+        { session_id: Number(data.id), name: '1st Term', is_current: false, start_date: null, end_date: null },
+        { session_id: Number(data.id), name: '2nd Term', is_current: false, start_date: null, end_date: null },
+        { session_id: Number(data.id), name: '3rd Term', is_current: false, start_date: null, end_date: null }
+      ]);
+    } catch (err) {
+      console.warn('[HMA] new session not saved remotely:', err?.message || err);
+    }
+    _cache.sessionsAll = [row, ...(_cache.sessionsAll || [])];
+    DB.set('sessionsAll', _cache.sessionsAll);
+    return row;
+  },
+
+  // Switch the active academic year. The chosen session becomes current
+  // (and open); every other session is marked not-current.
+  async activateSession(id) {
+    const sid = String(id);
+    _cache.sessionsAll = (_cache.sessionsAll || []).map(s =>
+      ({ ...s, isCurrent: s.id === sid, isClosed: s.id === sid ? false : s.isClosed }));
+    try {
+      await _sb.from('sessions').update({ is_current: false }).neq('id', Number(sid));
+      await _sb.from('sessions').update({ is_current: true, is_closed: false }).eq('id', Number(sid));
+      const { data: s } = await _sb.from('sessions').select('*').eq('id', Number(sid)).single();
+      const { data: ts } = await _sb.from('terms').select('*').eq('session_id', Number(sid));
+      if (s) _cache.session = _mapSession([s], ts || []);
+      DB.set('session', _cache.session);
+    } catch (err) {
+      console.warn('[HMA] session not activated remotely:', err?.message || err);
+    }
+    DB.set('sessionsAll', _cache.sessionsAll);
+    return _cache.session;
+  },
+
+  async closeSession(id, userId) {
+    const sid = String(id);
+    _cache.sessionsAll = (_cache.sessionsAll || []).map(s =>
+      s.id === sid ? { ...s, isClosed: true, isCurrent: false, closedAt: new Date().toISOString() } : s);
+    DB.set('sessionsAll', _cache.sessionsAll);
+    try {
+      await _sb.from('sessions').update({
+        is_current: false, is_closed: true,
+        closed_at: new Date().toISOString(), closed_by: userId ? Number(userId) : null
+      }).eq('id', Number(sid));
+    } catch (err) {
+      console.warn('[HMA] session not closed remotely:', err?.message || err);
+    }
+  },
+
+  async reopenSession(id) {
+    const sid = String(id);
+    _cache.sessionsAll = (_cache.sessionsAll || []).map(s =>
+      s.id === sid ? { ...s, isClosed: false } : s);
+    DB.set('sessionsAll', _cache.sessionsAll);
+    try { await _sb.from('sessions').update({ is_closed: false }).eq('id', Number(sid)); }
+    catch (err) { console.warn('[HMA] session not reopened remotely:', err?.message || err); }
+  },
+
+  // Set the active term inside the current session.
+  async setCurrentTerm(termNum) {
+    const s = _cache.session; if (!s) return;
+    const num = Number(termNum);
+    s.currentTerm = num;
+    s.terms.forEach(t => { t.isCurrent = t.term === num; });
+    DB.set('session', s);
+    try {
+      await _sb.from('terms').update({ is_current: false }).eq('session_id', Number(s._id));
+      const target = s.terms.find(t => t.term === num);
+      if (target?._id) await _sb.from('terms').update({ is_current: true }).eq('id', Number(target._id));
+    } catch (err) {
+      console.warn('[HMA] current term not saved remotely:', err?.message || err);
+    }
+  },
+
+  // Edit the current session's term start/end dates.
+  async saveTermDates(termNum, start, end) {
+    const s = _cache.session; if (!s) return;
+    const t = s.terms.find(x => x.term === Number(termNum)); if (!t) return;
+    t.start = start || null;
+    t.end   = end   || null;
+    DB.set('session', s);
+    if (!t._id) return;
+    try {
+      await _sb.from('terms').update({ start_date: t.start, end_date: t.end }).eq('id', Number(t._id));
+    } catch (err) {
+      console.warn('[HMA] term dates not saved remotely:', err?.message || err);
     }
   },
 
@@ -1991,13 +2142,60 @@ const Data = {
 
   // ── Feedback / remarks ────────────────────────────────────
   feedback()          { return _cache.feedback; },
-  async saveFeedback(obj) {
+
+  // Every remark row, newest approval state included.
+  remarks()           { return _cache.remarks || []; },
+  remarkFor(studentId, term) {
+    const t = Number(term || this.currentTerm());
+    return this.remarks().find(r => r.studentId === String(studentId) && r.term === t) || null;
+  },
+  // The published text only — what a report card is allowed to show.
+  approvedRemark(studentId, term) {
+    const r = this.remarkFor(studentId, term);
+    return r && r.status === 'approved' ? r.text : '';
+  },
+  pendingRemarks()    { return this.remarks().filter(r => r.status === 'pending'); },
+
+  // A teacher submits remarks. Each written remark enters the queue as
+  // 'pending' for an administrator to approve or reject.
+  async saveFeedback(obj, userId) {
     _cache.feedback = obj;
     DB.set('feedback', obj);
-    const termId = _termIdFromNum(_cache.session?.currentTerm || 1);
+    const termNum = _cache.session?.currentTerm || 1;
+    const termId  = _termIdFromNum(termNum);
     if (!termId) return;
+    const now = new Date().toISOString();
+
+    (obj ? Object.entries(obj) : []).forEach(([sid, fb]) => {
+      if (!fb || !fb.text || !fb.text.trim()) return;
+      let r = this.remarkFor(sid, termNum);
+      if (!r) {
+        r = { id: uid('rem_'), studentId: String(sid), term: termNum, termId: String(termId),
+              text: fb.text, principalNote: '', status: 'pending',
+              submittedBy: userId ? String(userId) : null, submittedAt: now,
+              decidedBy: null, decidedAt: null, rejectReason: '' };
+        _cache.remarks = [...(_cache.remarks || []), r];
+      } else {
+        r.text         = fb.text;
+        r.status       = 'pending';
+        r.rejectReason = '';
+        r.submittedBy  = userId ? String(userId) : r.submittedBy;
+        r.submittedAt  = now;
+        r.decidedBy    = null;
+        r.decidedAt    = null;
+      }
+      if (_cache.feedback[sid]) {
+        _cache.feedback[sid].status = 'pending';
+        _cache.feedback[sid].rejectReason = '';
+      }
+    });
+    DB.set('remarks', _cache.remarks);
+
     const rows = Object.entries(obj).map(([sid, fb]) => ({
-      student_id: Number(sid), term_id: termId, teacher_remark: fb.text
+      student_id: Number(sid), term_id: termId, teacher_remark: fb.text,
+      status: (fb.text && fb.text.trim()) ? 'pending' : 'approved',
+      submitted_by: userId ? Number(userId) : null,
+      submitted_at: now
     }));
     if (!rows.length) return;
     try {
@@ -2007,6 +2205,33 @@ const Data = {
     } catch (err) {
       console.warn('[HMA] remarks not saved remotely:', err?.message || err);
     }
+  },
+
+  // An administrator approves or rejects a submitted remark.
+  async decideRemark(studentId, term, approved, userId, reason = '') {
+    const t = Number(term || this.currentTerm());
+    const r = this.remarkFor(studentId, t);
+    if (!r) return null;
+    r.status       = approved ? 'approved' : 'rejected';
+    r.decidedBy    = userId ? String(userId) : null;
+    r.decidedAt    = new Date().toISOString();
+    r.rejectReason = approved ? '' : (reason || '');
+    const fb = _cache.feedback[r.studentId];
+    if (fb && fb.term === t) { fb.status = r.status; fb.rejectReason = r.rejectReason; }
+    DB.set('remarks', _cache.remarks);
+    if (r.termId) {
+      try {
+        await _sb.from('remarks').update({
+          status:        r.status,
+          decided_by:    userId ? Number(userId) : null,
+          decided_at:    r.decidedAt,
+          reject_reason: r.rejectReason || null
+        }).eq('student_id', Number(studentId)).eq('term_id', Number(r.termId));
+      } catch (err) {
+        console.warn('[HMA] remark decision not saved remotely:', err?.message || err);
+      }
+    }
+    return r;
   },
 
   // ── Timetable ─────────────────────────────────────────────
@@ -2190,6 +2415,20 @@ const Data = {
   postsFor(discussionId) {
     return this.lmsPosts().filter(p => p.discussionId === String(discussionId))
       .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  },
+  // Nested posts — each node gains a `replies` array, deepest last. An
+  // orphaned reply (parent removed) is promoted to the top level so it is
+  // never silently dropped.
+  threadFor(discussionId) {
+    const posts = this.postsFor(discussionId);
+    const byId  = new Map(posts.map(p => [p.id, { ...p, replies: [] }]));
+    const roots = [];
+    byId.forEach(node => {
+      const parent = node.parentId ? byId.get(node.parentId) : null;
+      if (parent) parent.replies.push(node);
+      else roots.push(node);
+    });
+    return roots;
   },
 
   async addLesson({ subjectId, classId, title, content }, userId) {
@@ -2378,12 +2617,14 @@ const Data = {
     try { await _sb.from('lms_discussions').delete().eq('id', Number(id)); }
     catch (err) { console.warn('[HMA] discussion not deleted remotely:', err?.message || err); }
   },
-  async addDiscussionPost(discussionId, userId, body) {
+  async addDiscussionPost(discussionId, userId, body, parentId = null) {
     let record = { id: uid('pst_'), discussionId: String(discussionId),
-      userId: userId ? String(userId) : null, body, createdAt: new Date().toISOString() };
+      userId: userId ? String(userId) : null, body,
+      parentId: parentId ? String(parentId) : null, createdAt: new Date().toISOString() };
     try {
       const { data, error } = await _sb.from('lms_posts').insert({
-        discussion_id: Number(discussionId), user_id: userId ? Number(userId) : null, body
+        discussion_id: Number(discussionId), user_id: userId ? Number(userId) : null, body,
+        parent_id: parentId ? Number(parentId) : null
       }).select().single();
       if (error) throw error;
       record.id = String(data.id); record.createdAt = data.created_at;
@@ -2532,6 +2773,53 @@ const Academic = {
     return Math.round((present / total) * 100) + '%';
   },
 
+  // Monthly attendance — the term's recorded weeks grouped into 4-week
+  // blocks (HMA's register works in weekly blocks). When the term has
+  // real dates each block is labelled with the calendar span it covers,
+  // otherwise Month 1, Month 2, ….
+  monthlyAttendance(studentId, term) {
+    const weeks = Data.studentAttendance(studentId, term) || {};
+    const entries = Object.entries(weeks)
+      .map(([w, d]) => ({ week: parseInt(String(w).replace('W', ''), 10) || 0, present: Number(d) || 0 }))
+      .filter(e => e.week > 0)
+      .sort((a, b) => a.week - b.week);
+    if (!entries.length) return [];
+
+    const termRow = (Data.session()?.terms || []).find(t => t.term === Number(term));
+    const start   = termRow?.start ? new Date(termRow.start) : null;
+
+    const blocks = new Map();
+    entries.forEach(e => {
+      const idx = Math.floor((e.week - 1) / 4);          // 0-based month block
+      const b   = blocks.get(idx) || { index: idx, weeks: [], present: 0, possible: 0, from: null, to: null };
+      b.weeks.push(e.week);
+      b.present  += e.present;
+      b.possible += 5;
+      const wkStart = start ? new Date(start.getTime() + (e.week - 1) * 7 * 86400000) : null;
+      const wkEnd   = wkStart ? new Date(wkStart.getTime() + 4 * 86400000) : null;
+      if (wkStart && (!b.from || wkStart < b.from)) b.from = wkStart;
+      if (wkEnd   && (!b.to   || wkEnd   > b.to))   b.to   = wkEnd;
+      blocks.set(idx, b);
+    });
+
+    return [...blocks.values()].sort((a, b) => a.index - b.index).map(b => ({
+      label:    b.from
+        ? `${b.from.toLocaleString('en', { month: 'short' })} ${b.from.getDate()} – ${b.to.toLocaleString('en', { month: 'short' })} ${b.to.getDate()}`
+        : `Month ${b.index + 1}`,
+      weeks:    b.weeks,
+      first:    Math.min(...b.weeks),
+      last:     Math.max(...b.weeks),
+      present:  b.present,
+      possible: b.possible,
+      pct:      b.possible ? Math.round(b.present / b.possible * 100) : 0
+    }));
+  },
+
+  monthRating(pct) {
+    pct = Number(pct) || 0;
+    return pct >= 90 ? 'Excellent' : pct >= 75 ? 'Good' : pct >= 60 ? 'Fair' : 'At risk';
+  },
+
   subjectAnalytics(classId, subjectId, term) {
     const students = Data.studentsByClass(classId);
     const scores   = students
@@ -2576,7 +2864,7 @@ const Academic = {
           average:   this.termAverage(s.id, term),
           status:    this.promotionStatus(s.id, term),
           attendance: this.attendancePct(s.id, term),
-          remark:    Data.feedback()[s.id]?.text || ''
+          remark:    Data.approvedRemark(s.id, term)
         };
       })
     };
@@ -2624,7 +2912,7 @@ const Progression = {
   sessionAverage(studentId) {
     const student = Data.student(studentId);
     if (!student) return null;
-    const subs = this.classSubjects(student.classId);
+    const subs = Academic.classSubjects(student.classId);
     const sc   = Data.studentScores(studentId);
     const allTerms = [1, 2, 3];
     const subjectOveralls = subs.map(sub => {
@@ -2643,7 +2931,7 @@ const Progression = {
   subjectSessionScore(studentId, needle) {
     const student = Data.student(studentId);
     if (!student) return null;
-    const subs = this.classSubjects(student.classId);
+    const subs = Academic.classSubjects(student.classId);
     const sc   = Data.studentScores(studentId);
     const sub  = subs.find(s => s.name.toLowerCase().includes(needle));
     if (!sub) return null;

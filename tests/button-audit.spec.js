@@ -6,13 +6,28 @@ const { test, expect } = require('@playwright/test');
 
 const BASE = 'http://localhost:8000';
 
+// Supabase Auth replaced local bcrypt login (see scripts/provision-auth-users.js).
+// Passwords come from env vars so no credential is committed; fall back to the
+// deterministic demo password written by `provision-auth-users.js --demo`.
+const DEMO_PW = process.env.HMA_DEMO_PW || 'HMA_Demo_2026!';
+const CREDS = {
+  'admin@happyman.edu':     process.env.HMA_ADMIN_PW   || DEMO_PW,
+  'class@happyman.edu':     process.env.HMA_CLASS_PW   || DEMO_PW,
+  'subject@happyman.edu':   process.env.HMA_SUBJECT_PW || DEMO_PW,
+  'hod@happyman.edu':       process.env.HMA_HOD_PW     || DEMO_PW,
+  'ama.osei@happyman.edu':  process.env.HMA_STUDENT_PW || DEMO_PW,
+  'parent@happyman.edu':    process.env.HMA_PARENT_PW  || DEMO_PW,
+};
+
 // ── Helpers ───────────────────────────────────────────────────
 
 /** Log in with email+password and wait for the sidebar to appear */
 async function login(page, email, pw) {
+  const password = pw || CREDS[email];
+  if (!password) throw new Error(`No password known for ${email}`);
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.fill('#login-email', email);
-  await page.fill('#login-password', pw);
+  await page.fill('#login-password', password);
   await page.click('.login-btn');
   await page.waitForSelector('#logout-btn', { timeout: 12000 });
   // Wait for data layer to be ready
@@ -186,7 +201,7 @@ test('Administrator — all views', async ({ page }) => {
   const errors = collectErrors(page);
   const results = [];
 
-  await login(page, 'admin@happyman.edu', 'admin123');
+  await login(page, 'admin@happyman.edu');
 
   // Overview (default landing view)
   await auditButton(page, 'button[data-nav="view-admin-analytics"]', 'Overview → View analytics', results, errors);
@@ -256,7 +271,7 @@ test('Class Teacher — all views', async ({ page }) => {
   const errors = collectErrors(page);
   const results = [];
 
-  await login(page, 'class@happyman.edu', 'class123');
+  await login(page, 'class@happyman.edu');
 
   // My Class (React: ClassOverview)
   await goView(page, 'view-class-overview');
@@ -308,7 +323,7 @@ test('Subject Teacher — all views', async ({ page }) => {
   const errors = collectErrors(page);
   const results = [];
 
-  await login(page, 'subject@happyman.edu', 'subject123');
+  await login(page, 'subject@happyman.edu');
 
   // Subject Dashboard
   await goView(page, 'view-subject-dashboard');
@@ -354,7 +369,7 @@ test('HOD — all views', async ({ page }) => {
   const errors = collectErrors(page);
   const results = [];
 
-  await login(page, 'hod@happyman.edu', 'hod123');
+  await login(page, 'hod@happyman.edu');
 
   await goView(page, 'view-hod-dashboard');
   await page.waitForTimeout(500);
@@ -372,7 +387,7 @@ test('Student — all views', async ({ page }) => {
   const errors = collectErrors(page);
   const results = [];
 
-  await login(page, 'ama.osei@happyman.edu', 'student123');
+  await login(page, 'ama.osei@happyman.edu');
 
   // Student Dashboard
   await goView(page, 'view-student-dashboard');
@@ -412,7 +427,7 @@ test('Parent — all views', async ({ page }) => {
   const errors = collectErrors(page);
   const results = [];
 
-  await login(page, 'parent@happyman.edu', 'parent123');
+  await login(page, 'parent@happyman.edu');
 
   await goView(page, 'view-parent-dashboard');
   await page.waitForTimeout(500);
@@ -430,7 +445,7 @@ test('Modals — open and close', async ({ page }) => {
   const errors = collectErrors(page);
   const results = [];
 
-  await login(page, 'admin@happyman.edu', 'admin123');
+  await login(page, 'admin@happyman.edu');
 
   async function testModal(openSel, modalId, label) {
     await dismissAnyModal(page); // ensure page is clean before each modal test
@@ -473,7 +488,7 @@ test('Modals — open and close', async ({ page }) => {
   // Add assignment modal (any teacher role can do this from subject dashboard)
   // Re-login as subject teacher for this one
   await auditButton(page, '#logout-btn', 'logout before modal test', results, errors);
-  await login(page, 'subject@happyman.edu', 'subject123');
+  await login(page, 'subject@happyman.edu');
   await goView(page, 'view-subject-dashboard');
   await testModal('#st-create-assign-btn', 'add-assignment-modal', 'Add assignment modal');
 
@@ -482,7 +497,7 @@ test('Modals — open and close', async ({ page }) => {
 
   // Student passport modal (from student login)
   await auditButton(page, '#logout-btn', 'logout before passport test', results, errors);
-  await login(page, 'ama.osei@happyman.edu', 'student123');
+  await login(page, 'ama.osei@happyman.edu');
   await goView(page, 'view-student-dashboard');
   await testModal('#std-passport-btn', 'passport-modal', 'Passport modal');
 
@@ -495,7 +510,7 @@ test('Student report drawer', async ({ page }) => {
   const errors = collectErrors(page);
   const results = [];
 
-  await login(page, 'admin@happyman.edu', 'admin123');
+  await login(page, 'admin@happyman.edu');
 
   // Navigate to class report which has per-student "Detail" buttons
   await goView(page, 'view-admin-people');
@@ -547,7 +562,7 @@ test('React components — mount without errors', async ({ page }) => {
   const results = [];
 
   // AdminProgression
-  await login(page, 'admin@happyman.edu', 'admin123');
+  await login(page, 'admin@happyman.edu');
   await waitForData(page);
   const errsBefore0 = errors.length;
   await goView(page, 'view-admin-progression');
@@ -560,7 +575,7 @@ test('React components — mount without errors', async ({ page }) => {
   await auditButton(page, '#logout-btn', 'logout', results, errors);
 
   // ClassAttendance
-  await login(page, 'class@happyman.edu', 'class123');
+  await login(page, 'class@happyman.edu');
   await waitForData(page);
   const errsBefore1 = errors.length;
   await goView(page, 'view-class-attendance');
@@ -591,7 +606,7 @@ test('React components — mount without errors', async ({ page }) => {
   await auditButton(page, '#logout-btn', 'logout', results, errors);
 
   // QuizTaker
-  await login(page, 'ama.osei@happyman.edu', 'student123');
+  await login(page, 'ama.osei@happyman.edu');
   await waitForData(page);
   const errsBefore4 = errors.length;
   await goView(page, 'view-student-quizzes');
@@ -603,7 +618,7 @@ test('React components — mount without errors', async ({ page }) => {
 
   // StudentReportDrawer (via class report Detail button)
   await auditButton(page, '#logout-btn', 'logout', results, errors);
-  await login(page, 'class@happyman.edu', 'class123');
+  await login(page, 'class@happyman.edu');
   await waitForData(page);
   const errsBefore5 = errors.length;
   await goView(page, 'view-class-report');

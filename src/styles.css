@@ -1541,3 +1541,40 @@ tr.att-focused { background: var(--blue-soft); }
 
 /* AdminProgression: role-row-actions cell already white-space:nowrap via table rule */
 /* modal-overlay already has display:flex in .modal-overlay CSS rule */
+
+/* ── Segmented Weekly/Monthly toggle ────────────────────────── */
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.segmented button {
+  border: 0; background: #fff; padding: 7px 14px; cursor: pointer;
+  font: 600 12px/1 'Space Grotesk', sans-serif; color: var(--muted);
+}
+.segmented button + button { border-left: 1px solid var(--line); }
+.segmented button.active { background: var(--blue); color: #fff; }
+
+/* ── Monthly attendance table ───────────────────────────────── */
+.att-month-wrap { overflow-x: auto; }
+.att-month { width: 100%; border-collapse: collapse; font-size: 12px; }
+.att-month th, .att-month td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+.att-month th { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+
+/* ── Threaded discussion replies ────────────────────────────── */
+.thread-post { margin-top: 8px; }
+.thread-reply-box { margin-top: 8px; }
+.thread-reply-box textarea { width: 100%; }
+
+/* ── Remark approval review rows ────────────────────────────── */
+.remark-review { padding: 12px 0; border-top: 1px solid #f0f0ec; }
+.remark-review:first-of-type { border-top: 0; padding-top: 0; }
+.remark-review input { width: 100%; }
+
+/* ── Session / term management rows ─────────────────────────── */
+.term-date-row { padding: 12px 0; border-top: 1px solid #f0f0ec; }
+.term-date-row:first-child { border-top: 0; padding-top: 0; }
+.term-date-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.session-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 0; border-top: 1px solid #f0f0ec;
+}
+.session-row:first-child { border-top: 0; padding-top: 0; }
+.session-row strong { display: block; font-size: 13px; }
+.session-row small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }

@@ -11,7 +11,7 @@ import {
 } from '../utils.js';
 import { openModal, closeModal } from '../modals.js';
 import { openStudentReport } from './reports.js';
-import { timetableTable, renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf, renderStudentGrowth, dayChipsHTML, attendanceGridHTML, assignmentRowsHTML } from './shared.js';
+import { timetableTable, renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf, renderStudentGrowth, dayChipsHTML, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
 import { mount as _reactMount } from '../react/mount.js';
 import QuizTaker from '../react/components/QuizTaker.jsx';
 import StudentResults from '../react/components/StudentResults.jsx';
@@ -504,12 +504,20 @@ export function renderStudentAttendance() {
   if (!s || !sel) return;
   sel.innerHTML = Data.session().terms.map(t =>
     `<option value="${t.term}" ${t.term === currentTerm() ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+  const mode = () => ($('stu-att-mode')?.querySelector('button.active')?.dataset.mode) || 'weekly';
   const draw = () => {
-    $('stu-att-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.name || '')} · ${termNameOf(+sel.value)}`;
-    $('stu-att-grid').innerHTML   = attendanceGridHTML(s.id, +sel.value);
+    const term = +sel.value;
+    $('stu-att-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.name || '')} · ${termNameOf(term)}`;
+    $('stu-att-grid').innerHTML = mode() === 'monthly'
+      ? monthlyAttendanceHTML(s.id, term)
+      : attendanceGridHTML(s.id, term);
   };
   draw();
   sel.onchange = draw;
+  $all('#stu-att-mode button').forEach(b => b.onclick = () => {
+    $all('#stu-att-mode button').forEach(x => x.classList.toggle('active', x === b));
+    draw();
+  });
 }
 
 export function renderStudentAssignments() {

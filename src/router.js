@@ -87,9 +87,10 @@ export function renderView(pageId) {
 // ── Modal helpers ────────────────────────────────────────────
 // Defined in modals.js (no view imports) to break the static
 // cycle: shared.js → router.js → admin.js → shared.js.
-// Re-exported here so existing callers that import from router.js
-// continue to work without changes.
-export { openModal, closeModal } from './modals.js';
+// Imported for local use in wireGlobals(), and re-exported so existing
+// callers that import from router.js continue to work without changes.
+import { openModal, closeModal } from './modals.js';
+export { openModal, closeModal };
 
 // ── Drawer helpers ───────────────────────────────────────────
 export function openDrawer()   { const d=$('report-drawer'); d.classList.add('open');    d.setAttribute('aria-hidden','false'); }

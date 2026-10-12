@@ -354,6 +354,34 @@ export function attendanceGridHTML(studentId, term) {
     </div>`;
 }
 
+// ── Monthly attendance table ──────────────────────────────────
+// Groups the term's weeks into month blocks. Used by the Weekly /
+// Monthly toggle on the student and parent attendance screens.
+export function monthlyAttendanceHTML(studentId, term) {
+  const months = Academic.monthlyAttendance(studentId, term);
+  if (!months.length) return '<p class="muted-cell">No attendance recorded for this term.</p>';
+  return `<div class="att-month-wrap"><table class="att-month">
+    <thead><tr><th>Month</th><th>Weeks</th><th>Days present</th><th>Possible</th><th>Attendance</th><th>Rating</th></tr></thead>
+    <tbody>${months.map(m => {
+      const rc = m.pct >= 90 ? 'promoted' : m.pct >= 75 ? 'review' : 'repeat';
+      const wk = m.first === m.last ? `W${m.first}` : `W${m.first}–W${m.last}`;
+      return `<tr>
+        <td><strong>${esc(m.label)}</strong></td>
+        <td class="muted-cell">${wk}</td>
+        <td>${m.present}</td>
+        <td class="muted-cell">${m.possible}</td>
+        <td><strong>${m.pct}%</strong></td>
+        <td><span class="status ${rc}">${Academic.monthRating(m.pct)}</span></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>
+  <div class="att-summary mt16">
+    <div><span>Days present</span><b>${months.reduce((a, m) => a + m.present, 0)}</b></div>
+    <div><span>Possible</span><b>${months.reduce((a, m) => a + m.possible, 0)}</b></div>
+    <div><span>Attendance</span><b>${Academic.attendancePct(studentId, term)}</b></div>
+  </div>`;
+}
+
 // ── Assignment rows HTML ──────────────────────────────────────
 export function assignmentRowsHTML(classId) {
   const assigns = (Data.assignments() || [])

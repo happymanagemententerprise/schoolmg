@@ -248,6 +248,9 @@ export default function ClassAttendance({ focusSid = null }) {
 
       {/* Weekly rollup — re-reads Data after each save via v prop */}
       <WeeklySummary students={students} cl={cl} term={term} focusSid={focusSid} v={v} />
+
+      {/* Monthly rollup — the term's weeks grouped into month blocks */}
+      <MonthlySummary students={students} cl={cl} term={term} focusSid={focusSid} v={v} />
     </>
   );
 }
@@ -301,6 +304,67 @@ function WeeklySummary({ students, cl, term, focusSid, v: _v }) {
                       {pct}
                     </span>
                   </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function MonthlySummary({ students, cl, term, focusSid, v: _v }) {
+  const months = students.map(s => Academic.monthlyAttendance(s.id, term));
+  const blockCount = months.reduce((max, m) => Math.max(max, m.length), 0);
+  if (!blockCount) return null;
+  const labels = (months.find(m => m.length === blockCount) || []).map(b => b.label);
+
+  return (
+    <div className="panel mt16">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">{cl.name} · Term {term}</p>
+          <h2>Monthly summary</h2>
+        </div>
+        <span className="muted-cell">Term weeks grouped into month blocks</span>
+      </div>
+      <div className="table-wrap mt16">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              {labels.map((l, i) => (
+                <th key={i}>
+                  {l} <span className="muted-cell att-term-col-note">%</span>
+                </th>
+              ))}
+              <th>Term</th>
+            </tr>
+          </thead>
+          <tbody>
+            {students.map((s, si) => {
+              const pct    = Academic.attendancePct(s.id, term);
+              const pctNum = parseInt(pct, 10) || 0;
+              return (
+                <tr key={s.id} className={String(s.id) === String(focusSid) ? 'att-focused' : ''}>
+                  <td>
+                    <div className="student">
+                      <span className={`student-avatar ${toneClass(s.tone)}`}>{s.initials}</span>
+                      {s.name}
+                    </div>
+                  </td>
+                  {labels.map((_, i) => {
+                    const b = months[si][i];
+                    if (!b) return <td key={i} className="muted-cell att-weekly-td">—</td>;
+                    const rc = b.pct >= 90 ? 'promoted' : b.pct >= 75 ? 'review' : 'repeat';
+                    return (
+                      <td key={i} className="att-weekly-td">
+                        <span className={`status ${rc}`}>{b.pct}%</span>
+                      </td>
+                    );
+                  })}
+                  <td><strong>{pctNum}%</strong></td>
                 </tr>
               );
             })}

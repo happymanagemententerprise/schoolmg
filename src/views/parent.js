@@ -8,7 +8,7 @@ import {
   $, $all, esc, toast, currentTerm, passMark, gradeLabel, toneClass, subjectChip, statusClass
 } from '../utils.js';
 import { openStudentReport } from './reports.js';
-import { timetableTable, renderParentGuardian, recordParentLoginIfNew, resultsLockedNote, termNameOf, renderEventsList, attendanceGridHTML, assignmentRowsHTML } from './shared.js';
+import { timetableTable, renderParentGuardian, recordParentLoginIfNew, resultsLockedNote, termNameOf, renderEventsList, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
 
 // ── Parent dashboard ──────────────────────────────────────────
 export function renderParentDashboard() {
@@ -118,10 +118,18 @@ function parentChildSelect(selId, onPick) {
 }
 
 export function renderParentAttendance() {
+  const mode = () => ($('par-att-mode')?.querySelector('button.active')?.dataset.mode) || 'weekly';
   parentChildSelect('par-att-child', childId => {
     const s = Data.student(childId); if (!s) return;
     $('par-att-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.name || '')} · ${termNameOf(currentTerm())}`;
-    $('par-att-grid').innerHTML   = attendanceGridHTML(childId, currentTerm());
+    $('par-att-grid').innerHTML = mode() === 'monthly'
+      ? monthlyAttendanceHTML(childId, currentTerm())
+      : attendanceGridHTML(childId, currentTerm());
+  });
+  $all('#par-att-mode button').forEach(b => b.onclick = () => {
+    $all('#par-att-mode button').forEach(x => x.classList.toggle('active', x === b));
+    const sel = $('par-att-child');
+    if (sel) sel.onchange();
   });
 }
 

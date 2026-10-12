@@ -100,6 +100,8 @@ export default function AdminProgression() {
 
       <PositionsPanel v={v} />
 
+      <RemarksApprovalPanel refresh={refresh} v={v} />
+
       <div className="setup-grid mt16">
         <ApprovalsPanel refresh={refresh} v={v} />
         <DayStructurePanel refresh={refresh} />
@@ -462,6 +464,52 @@ function PositionsPanel({ v: _v }) {
         </table>
       </div>
     </div>
+  );
+}
+
+// ── RemarksApprovalPanel ──────────────────────────────────────
+function RemarksApprovalPanel({ refresh, v: _v }) {
+  const currentUser = getCurrentUser();
+  const [reasons, setReasons] = useState({});
+  const pending = Data.pendingRemarks();
+
+  const decide = async (r, approved) => {
+    await Data.decideRemark(r.studentId, r.term, approved, currentUser.id, reasons[r.id] || '');
+    refresh();
+    toast(approved ? 'Remark approved and published.' : 'Remark returned to the teacher.');
+  };
+
+  return (
+    <article className="panel mt16">
+      <div className="panel-heading">
+        <div><p className="eyebrow">End-of-term remarks</p><h2>Remark approvals</h2></div>
+        <span className="read-only-badge">{pending.length} awaiting</span>
+      </div>
+      {pending.length ? pending.map(r => {
+        const s  = Data.student(r.studentId);
+        const by = r.submittedBy ? Data.user(r.submittedBy) : null;
+        return (
+          <div className="remark-review" key={r.id}>
+            <p className="muted-cell" style={{ margin: '0 0 4px' }}>
+              <strong>{s?.name || '—'}</strong> · {termNameOf(r.term)}{by ? ` · submitted by ${by.name}` : ''}
+            </p>
+            <p style={{ whiteSpace: 'pre-wrap', margin: '0 0 8px' }}>{r.text}</p>
+            <div className="form-row tight">
+              <input
+                type="text"
+                placeholder="Reason (shown to the teacher when returning)"
+                value={reasons[r.id] || ''}
+                onChange={e => setReasons(m => ({ ...m, [r.id]: e.target.value }))}
+              />
+              <button className="btn-sm-save" style={{ width: 'auto' }} onClick={() => decide(r, true)}>Approve</button>
+              <button className="btn-sm-outline" style={{ width: 'auto' }} onClick={() => decide(r, false)}>Return</button>
+            </div>
+          </div>
+        );
+      }) : (
+        <p className="muted-cell">No remarks awaiting review.</p>
+      )}
+    </article>
   );
 }
 
