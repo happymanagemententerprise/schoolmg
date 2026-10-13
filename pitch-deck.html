@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HMA School Management System — Pitch Deck</title>
+
+<link rel="stylesheet" href="vendor/reveal/reveal.css">
+
+<style>
+  :root {
+    --navy:        #252b38;
+    --navy-2:      #1c212b;
+    --ink:         #20242b;
+    --muted:       #7e858c;
+    --coral:       #ee715e;
+    --blue:        #526edb;
+    --yellow:      #f4c84e;
+    --green:       #48a879;
+    --paper:       #f7f7f4;
+    --line:        rgba(255,255,255,.12);
+    --font-sans:   'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  .reveal { font-family: var(--font-sans); font-size: 40px; color: #eef0f4; }
+  .reveal .slides { text-align: left; }
+  .reveal h1, .reveal h2, .reveal h3, .reveal h4 {
+    font-family: var(--font-sans);
+    color: #fff; text-transform: none; letter-spacing: -.015em;
+    font-weight: 700; line-height: 1.05; margin: 0 0 .35em;
+  }
+  .reveal h1 { font-size: 1.9em; }
+  .reveal h2 { font-size: 1.35em; }
+  .reveal h3 { font-size: .62em; }
+  .reveal p  { font-size: .58em; line-height: 1.45; color: #c9ced7; margin: 0 0 .6em; }
+  .reveal strong { color: #fff; }
+  .reveal a { color: var(--coral); }
+
+  .reveal .slides section { height: 100%; padding: 0 0 .2em; }
+
+  .eyebrow {
+    font-size: .42em; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--coral); font-weight: 700; margin: 0 0 .9em;
+  }
+
+  .title-slide { display: flex; flex-direction: column; justify-content: center; }
+  .title-slide h1 { font-size: 2.4em; }
+  .title-slide .sub { font-size: .72em; color: #c9ced7; margin-bottom: 1em; }
+  .title-slide .rule { width: 3.2em; height: .09em; background: var(--coral); margin: 0 0 1em; }
+  .badge-row { display: flex; gap: .5em; flex-wrap: wrap; }
+  .badge {
+    font-size: .38em; font-weight: 500; color: #dfe3ea;
+    border: 1px solid var(--line); border-radius: 999px; padding: .5em 1em;
+    background: rgba(255,255,255,.04);
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .45em; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .4em; }
+  .card {
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--line);
+    border-radius: 14px; padding: .5em .6em;
+  }
+  .card .k { font-size: .42em; font-weight: 700; letter-spacing: .04em; margin: 0 0 .35em; color: var(--coral); }
+  .card p { font-size: .5em; margin: 0; color: #c9ced7; }
+  .accent-blue  .k { color: var(--blue); }
+  .accent-green .k { color: var(--green); }
+  .accent-yellow .k { color: var(--yellow); }
+
+  .points { list-style: none; counter-reset: p; margin: 0; padding: 0; }
+  .points li {
+    counter-increment: p; position: relative;
+    padding: .5em 0 .5em 2.1em; border-top: 1px solid var(--line);
+    font-size: .62em; color: #eef0f4;
+  }
+  .points li:first-child { border-top: 0; }
+  .points li::before {
+    content: counter(p); position: absolute; left: 0; top: .55em;
+    width: 1.5em; height: 1.5em; border-radius: 50%;
+    background: var(--coral); color: #fff; font-size: .62em; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .points li small { display: block; color: var(--muted); font-size: .78em; margin-top: .15em; }
+
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: .3em; margin-top: .4em; }
+  .stat { text-align: center; border: 1px solid var(--line); border-radius: 14px; padding: .55em .3em; background: rgba(255,255,255,.04); }
+  .stat b { display: block; font-size: 1.15em; font-weight: 700; color: #fff; line-height: 1; }
+  .stat span { font-size: .38em; color: #c9ced7; }
+
+  .lead { font-size: .7em; color: #d5d9e0; }
+  .muted { color: var(--muted); }
+
+  .footer-note {
+    position: absolute; bottom: .5em; left: 0;
+    font-size: .38em; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  }
+
+  .reveal .progress { color: var(--coral); height: 4px; }
+  .reveal .controls { color: var(--coral); }
+  .reveal .slide-number { background: transparent; color: var(--muted); font-size: 14px; }
+
+  body { background: var(--navy); }
+  .reveal-viewport { background: radial-gradient(1200px 700px at 78% -10%, rgba(82,110,219,.22), transparent 60%),
+                                 radial-gradient(900px 600px at -10% 110%, rgba(238,113,94,.20), transparent 55%),
+                                 var(--navy-2); }
+
+  [hidden] { display: none !important; }
+
+  .cookie-banner {
+    position: fixed; z-index: 9999; left: 50%; bottom: 24px;
+    transform: translateX(-50%); width: min(560px, calc(100vw - 32px));
+    box-sizing: border-box;
+    background: #2b3242; color: #c9ced7;
+    border: 1px solid rgba(255,255,255,.14); border-radius: 14px;
+    box-shadow: 0 18px 45px rgba(0,0,0,.35);
+    padding: 18px 22px; font-family: var(--font-sans);
+  }
+  .cookie-banner .cookie-title {
+    margin: 0 0 6px; font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -.01em;
+  }
+  .cookie-banner .cookie-text { margin: 0 0 14px; font-size: 12px; line-height: 1.5; }
+  .cookie-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .cookie-btn {
+    font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    border-radius: 8px; padding: 9px 16px; border: 1px solid transparent; transition: opacity .15s;
+  }
+  .cookie-btn:hover { opacity: .88; }
+  .cookie-btn.primary { background: var(--coral); color: #fff; }
+  .cookie-btn.ghost { background: transparent; color: #dfe3ea; border-color: rgba(255,255,255,.25); }
+  .cookie-settings-link {
+    position: fixed; z-index: 9998; right: 14px; bottom: 10px;
+    font-family: var(--font-sans); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); background: none; border: 0;
+    cursor: pointer; padding: 4px 6px;
+  }
+  .cookie-settings-link:hover { color: var(--coral); }
+</style>
+</head>
+
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <!-- 1 · Title -->
+    <section class="title-slide" data-transition="fade">
+      <p class="eyebrow">School Management Platform</p>
+      <h1>HMA School<br>Management System</h1>
+      <div class="rule"></div>
+      <p class="sub">Run your whole school from one screen.</p>
+      <div class="badge-row">
+        <span class="badge">Admissions → Reports</span>
+        <span class="badge">Six connected portals</span>
+        <span class="badge">Works online &amp; offline</span>
+        <span class="badge">Cloud-secured</span>
+      </div>
+      <aside class="notes">One line: everything your school does — admissions, scores, reports, parents — in one connected system.</aside>
+    </section>
+
+    <!-- 2 · Problem -->
+    <section data-transition="fade">
+      <p class="eyebrow">The problem</p>
+      <h2>Running a school shouldn't run you ragged.</h2>
+      <div class="grid-2" style="margin-top:.3em">
+        <div class="card"><p class="k">Fragmented records</p><p>Registers, spreadsheets and WhatsApp groups that never match.</p></div>
+        <div class="card"><p class="k">Slow report cards</p><p>Compiled by hand — error-prone and always late.</p></div>
+        <div class="card"><p class="k">Guesswork promotions</p><p>Decisions made on gut feel, not your own stated rule.</p></div>
+        <div class="card"><p class="k">Parents in the dark</p><p>Endless phone calls and eroding trust.</p></div>
+      </div>
+      <aside class="notes">Lead with pain. Every head knows these four headaches.</aside>
+    </section>
+
+    <!-- 3 · Solution -->
+    <section data-transition="fade">
+      <p class="eyebrow">The solution</p>
+      <h2>One connected platform.<br>Six roles. Zero double-entry.</h2>
+      <ul class="points" style="margin-top:.2em">
+        <li>Enter a mark once — it flows to reports, rankings and parent view.</li>
+        <li>Every role gets a dashboard built for their job.</li>
+        <li>Works online, keeps working offline.</li>
+        <li>Cloud-secured, with leadership in full control.</li>
+      </ul>
+    </section>
+
+    <!-- 4 · Headline features -->
+    <section data-transition="fade">
+      <p class="eyebrow">Why it wins</p>
+      <h2>Headline features</h2>
+      <ul class="points">
+        <li>Every role, one system<small>Admin, teachers, HOD, students and parents.</small></li>
+        <li>Report cards that write themselves<small>CA + exams → averages, grades, positions.</small></li>
+        <li>A real promotion engine<small>Your exact rule, applied automatically.</small></li>
+        <li>Parents in the loop<small>Results, attendance, timetable and mentor contact.</small></li>
+        <li>Secure and reliable<small>Cloud-hosted, row-level security, offline-ready.</small></li>
+      </ul>
+    </section>
+
+    <!-- 5 · Admin & Financial Control -->
+    <section data-transition="fade">
+      <p class="eyebrow">Administrative &amp; Financial Control</p>
+      <h2>Save staff hours. Protect your records.</h2>
+      <div class="grid-3" style="margin-top:.3em">
+        <div class="card accent-blue"><p class="k">Session &amp; term control</p><p>Open, close, reopen; archived safely.</p></div>
+        <div class="card accent-blue"><p class="k">Results release gate</p><p>Nothing publishes until every score is in.</p></div>
+        <div class="card accent-blue"><p class="k">Approval workflow</p><p>Sensitive actions need admin sign-off + password.</p></div>
+        <div class="card accent-green"><p class="k">Account control</p><p>Admissions, transfers, repeats; archived accounts blocked.</p></div>
+        <div class="card accent-green"><p class="k">Attendance oversight</p><p>Daily registers + monthly analytics.</p></div>
+        <div class="card accent-green"><p class="k">Leadership visibility</p><p>Coverage tracking, analytics, leaderboard.</p></div>
+      </div>
+    </section>
+
+    <!-- 6 · Academic & Report Generation -->
+    <section data-transition="fade">
+      <p class="eyebrow">Academic &amp; Report Generation</p>
+      <h2>From first CA entry to end-of-session promotion.</h2>
+      <ul class="points" style="margin-top:.2em">
+        <li>Continuous Assessment (40) + Exams (60) → instant totals</li>
+        <li>Class register, class reports, mid-term reports with <strong>Excel export</strong></li>
+        <li>Automatic <strong>class and year positions</strong> + schoolwide leaderboard</li>
+        <li>Term remarks with approval — only approved remarks reach the report card</li>
+        <li>Printable <strong>report cards</strong> and <strong>Student Achievement Passports</strong></li>
+      </ul>
+    </section>
+
+    <!-- 7 · Staff portals -->
+    <section data-transition="fade">
+      <p class="eyebrow">User Portals · Staff</p>
+      <h2>Tools that match the job.</h2>
+      <div class="grid-3" style="margin-top:.3em">
+        <div class="card"><p class="k">Administrator</p><p>People, classes, subjects, timetable, analytics, progression &amp; setup.</p></div>
+        <div class="card accent-blue"><p class="k">Teachers</p><p>Score entry, registers, attendance, feedback, lessons, auto-graded quizzes, discussions, mentees.</p></div>
+        <div class="card accent-green"><p class="k">HOD</p><p>Department dashboard, reports and teacher-subject assignment.</p></div>
+      </div>
+      <p class="muted" style="margin-top:.6em; font-size:.5em">Less admin for teachers means more teaching.</p>
+    </section>
+
+    <!-- 8 · Student & Parent portals -->
+    <section data-transition="fade">
+      <p class="eyebrow">User Portals · Families</p>
+      <h2>Engagement that builds trust.</h2>
+      <div class="grid-2" style="margin-top:.3em">
+        <div class="card"><p class="k">Students</p><p>Results, pathway choices, lessons, quizzes, discussions, attendance, assignments, timetable and progress badges.</p></div>
+        <div class="card accent-yellow"><p class="k">Parents</p><p>Each child's published results, attendance (weekly &amp; monthly), assignments, timetable and mentor contact.</p></div>
+      </div>
+      <p class="muted" style="margin-top:.6em; font-size:.5em">Controlled by design — families only ever see <strong>published</strong> results.</p>
+    </section>
+
+    <!-- 9 · Technical strengths -->
+    <section data-transition="fade">
+      <p class="eyebrow">Technical Strengths</p>
+      <h2>Modern, secure, easy to run.</h2>
+      <div class="grid-2" style="margin-top:.3em">
+        <div class="card"><p class="k">Works offline</p><p>Bundled demo school and local mirror; degrades gracefully.</p></div>
+        <div class="card accent-blue"><p class="k">Enterprise-grade security</p><p>Supabase Auth + Row-Level Security; no password hashes in the browser.</p></div>
+        <div class="card accent-green"><p class="k">Ease of use</p><p>One-click role logins, responsive, role-tailored navigation.</p></div>
+        <div class="card accent-yellow"><p class="k">Fast, maintainable stack</p><p>Vite + React + Supabase (PostgreSQL); print-friendly.</p></div>
+      </div>
+      <p class="muted" style="margin-top:.55em; font-size:.5em">Server-side verification for every sensitive action.</p>
+    </section>
+
+    <!-- 10 · By the numbers -->
+    <section data-transition="fade">
+      <p class="eyebrow">By the numbers</p>
+      <h2>A complete, working system — not a mock-up.</h2>
+      <div class="stats">
+        <div class="stat"><b>6</b><span>user roles</span></div>
+        <div class="stat"><b>54+</b><span>purpose-built screens</span></div>
+        <div class="stat"><b>3</b><span>automated reports</span></div>
+        <div class="stat"><b>1</b><span>promotion rule engine</span></div>
+        <div class="stat"><b>0</b><span>double-entry</span></div>
+      </div>
+      <p class="muted" style="margin-top:.6em; font-size:.5em">Enter once, use everywhere.</p>
+    </section>
+
+    <!-- 11 · Outcome -->
+    <section data-transition="fade">
+      <p class="eyebrow">The outcome</p>
+      <h2>What your school gains.</h2>
+      <ul class="points">
+        <li>Time back<small>Hours saved every term on reports and admin.</small></li>
+        <li>Accuracy<small>One source of truth — no mismatched records.</small></li>
+        <li>Control<small>Approve, publish and close with confidence.</small></li>
+        <li>Trust<small>Parents engaged and informed.</small></li>
+        <li>Insight<small>Spot gaps early; celebrate wins with rankings and recognition.</small></li>
+      </ul>
+    </section>
+
+    <!-- 12 · Call to action -->
+    <section class="title-slide" data-transition="fade">
+      <p class="eyebrow">Next step</p>
+      <h1>See it live with<br>your own school data.</h1>
+      <div class="rule"></div>
+      <div class="badge-row">
+        <span class="badge">Book a walkthrough</span>
+        <span class="badge">Pilot one class for a term</span>
+        <span class="badge">Full rollout with training</span>
+      </div>
+      <aside class="notes">Close with the pilot offer — low risk, fast payoff.</aside>
+    </section>
+
+  </div>
+</div>
+
+<div id="cookie-banner" class="cookie-banner" role="dialog" aria-label="Cookie consent">
+  <p class="cookie-title">We respect your privacy</p>
+  <p class="cookie-text">This deck loads third-party resources such as web fonts and analytics only after you accept. No tracking pixels, analytics or third-party scripts run before your choice.</p>
+  <div class="cookie-actions">
+    <button type="button" class="cookie-btn primary" onclick="setCookieConsent('accepted')">Accept all cookies</button>
+    <button type="button" class="cookie-btn ghost" onclick="setCookieConsent('declined')">Continue without cookies</button>
+  </div>
+</div>
+<button type="button" id="cookie-settings" class="cookie-settings-link" onclick="openCookieBanner()" hidden>Cookie settings</button>
+
+<script src="vendor/reveal/reveal.js"></script>
+<script src="vendor/reveal/plugin/notes/notes.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    progress: true,
+    controls: true,
+    center: false,
+    transition: 'fade',
+    width: 1280,
+    height: 720,
+    margin: 0.06,
+    plugins: [ RevealNotes ]
+  });
+</script>
+
+<script>
+(function () {
+  var KEY = 'hma_cookie_consent';
+
+  var THIRD_PARTY_CSS = [
+    { id: 'consent-fonts', href: 'https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap' }
+  ];
+
+  var THIRD_PARTY_SCRIPTS = [];
+
+  var banner = document.getElementById('cookie-banner');
+  var settingsLink = document.getElementById('cookie-settings');
+
+  function state() {
+    try { return localStorage.getItem(KEY); } catch (e) { return null; }
+  }
+
+  function injectThirdParty() {
+    THIRD_PARTY_CSS.forEach(function (f) {
+      if (document.getElementById(f.id)) return;
+      var link = document.createElement('link');
+      link.id = f.id;
+      link.rel = 'stylesheet';
+      link.href = f.href;
+      document.head.appendChild(link);
+    });
+    THIRD_PARTY_SCRIPTS.forEach(function (s) {
+      var script = document.createElement('script');
+      script.async = true;
+      script.src = s.src;
+      document.head.appendChild(script);
+    });
+  }
+
+  window.setCookieConsent = function (value) {
+    try { localStorage.setItem(KEY, value); } catch (e) {}
+    try {
+      var maxAge = value === 'accepted' ? 31536000 : 0;
+      document.cookie = KEY + '=' + value + '; path=/; max-age=' + maxAge + '; SameSite=Lax';
+    } catch (e) {}
+    if (value === 'accepted') injectThirdParty();
+    banner.hidden = true;
+    settingsLink.hidden = false;
+  };
+
+  window.openCookieBanner = function () {
+    banner.hidden = false;
+    settingsLink.hidden = true;
+  };
+
+  var current = state();
+  if (current === 'accepted') injectThirdParty();
+  if (current !== null) banner.hidden = true;
+  if (current !== null) settingsLink.hidden = false;
+})();
+</script>
+</body>
+</html>
