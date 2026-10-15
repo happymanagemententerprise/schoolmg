@@ -138,11 +138,15 @@ function wireNotifications() {
   if (!button) return;
   const host = button.parentElement;
   host.classList.add('notification-host');
+  const badge = document.createElement('span');
+  badge.className = 'notification-badge';
+  badge.hidden = true;
+  button.append(badge);
   if (!$('notification-style')) {
     const style = document.createElement('style');
     style.id = 'notification-style';
     style.textContent = `
-      .notification-host{position:relative}.icon-button i[hidden]{display:none}
+      .notification-host{position:relative}.icon-button i[hidden]{display:none}.notification-badge{position:absolute;top:-7px;right:-10px;min-width:17px;height:17px;padding:0 4px;display:grid;place-items:center;border:2px solid #fff;border-radius:99px;background:#e77b61;color:#fff;font:700 9px/1 Arial,sans-serif}.notification-badge[hidden]{display:none}
       .notification-panel{position:absolute;right:0;top:calc(100% + 14px);width:min(370px,calc(100vw - 32px));max-height:min(500px,calc(100vh - 100px));overflow:auto;background:#fff;border:1px solid #e7e9ed;border-radius:12px;box-shadow:0 16px 48px #17212b24;z-index:30;color:#24303a}
       .notification-head{display:flex;align-items:center;justify-content:space-between;padding:16px 17px;border-bottom:1px solid #edf0f2}.notification-head strong,.notification-head small{display:block}.notification-head strong{font-size:14px}.notification-head small{font-size:11px;color:#818991;margin-top:3px}
       .notification-mark{color:#147b77;font-size:11px;font-weight:600;padding:7px 8px;border-radius:6px}.notification-mark:hover:not(:disabled){background:#eef8f6}.notification-mark:disabled{opacity:.45;cursor:default}
@@ -211,7 +215,9 @@ function wireNotifications() {
     const unread = notices.filter(notice => !read.has(notice.id));
     const count = $('notification-count');
     count.textContent = unread.length ? `${unread.length} unread` : 'All caught up';
-    button.querySelector('i').hidden = unread.length === 0;
+    badge.hidden = unread.length === 0;
+    badge.textContent = unread.length > 99 ? '99+' : String(unread.length);
+    button.querySelector('i')?.setAttribute('hidden', '');
     button.setAttribute('aria-label', unread.length ? `Notifications, ${unread.length} unread` : 'Notifications');
     $('notification-list').innerHTML = notices.length ? notices.map(notice => `
       <button type="button" class="notification-item ${read.has(notice.id) ? 'is-read' : ''}" data-notification-id="${esc(notice.id)}" data-notification-page="${esc(notice.page)}">
