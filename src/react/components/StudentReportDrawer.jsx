@@ -57,7 +57,8 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
           <PreviousSessionPanel studentId={studentId} sessionId={selectedSessionId} sessionName={selectedSessionName} />
         ) : <>
         <p className="eyebrow">{`Term ${term} report · ${Data.session().name}`}</p>
-        <h2>{s.name}</h2>
+        
+                <h2>{s.name}</h2>
         <p className="drawer-meta">{`${cl?.name || '—'} · ${esc(s.admissionNo || '—')}`}</p>
         <div className="report-score">
           <div><span>Overall score</span><strong>—</strong></div>
