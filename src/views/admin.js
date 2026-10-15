@@ -197,11 +197,12 @@ export function openChangeStreamModal(sid) {
 
 export function renderUploadToggles() {
   const sess = Data.session();
-  $('admin-upload-toggles').innerHTML = ['test','exam'].map(type => `
+  const labels = { midterm: 'Mid-term (20)', test: 'Second-half CA (20)', exam: 'Exam (60)' };
+  $('admin-upload-toggles').innerHTML = ['midterm','test','exam'].map(type => `
     <div class="upload-toggle-row">
       <div>
-        <strong>${type === 'test' ? 'Continuous assessment (CA)' : 'Exam'} score upload</strong>
-        <small>Allows teachers to submit ${type === 'test' ? 'CA (40)' : 'exam (60)'} marks</small>
+        <strong>${labels[type]} score upload</strong>
+        <small>Allows teachers to submit ${labels[type]} marks</small>
       </div>
       <button class="toggle-pill ${sess.uploadOpen[type] ? 'on' : ''}" data-upload="${type}">
         ${sess.uploadOpen[type] ? 'Open' : 'Closed'}
@@ -213,7 +214,7 @@ export function renderUploadToggles() {
     s.uploadOpen[btn.dataset.upload] = !s.uploadOpen[btn.dataset.upload];
     Data.saveSession(s);
     renderUploadToggles();
-    toast(`${btn.dataset.upload === 'test' ? 'CA' : 'Exam'} upload ${s.uploadOpen[btn.dataset.upload] ? 'opened' : 'closed'}.`);
+    toast(`${labels[btn.dataset.upload]} upload ${s.uploadOpen[btn.dataset.upload] ? 'opened' : 'closed'}.`);
   }));
 }
 
@@ -230,7 +231,8 @@ export function renderAdminPeople() {
     set_editingUserId(null);
     $('nu-modal-title').textContent = 'Add person';
     $('nu-feedback').textContent = '';
-    $('nu-name').value = ''; $('nu-email').value = ''; $('nu-phone').value = '';
+    $('nu-first-name').value = ''; $('nu-middle-name').value = ''; $('nu-last-name').value = '';
+    $('nu-email').value = ''; $('nu-phone').value = '';
     $('nu-password').value = ''; $('nu-admission').value = '';
     $('nu-role').value = 'Subject Teacher';
     $('nu-gender').value = 'M';
@@ -240,8 +242,94 @@ export function renderAdminPeople() {
     openModal('add-user-modal');
   };
 
+  $('nu-first-name').oninput = updateGeneratedPersonEmail;
+  $('nu-last-name').oninput = updateGeneratedPersonEmail;
   $('nu-role').onchange = syncPersonForm;
   $('save-user-btn').onclick = saveUserFromForm;
+}
+
+function emailNamePart(value) {
+  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function basePersonEmail(firstName, lastName) {
+  const first = emailNamePart(firstName);
+  const last = emailNamePart(lastName);
+  return first && last ? `${first}.${last}@happy.edu` : '';
+}
+
+function nextCachedEmail(firstName, lastName) {
+  const base = basePersonEmail(firstName, lastName);
+  if (!base) return '';
+  const local = base.slice(0, base.lastIndexOf('@'));
+  const domain = base.slice(base.lastIndexOf('@'));
+  const used = new Set(Data.users().map(u => String(u.email || '').toLowerCase()));
+  let suffix = 0;
+  let candidate = base;
+  while (used.has(candidate)) candidate = `${local}${++suffix}${domain}`;
+  return candidate;
+}
+
+let _personEmailUpdate = 0;
+async function updateGeneratedPersonEmail() {
+  if (_editingUserId) return;
+  const firstName = $('nu-first-name').value;
+  const lastName = $('nu-last-name').value;
+  const updateId = ++_personEmailUpdate;
+  $('nu-email').value = nextCachedEmail(firstName, lastName);
+  if (!$('nu-email').value) return;
+  try {
+    const email = await nextAvailablePersonEmail(firstName, lastName);
+    if (updateId === _personEmailUpdate && !_editingUserId &&
+        firstName === $('nu-first-name').value && lastName === $('nu-last-name').value) {
+      $('nu-email').value = email;
+    }
+  } catch {
+    // The save action reports generation errors; keep the cached suggestion visible while typing.
+  }
+}
+
+function splitPersonName(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return {
+    first: parts[0] || '',
+    middle: parts.length > 2 ? parts.slice(1, -1).join(' ') : '',
+    last: parts.length > 1 ? parts[parts.length - 1] : ''
+  };
+}
+
+async function nextAvailablePersonEmail(firstName, lastName) {
+  const base = basePersonEmail(firstName, lastName);
+  if (!base) return '';
+  const local = base.slice(0, base.lastIndexOf('@'));
+  const domain = base.slice(base.lastIndexOf('@'));
+  const used = new Set(Data.users().map(u => String(u.email || '').toLowerCase()));
+  let suffix = 0;
+  while (suffix < 10000) {
+    const candidate = `${local}${suffix || ''}${domain}`;
+    if (!used.has(candidate) && !(await Data.emailExists(candidate))) return candidate;
+    suffix++;
+  }
+  throw new Error('Could not find an unused email address for this name.');
+}
+
+function directoryStudents() {
+  const students = Data.students();
+  const linkedUserIds = new Set(students.map(s => String(s._userId || '')).filter(Boolean));
+  students.forEach(s => {
+    const account = Data.users().find(u => String(u.studentId || '') === String(s.id));
+    if (account) linkedUserIds.add(String(account.id));
+  });
+  const unlinkedAccounts = Data.users().filter(u => isStudent(u) && !linkedUserIds.has(String(u.id)));
+  return [
+    ...students,
+    ...unlinkedAccounts.map(u => ({
+      id: `account-${u.id}`, _userId: u.id, name: u.name, initials: u.initials,
+      tone: u.tone, classId: null, admissionNo: '', mentorId: null,
+      status: 'profile-missing', _profileMissing: true
+    }))
+  ];
 }
 
 export function syncPersonForm() {
@@ -267,16 +355,33 @@ export async function saveUserFromForm() {
   const editingUserId = _editingUserId;
   const feedback = $('nu-feedback');
   feedback.textContent = '';
-  const name  = $('nu-name').value.trim();
-  const email = $('nu-email').value.trim().toLowerCase();
+  const firstName = $('nu-first-name').value.trim();
+  const middleName = $('nu-middle-name').value.trim();
+  const lastName = $('nu-last-name').value.trim();
+  const name = [firstName, middleName, lastName].filter(Boolean).join(' ');
+  let email = $('nu-email').value.trim().toLowerCase();
   const role  = $('nu-role').value;
   const pw    = $('nu-password').value.trim();
   const phone = $('nu-phone').value.trim();
 
-  if (!name || !email) {
-    feedback.textContent = 'Name and email are required.';
+  if (!firstName || !lastName) {
+    feedback.textContent = 'First name and last name are required.';
     feedback.className = 'form-feedback error mt8';
     return;
+  }
+  if (!editingUserId) {
+    const saveButton = $('save-user-btn');
+    saveButton.disabled = true;
+    try {
+      email = await nextAvailablePersonEmail(firstName, lastName);
+      $('nu-email').value = email;
+    } catch (err) {
+      feedback.textContent = err?.message || 'Could not generate a unique email address.';
+      feedback.className = 'form-feedback error mt8';
+      return;
+    } finally {
+      saveButton.disabled = false;
+    }
   }
   if (!editingUserId && !pw) {
     feedback.textContent = 'A password is required for a new account.';
@@ -306,8 +411,8 @@ export async function saveUserFromForm() {
     await done;
     return;
   }
-  if (Data.userByEmail(email)) {
-    feedback.textContent = 'Email already exists.';
+  if (!email) {
+    feedback.textContent = 'Enter a valid first and last name to generate an email.';
     feedback.className = 'form-feedback error mt8';
     return;
   }
@@ -377,24 +482,28 @@ export function renderPeopleTab(tab) {
     bindResetPasswordButtons();
 
   } else if (tab === 'students-all') {
-    wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Class</th><th>Admission no</th><th>Mentor</th><th>Avg</th><th>Position</th><th>Status</th><th></th></tr></thead><tbody>` +
-      Data.students().map(s => {
-        const avg    = Academic.termAverage(s.id, term);
-        const status = Academic.promotionStatus(s.id, term);
-        const mentor = Data.mentor(s.mentorId);
-        const rank   = classRank(s.id, term);
+    const students = directoryStudents();
+    wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Admission no</th><th>Mentor</th><th>Avg</th><th>Position</th><th>Status</th><th></th></tr></thead><tbody>` +
+      (students.length ? students.map(s => {
+        const profile = !s._profileMissing;
+        const account = Data.users().find(u => String(u.id) === String(s._userId));
+        const avg    = profile ? Academic.termAverage(s.id, term) : null;
+        const status = profile ? Academic.promotionStatus(s.id, term) : null;
+        const mentor = profile ? Data.mentor(s.mentorId) : null;
+        const rank   = profile ? classRank(s.id, term) : null;
         return `<tr>
           <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}${s.status === 'archived' ? ' <span class="status repeat">Archived</span>' : ''}</div></td>
-          <td>${esc(Data.cls(s.classId)?.name || '—')}</td>
+          <td class="muted-cell">${esc(account?.email || '—')}</td>
+          <td>${esc((profile && Data.cls(s.classId)?.name) || '—')}</td>
           <td class="muted-cell">${esc(s.admissionNo || '—')}</td>
           <td class="muted-cell">${esc(mentor?.name || 'No mentor')}</td>
-          <td><span class="score">${avg}%</span></td>
+          <td><span class="score">${profile ? `${avg}%` : '—'}</span></td>
           <td class="muted-cell">${rank !== null ? ordinal(rank) : '—'}</td>
-          <td><span class="status ${statusClass(status)}">${status}</span></td>
-          <td>${studentRowMenu(s.id)}</td>
+          <td>${profile ? `<span class="status ${statusClass(status)}">${status}</span>` : '<span class="status review">Student profile missing</span>'}</td>
+          <td>${profile ? studentRowMenu(s.id) : ''}</td>
         </tr>`;
-      }).join('') + '</tbody></table>';
-    bindStudentRowMenus();
+      }).join('') : '<tr><td colspan="9" class="muted-cell">No student accounts found.</td></tr>') + '</tbody></table>';
+    if (students.length) bindStudentRowMenus();
 
   } else {
     wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Children</th><th></th></tr></thead><tbody>` +
@@ -411,7 +520,10 @@ export function renderPeopleTab(tab) {
       set_editingUserId(p.id);
       $('nu-modal-title').textContent = 'Edit person';
       $('nu-feedback').textContent = '';
-      $('nu-name').value = p.name;
+      const parts = splitPersonName(p.name);
+      $('nu-first-name').value = parts.first;
+      $('nu-middle-name').value = parts.middle;
+      $('nu-last-name').value = parts.last;
       $('nu-email').value = p.email;
       $('nu-phone').value = p.phone || '';
       $('nu-password').value = '';
@@ -868,9 +980,10 @@ export function renderAdminAnalytics() {
       </tr>`;
     }).join('');
 
+    $('analytics-attendance-head').innerHTML = `<tr><th>Student</th>${Array.from({ length: 16 }, (_, i) => `<th>W${i + 1}</th>`).join('')}<th>%</th><th>Rating</th></tr>`;
     $('analytics-attendance').innerHTML = students.map(s => {
       const wks   = Data.studentAttendance(s.id, term);
-      const cells = ['W1', 'W2', 'W3', 'W4'].map(w => `<td>${Number(wks[w]) || 0}/5</td>`).join('');
+      const cells = Array.from({ length: 16 }, (_, i) => `<td>${Number(wks[`W${i + 1}`]) || 0}/5</td>`).join('');
       const pct   = +Academic.attendancePct(s.id, term);
       const rating = pct >= 90 ? 'Excellent' : pct >= 75 ? 'Good' : pct >= 60 ? 'Fair' : 'At risk';
       const rc     = pct >= 90 ? 'promoted' : pct >= 75 ? 'review' : 'repeat';
@@ -910,21 +1023,21 @@ export function renderAdminAnalytics() {
     const subs  = Academic.classSubjects(classId);
     const mrows = students.map(s => {
       const sc   = Data.studentScores(s.id);
-      const cas  = subs.map(sub => { const e = sc[sub.id]?.[term]; return (e && Number.isFinite(e.test)) ? e.test : ''; });
+      const cas  = subs.map(sub => { const e = sc[sub.id]?.[term]; return (e && Number.isFinite(e.midterm)) ? e.midterm : ''; });
       const nums = cas.filter(v => v !== '');
       const avg  = nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : '';
       return { s, cas, avg };
     });
     $('midterm-report-head').innerHTML =
-      `<tr><th>Student</th>${subs.map(sub => `<th>${esc(sub.name)}</th>`).join('')}<th>Avg (CA)</th></tr>`;
+      `<tr><th>Student</th>${subs.map(sub => `<th>${esc(sub.name)}</th>`).join('')}<th>Avg (20)</th></tr>`;
     $('midterm-report-body').innerHTML = mrows.map(r => `<tr>
       <td><div class="student"><span class="student-avatar ${toneClass(r.s.tone)}">${r.s.initials}</span>${esc(r.s.name)}</div></td>
       ${r.cas.map(c => `<td>${c === '' ? '<span class="muted-cell">—</span>' : c}</td>`).join('')}
-      <td><strong>${r.avg === '' ? '—' : r.avg + ' / 40'}</strong></td>
+      <td><strong>${r.avg === '' ? '—' : r.avg + ' / 20'}</strong></td>
     </tr>`).join('');
     $('midterm-download-btn').onclick = () => {
       const rows = [[`Happy Man Academy — ${cl?.name || ''} mid-term report · Term ${term}`],
-                    ['Student ID', 'Student', ...subs.map(x => x.name), 'Avg (CA only)']];
+                    ['Student ID', 'Student', ...subs.map(x => x.name), 'Avg (mid-term only)']];
       mrows.forEach(r => rows.push([r.s.id, r.s.name, ...r.cas, r.avg]));
       downloadXlsx(`midterm_${cl?.name.replace(/\s+/g, '_') || 'class'}_term${term}.xlsx`, rows, `Mid-term · Term ${term}`);
       toast('Mid-term report downloaded.');
@@ -991,6 +1104,31 @@ export function renderAdminLeaderboard() {
       </div>
     </article>
   `).join('');
+
+  $('leaderboard-subjects').innerHTML = classes.map(cl => {
+    const classStudents = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');
+    const subjectCards = Data.subjectsForClass(cl.id).map(subject => {
+      const ranked = classStudents.map(student => ({
+        student,
+        score: Academic.subjectScore(student.id, subject.id, term)
+      })).filter(row => row.score !== null && row.score !== undefined)
+        .sort((a, b) => b.score - a.score || a.student.name.localeCompare(b.student.name))
+        .slice(0, 3);
+      if (!ranked.length) return '';
+      return `<article class="panel">
+        <div class="panel-heading"><h3>${esc(subject.name)}</h3><span class="read-only-badge">Top ${ranked.length}</span></div>
+        <div class="table-wrap mt16"><table>
+          <thead><tr><th>#</th><th>Student</th><th>Term ${term}</th></tr></thead>
+          <tbody>${ranked.map((row, i) => `<tr>
+            <td><strong class="leaderboard-rank ${i < 3 ? 'top-' + (i + 1) : ''}">${i + 1}</strong></td>
+            <td><div class="student"><span class="student-avatar ${toneClass(row.student.tone)}">${row.student.initials}</span>${esc(row.student.name)}</div></td>
+            <td><span class="score">${row.score}%</span></td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </article>`;
+    }).filter(Boolean).join('');
+    return subjectCards ? `<section><h3 class="mb8">${esc(cl.name)}</h3><div style="display:grid;gap:12px">${subjectCards}</div></section>` : '';
+  }).filter(Boolean).join('') || '<p class="muted-cell">No subject scores recorded for this term.</p>';
 }
 
 // ── Admin · Setup ─────────────────────────────────────────────
@@ -1007,6 +1145,12 @@ export function renderAdminSetup() {
   $('toggle-test-upload').onclick = () => {
     const s = Data.session();
     s.uploadOpen.test = !s.uploadOpen.test;
+    Data.saveSession(s);
+    updateUploadLabels(s);
+  };
+  $('toggle-midterm-upload').onclick = () => {
+    const s = Data.session();
+    s.uploadOpen.midterm = !s.uploadOpen.midterm;
     Data.saveSession(s);
     updateUploadLabels(s);
   };
@@ -1068,8 +1212,8 @@ export function renderAdminSetup() {
   $all('[data-term-save]').forEach(btn => btn.onclick = async () => {
     const row = btn.closest('.term-date-row');
     const termNum = +btn.dataset.termSave;
-    await Data.saveTermDates(termNum, row.querySelector('[data-term-start]').value, row.querySelector('[data-term-end]').value);
-    toast(`${termNameOf(termNum)} dates saved.`);
+    const saved = await Data.saveTermDates(termNum, row.querySelector('[data-term-start]').value, row.querySelector('[data-term-end]').value);
+    toast(saved === false ? 'Set a Monday start date to build the 16-week attendance calendar.' : `${termNameOf(termNum)} dates saved.`, saved === false ? 'error' : 'success');
   });
   $all('[data-term-activate]').forEach(btn => btn.onclick = async () => {
     const termNum = +btn.dataset.termActivate;
@@ -1138,6 +1282,7 @@ export function updateUploadLabels(sess) {
   if (setupForm && window.Alpine) {
     const data = Alpine.$data(setupForm);
     if (data) {
+      data.midtermOpen = !!sess.uploadOpen.midterm;
       data.testOpen = !!sess.uploadOpen.test;
       data.examOpen = !!sess.uploadOpen.exam;
     }

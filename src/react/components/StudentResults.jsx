@@ -49,13 +49,13 @@ export default function StudentResults() {
         const t1Rows = isTerm3 ? (fetchedData.gradesByTerm[1] || []) : [];
         const t2ById = Object.fromEntries(
           t2Rows.map(r => {
-            const total = (r.test != null && r.exam != null) ? r.test + r.exam : null;
+            const total = (r.test != null && r.exam != null) ? (r.midterm == null ? r.test : r.midterm + r.test) + r.exam : null;
             return [String(r.subject_id), total];
           })
         );
         const t1ById = Object.fromEntries(
           t1Rows.map(r => {
-            const total = (r.test != null && r.exam != null) ? r.test + r.exam : null;
+            const total = (r.test != null && r.exam != null) ? (r.midterm == null ? r.test : r.midterm + r.test) + r.exam : null;
             return [String(r.subject_id), total];
           })
         );
@@ -63,14 +63,15 @@ export default function StudentResults() {
         const pm = passMark();
 
         const header = isTerm3
-          ? ['Subject', 'Type', 'CA (40)', 'Exam (60)', 'T3 Total', 'T2 Total', 'T1 Total', '3-Term Avg', 'Grade', 'Status']
-          : ['Subject', 'Type', 'CA (40)', 'Exam (60)', 'Total', 'Grade', 'Status'];
+          ? ['Subject', 'Type', 'Mid-term (20)', 'Second-half CA (20)', 'Exam (60)', 'T3 Total', 'T2 Total', 'T1 Total', '3-Term Avg', 'Grade', 'Status']
+          : ['Subject', 'Type', 'Mid-term (20)', 'Second-half CA (20)', 'Exam (60)', 'Total', 'Grade', 'Status'];
 
         const dataRows = rows.map(row => {
           const sub = subjects.find(s => String(s.id) === String(row.subject_id));
+          const midterm = row.midterm ?? null;
           const ca   = row.test  ?? null;
           const exam = row.exam  ?? null;
-          const t3tot = (ca !== null && exam !== null) ? ca + exam : null;
+          const t3tot = (ca !== null && exam !== null) ? (midterm == null ? ca : midterm + ca) + exam : null;
 
           if (isTerm3) {
             const t2 = t2ById[String(row.subject_id)] ?? null;
@@ -81,7 +82,7 @@ export default function StudentResults() {
             return [
               sub?.name ?? '—',
               sub?.type === 'core' ? 'Core' : 'Elective',
-              ca ?? '—', exam ?? '—',
+              midterm ?? '—', ca ?? '—', exam ?? '—',
               t3tot ?? '—', t2 ?? '—', t1 ?? '—', avg3 ?? '—',
               avg3 !== null ? gradeLabel(avg3) : '—',
               avg3 !== null ? (pass ? 'Pass' : 'Fail') : '—',
@@ -92,7 +93,7 @@ export default function StudentResults() {
             return [
               sub?.name ?? '—',
               sub?.type === 'core' ? 'Core' : 'Elective',
-              ca ?? '—', exam ?? '—',
+              midterm ?? '—', ca ?? '—', exam ?? '—',
               total ?? '—',
               total !== null ? gradeLabel(total) : '—',
               total !== null ? (pass ? 'Pass' : 'Fail') : '—',
@@ -165,7 +166,7 @@ export default function StudentResults() {
               <tr>
                 <td
                   dangerouslySetInnerHTML={{ __html: resultsLockedNote(currentTerm()) }}
-                  colSpan={7}
+                  colSpan={8}
                   className="muted-cell"
                 />
               </tr>
@@ -199,7 +200,7 @@ export default function StudentResults() {
                     <tr>
                       <th rowSpan={2} style={{textAlign:'left'}}>Subject</th>
                       <th rowSpan={2}>Type</th>
-                      <th colSpan={3}>Score breakdown</th>
+                      <th colSpan={4}>Score breakdown</th>
                       <th rowSpan={2}>T2 Total</th>
                       <th rowSpan={2}>T1 Total</th>
                       <th rowSpan={2}>3-Term Avg</th>
@@ -207,7 +208,7 @@ export default function StudentResults() {
                       <th rowSpan={2}>Status</th>
                     </tr>
                     <tr className="cr-sub-row">
-                      <th>CA (40)</th><th>Exam (60)</th><th>T3 Total</th>
+                      <th>Mid-term</th><th>Second-half CA</th><th>Exam</th><th>T3 Total</th>
                     </tr>
                   </>
                 ) : (
@@ -215,12 +216,12 @@ export default function StudentResults() {
                     <tr>
                       <th rowSpan={2} style={{textAlign:'left'}}>Subject</th>
                       <th rowSpan={2}>Type</th>
-                      <th colSpan={3}>Score breakdown</th>
+                      <th colSpan={4}>Score breakdown</th>
                       <th rowSpan={2}>Grade</th>
                       <th rowSpan={2}>Status</th>
                     </tr>
                     <tr className="cr-sub-row">
-                      <th>CA (40)</th><th>Exam (60)</th><th>Total</th>
+                      <th>Mid-term</th><th>Second-half CA</th><th>Exam</th><th>Total</th>
                     </tr>
                   </>
                 )}
@@ -230,12 +231,13 @@ export default function StudentResults() {
                   <tr>
                     <td
                       dangerouslySetInnerHTML={{ __html: resultsLockedNote(activeTerm) }}
-                      colSpan={7}
+                      colSpan={isTerm3 ? 11 : 8}
                       className="muted-cell"
                     />
                   </tr>
                 ) : isTerm3 ? (
                   scores.map((sub, idx) => {
+                    const midterm = sub.midterm ?? '—';
                     const ca    = sub.ca   ?? '—';
                     const exam  = sub.exam ?? '—';
                     const total = sub.score;
@@ -260,6 +262,7 @@ export default function StudentResults() {
                         <td className="muted-cell">
                           {sub.type === 'core' ? 'Core' : 'Elective'}
                         </td>
+                        <td>{midterm}</td>
                         <td>{ca}</td>
                         <td>{exam}</td>
                         <td><strong>{total ?? '—'}</strong></td>
@@ -279,6 +282,7 @@ export default function StudentResults() {
                   })
                 ) : (
                   scores.map((sub, idx) => {
+                    const midterm = sub.midterm ?? '—';
                     const ca    = sub.ca   ?? '—';
                     const exam  = sub.exam ?? '—';
                     const total = sub.score;
@@ -297,6 +301,7 @@ export default function StudentResults() {
                         <td className="muted-cell">
                           {sub.type === 'core' ? 'Core' : 'Elective'}
                         </td>
+                        <td>{midterm}</td>
                         <td>{ca}</td>
                         <td>{exam}</td>
                         <td><strong>{total ?? '—'}</strong></td>

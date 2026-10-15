@@ -368,7 +368,7 @@
           <span class="role-muted">as uploaded by class teachers</span></div>
         <div class="table-wrap mt16">
           <table>
-            <thead><tr><th>Student</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th><th>%</th><th>Rating</th></tr></thead>
+            <thead id="analytics-attendance-head"></thead>
             <tbody id="analytics-attendance"></tbody>
           </table>
         </div>
@@ -384,11 +384,11 @@
         </div>
       </div>
       <div class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow">Mid-term report</p><h2>CA scores uploaded so far</h2></div>
+        <div class="panel-heading"><div><p class="eyebrow">Mid-term report</p><h2>Mid-term scores uploaded so far</h2></div>
           <div class="midterm-actions">
             <button class="outline-button" id="midterm-download-btn" style="width:auto;margin:0;background:var(--blue-soft);border-color:var(--blue);color:var(--blue)">&darr; Download mid-term report (.xlsx)</button>
           </div></div>
-        <p class="role-muted">Only the CA test scores subject teachers have uploaded are listed &mdash; exam marks are never included. Mid-term break: <span id="midterm-break-label" class="strong-neutral">&mdash;</span></p>
+        <p class="role-muted">Only the mid-term assessment scores are listed &mdash; second-half CA and exam marks are not included. Mid-term break: <span id="midterm-break-label" class="strong-neutral">&mdash;</span></p>
         <div class="table-wrap mt16">
           <table>
             <thead id="midterm-report-head"></thead>
@@ -416,6 +416,10 @@
         <div><h2>Top Performers by Class</h2><p class="subcopy">Best students in each class</p></div>
       </section>
       <div id="leaderboard-classes" class="mt16" style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(500px,1fr))"></div>
+      <section class="welcome-row mt16">
+        <div><h2>Top 3 by Subject and Class</h2><p class="subcopy">Highest current-term scores in each class and subject</p></div>
+      </section>
+      <div id="leaderboard-subjects" class="mt16" style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(420px,1fr))"></div>
     </div>
 
     <!-- Admin: Recognition -->
@@ -466,7 +470,7 @@
       <div class="setup-grid">
         <article class="panel">
           <div class="panel-heading"><div><p class="eyebrow">Academic year</p><h2>Session settings</h2></div></div>
-          <div class="setup-form" id="session-setup-form" x-data="{ testOpen: false, examOpen: false }">
+          <div class="setup-form" id="session-setup-form" x-data="{ midtermOpen: false, testOpen: false, examOpen: false }">
             <div class="form-group mt16">
               <label>Current session</label>
               <input id="setup-session-name" type="text" placeholder="e.g. 2025 / 2026">
@@ -480,7 +484,14 @@
               </select>
             </div>
             <div class="form-group">
-              <label>Upload: CA (40) scores</label>
+              <label>Upload: Mid-term (20) scores</label>
+              <div class="toggle-row">
+                <span id="upload-midterm-label" x-text="midtermOpen ? 'Open' : 'Closed'" :class="midtermOpen ? 'open-label' : 'closed-label'"></span>
+                <button class="toggle-btn" id="toggle-midterm-upload" data-type="midterm">Toggle</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Upload: Second-half CA (20) scores</label>
               <div class="toggle-row">
               <span id="upload-test-label"
                     x-text="testOpen ? 'Open' : 'Closed'"
@@ -518,7 +529,7 @@
 
         <article class="panel">
           <div class="panel-heading"><div><p class="eyebrow">Term calendar</p><h2>Term dates</h2></div></div>
-          <p class="role-muted">Edit the start and end dates for each term of the current session.</p>
+          <p class="role-muted">Set the term’s first school date (a Monday) and final date. The attendance register builds 16 Mon–Fri school weeks from the start date, skips weekends and the configured mid-term break, and allows edits only for today.</p>
           <div id="term-dates-list" class="mt16"></div>
         </article>
 
@@ -597,7 +608,7 @@
       </section>
       <div class="panel mt16">
         <div class="panel-heading">
-          <div><p class="eyebrow">CA (40) + Exam (60)</p><h2>All subjects</h2></div>
+          <div><p class="eyebrow">Mid-term (20) + Second-half CA (20) + Exam (60)</p><h2>All subjects</h2></div>
           <span class="read-only-badge">Promotion rule: at least 50% in Maths &amp; English, and overall average at least 50% (exactly 50 passes)</span>
         </div>
         <div class="table-wrap mt16" id="cr-report-table"></div>
@@ -704,7 +715,7 @@
 
     <div class="page-wrap" id="view-subject-scores" data-role="Subject Teacher" hidden>
       <section class="welcome-row role-welcome">
-        <div><p class="eyebrow">Score management</p><h1>Student scores</h1><p class="subcopy">Only the classes you are allocated to teach &mdash; CA and exam recorded separately.</p></div>
+        <div><p class="eyebrow">Score management</p><h1>Student scores</h1><p class="subcopy">Only your allocated classes — mid-term (20), second-half CA (20), and exam (60).</p></div>
         <div class="form-row tight">
           <select id="st-score-subject" class="select-inline" aria-label="Subject"></select>
           <select id="st-score-class" class="select-inline" aria-label="Class"></select>
@@ -720,7 +731,7 @@
         <p class="role-muted" id="st-scores-meta">&mdash;</p>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Student</th><th>Class</th><th>CA (40)</th><th>Exam (60)</th><th>Total (100)</th><th>Grade</th></tr></thead>
+            <thead><tr><th>Student</th><th>Class</th><th>Mid-term (20)</th><th>Second-half CA (20)</th><th>Exam (60)</th><th>Total (100)</th><th>Grade</th></tr></thead>
             <tbody id="st-scores-table"></tbody>
           </table>
         </div>
@@ -1059,7 +1070,7 @@
         <p class="role-muted" id="par-results-meta" style="margin-top:10px">&mdash;</p>
         <div class="table-wrap mt16">
           <table>
-            <thead><tr><th>Subject</th><th>CA (40)</th><th>Exam (60)</th><th>Total (100)</th><th>Grade</th><th>Breakdown</th><th>Status</th></tr></thead>
+            <thead><tr><th>Subject</th><th>Mid-term (20)</th><th>Second-half CA (20)</th><th>Exam (60)</th><th>Total (100)</th><th>Grade</th><th>Breakdown</th><th>Status</th></tr></thead>
             <tbody id="par-results-table"></tbody>
           </table>
         </div>
@@ -1139,8 +1150,12 @@
   <div class="modal">
     <div class="modal-header"><h3 id="nu-modal-title">Add person</h3><button type="button" class="close-modal" data-modal="add-user-modal">&times;</button></div>
     <div class="modal-body">
-      <div class="form-group"><label for="nu-name">Full name</label><input id="nu-name" type="text" placeholder="e.g. Kwame Asante"></div>
-      <div class="form-group"><label for="nu-email">Email</label><input id="nu-email" type="email" placeholder="kwame@happyman.edu"></div>
+      <div class="form-row">
+        <div class="form-group"><label for="nu-first-name">First name</label><input id="nu-first-name" type="text" autocomplete="given-name" required></div>
+        <div class="form-group"><label for="nu-middle-name">Middle name <small class="muted-cell">(optional)</small></label><input id="nu-middle-name" type="text" autocomplete="additional-name"></div>
+        <div class="form-group"><label for="nu-last-name">Last name</label><input id="nu-last-name" type="text" autocomplete="family-name" required></div>
+      </div>
+      <div class="form-group"><label for="nu-email">Generated email</label><input id="nu-email" type="email" placeholder="firstname.lastname@happy.edu" readonly><small class="muted-cell">Created automatically from first and last name. A number is added if the address is already in use.</small></div>
       <div class="form-group" id="nu-phone-group" hidden>
         <label for="nu-phone">Phone number <span class="required-tag" id="nu-phone-required" hidden>required</span></label>
         <input id="nu-phone" type="tel" placeholder="e.g. 08012345678">
@@ -1177,13 +1192,13 @@
         <span>Make this teacher a designated mentor</span>
       </label>
 
-      <div class="form-group"><label for="nu-password">Password</label><input id="nu-password" type="text" placeholder="Leave blank to keep the current one">
+      <div class="form-group"><label for="nu-password">Password</label><input id="nu-password" type="password" placeholder="Required for a new account; leave blank when editing" autocomplete="new-password">
         <small class="muted-cell">Only the account's holder is given the password — it is stored hashed, never shown again.</small></div>
       <div id="nu-feedback" class="form-feedback mt8"></div>
     </div>
     <div class="modal-footer">
-      <button class="outline-button" data-modal="add-user-modal" style="width:auto;margin:0">Cancel</button>
-      <button class="btn-primary" id="save-user-btn" style="width:auto;margin:0">Add person</button>
+      <button type="button" class="outline-button" data-modal="add-user-modal" style="width:auto;margin:0">Cancel</button>
+      <button type="button" class="btn-primary" id="save-user-btn" style="width:auto;margin:0">Add person</button>
     </div>
   </div>
 </div>

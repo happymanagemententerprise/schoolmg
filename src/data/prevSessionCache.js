@@ -160,8 +160,9 @@ export async function fetchPrevSession(studentId, sessionId) {
     if (!gradesByTerm[termNum]) gradesByTerm[termNum] = [];
     gradesByTerm[termNum].push({
       subject_id: g.subject_id,
-      test:       g.test,
-      exam:       g.exam
+      midterm: g.midterm_score == null ? null : Number(g.midterm_score),
+      test: Number(g.ca_score) || 0,
+      exam: Number(g.exam_score) || 0
     });
   }
 

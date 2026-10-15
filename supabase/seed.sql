@@ -484,7 +484,7 @@ select p.id, s.id
 on conflict (parent_id, student_id) do nothing;
 
 -- ---------------------------------------------------------------------
--- Grades — CA (max 40) + Exam (max 60) for terms 1 and 2
+-- Grades — mid-term (20) + second-half CA (20) + Exam (60) for terms 1 and 2
 -- Deterministic pseudo-random values so the demo is reproducible.
 -- The three best students are boosted so the promotion rule is visible.
 -- ---------------------------------------------------------------------
@@ -500,12 +500,14 @@ cs as (
       on sub.level in ('BOTH', c.level)
      and (c.level = 'JSS' or c.stream is null or sub.group_name in ('General', c.stream))
 )
-insert into grades (student_id, subject_id, term_id, ca_score, exam_score)
+insert into grades (student_id, subject_id, term_id, midterm_score, ca_score, exam_score)
 select st.id,
        cs.subject_id,
        t.id,
-       least(40, 17 + mod(abs(hashtext(st.admission_no || cs.subject_id::text || t.id::text)), 5) * 5
-                   + case when st.rn <= 3 then 5 else 0 end),
+       least(20, 8 + mod(abs(hashtext(st.admission_no || cs.subject_id::text || t.id::text)), 3) * 4
+                   + case when st.rn <= 3 then 4 else 0 end),
+       least(20, 8 + mod(abs(hashtext(cs.subject_id::text || t.id::text || st.admission_no)), 3) * 4
+                   + case when st.rn <= 3 then 4 else 0 end),
        least(60, 24 + mod(abs(hashtext(cs.subject_id::text || t.id::text || st.admission_no)), 7) * 5
                    + case when st.rn <= 3 then 5 else 0 end)
   from st
@@ -519,12 +521,17 @@ on conflict (student_id, subject_id, term_id) do nothing;
 -- English: 35/100, Maths: 40/100, Average: ~42% (below 50% requirement)
 -- This demonstrates a student who needs to repeat the year.
 -- ---------------------------------------------------------------------
-insert into grades (student_id, subject_id, term_id, ca_score, exam_score)
+insert into grades (student_id, subject_id, term_id, midterm_score, ca_score, exam_score)
 select s.id, sub.id, t.id,
        case
-         when sub.name = 'English Studies' then 14  -- CA score (out of 40)
-         when sub.name = 'Mathematics'     then 16
-         else least(40, 12 + mod(abs(hashtext(sub.name)), 3) * 4)  -- Other subjects also low
+         when sub.name = 'English Studies' then 7
+         when sub.name = 'Mathematics'     then 8
+         else least(20, 6 + mod(abs(hashtext(sub.name)), 3) * 2)
+       end,
+       case
+         when sub.name = 'English Studies' then 7  -- Together with exam: 35/100
+         when sub.name = 'Mathematics'     then 8  -- Together with exam: 40/100
+         else least(20, 6 + mod(abs(hashtext(sub.name)), 3) * 2)
        end,
        case
          when sub.name = 'English Studies' then 21  -- Exam score (out of 60)

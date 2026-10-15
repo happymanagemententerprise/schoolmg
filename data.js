@@ -38,6 +38,7 @@ const _cache = {
   departments:    [],
   attendance:     {},     // { term: { studentId: { W1: days, ... } } }
   attendanceDaily:{},     // { term: { Wk: { studentId: [P/L/A per weekday] } } }
+  attendanceDailyDates:{}, // { term: { Wk: { studentId: [school-date per weekday] } } }
   feedback:       {},     // { studentId: { term, text, status, submitted } }
   remarks:        [],     // { studentId, term, text, status, decidedBy, ... }
   sessionsAll:    [],     // every academic session (current + archived)
@@ -243,8 +244,9 @@ function _hydrate(raw) {
     if (!_cache.scores[sid]) _cache.scores[sid] = {};
     if (!_cache.scores[sid][sub]) _cache.scores[sid][sub] = {};
     _cache.scores[sid][sub][_termNumFromId(g.term_id)] = {
-      test: Number(g.ca_score)   || 0,   // continuous assessment, max 40
-      exam: Number(g.exam_score) || 0    // examination,        max 60
+      midterm: g.midterm_score == null ? null : Number(g.midterm_score),
+      test: Number(g.ca_score) || 0,     // second-half CA, max 20 for the new three-part scheme
+      exam: Number(g.exam_score) || 0     // examination, max 60; legacy CA+exam rows stay identifiable
     };
   }
 
@@ -286,15 +288,21 @@ function _hydrate(raw) {
 
   // ── daily attendance, grouped per term / week / student
   _cache.attendanceDaily = {};
+  _cache.attendanceDailyDates = {};
   for (const a of raw.attendanceDaily) {
     const term  = _termNumFromId(a.term_id);
     const wk    = `W${a.week_number || 1}`;
     const sid   = String(a.student_id);
     _cache.attendanceDaily[term] = _cache.attendanceDaily[term] || {};
     _cache.attendanceDaily[term][wk] = _cache.attendanceDaily[term][wk] || {};
+    _cache.attendanceDailyDates[term] = _cache.attendanceDailyDates[term] || {};
+    _cache.attendanceDailyDates[term][wk] = _cache.attendanceDailyDates[term][wk] || {};
     const arr = _cache.attendanceDaily[term][wk][sid] || [];
+    const dates = _cache.attendanceDailyDates[term][wk][sid] || [];
     arr[a.day_index] = a.status;
+    dates[a.day_index] = a.attendance_date || null;
     _cache.attendanceDaily[term][wk][sid] = arr;
+    _cache.attendanceDailyDates[term][wk][sid] = dates;
   }
 
   // ── teacher remarks — prefer the remark for the current term.
@@ -644,7 +652,7 @@ function _mapSession(sessionRows, termRows) {
     _id:          sessRow?.id || null,
     name,
     currentTerm:  current.term,
-    uploadOpen:   sessRow?.upload_open || { test: false, exam: false },
+    uploadOpen:   { midterm: false, test: false, exam: false, ...(sessRow?.upload_open || {}) },
     midtermBreak: sessRow?.midterm_break || { start: null, end: null },
     terms
   };
@@ -654,7 +662,7 @@ function _mapSession(sessionRows, termRows) {
 async function _ensureSession() {
   try {
     const { data: s } = await _sb.from('sessions')
-      .insert({ name: '2026 / 2027', is_current: true, upload_open: { test: false, exam: true } })
+      .insert({ name: '2026 / 2027', is_current: true, upload_open: { midterm: false, test: false, exam: true } })
       .select().single();
     if (!s) return;
     await _sb.from('terms').insert([
@@ -694,6 +702,14 @@ function nextTermDates(terms) {
     return { start: shift(t.start), end: shift(t.end) };
   });
 }
+function _isoDateInSchoolTimezone(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(date);
+}
+function _addIsoDays(isoDate, count) {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + count);
+  return d.toISOString().slice(0, 10);
+}
 function avatarInitials(n) {
   if (!n) return '?';
   return n.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
@@ -707,7 +723,7 @@ function _loadSeedFallback() {
 
   _cache.session = DB.get('session') || {
     _id: null, name: '2026 / 2027', currentTerm: 1,
-    uploadOpen: { test: false, exam: true },
+    uploadOpen: { midterm: false, test: false, exam: true },
     midtermBreak: { start: null, end: null },
     terms: [
       { _id: null, term: 1, name: '1st Term', start: null, end: null },
@@ -715,6 +731,7 @@ function _loadSeedFallback() {
       { _id: null, term: 3, name: '3rd Term', start: null, end: null }
     ]
   };
+  _cache.session.uploadOpen = { midterm: false, test: false, exam: false, ...(_cache.session.uploadOpen || {}) };
   _cache.users          = DB.get('users')          || [];
   _cache.subjects       = DB.get('subjects')       || [];
   _cache.classes        = DB.get('classes')        || [];
@@ -725,6 +742,7 @@ function _loadSeedFallback() {
   _cache.departments    = DB.get('departments')    || [];
   _cache.attendance     = DB.get('attendance')     || {};
   _cache.attendanceDaily= DB.get('attendanceDaily')|| {};
+  _cache.attendanceDailyDates= DB.get('attendanceDailyDates')|| {};
   _cache.feedback       = DB.get('feedback')       || {};
   _cache.remarks        = DB.get('remarks')        || [];
   _cache.sessionsAll    = DB.get('sessionsAll')    || [{
@@ -773,7 +791,7 @@ function _loadDemoSchool() {
   const rand = seed => { const x = Math.sin(seed * 12.9898) * 43758.5453; return x - Math.floor(x); };
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
-  const session = [{ id: 1, name: '2026 / 2027', is_current: true, upload_open: { test: false, exam: true }, midterm_break: { start: '2026-10-26', end: '2026-10-30' } }];
+  const session = [{ id: 1, name: '2026 / 2027', is_current: true, upload_open: { midterm: false, test: false, exam: true }, midterm_break: { start: '2026-10-26', end: '2026-10-30' } }];
   const terms = [
     { id: 1, session_id: 1, name: '1st Term', is_current: true,  start_date: '2026-09-07', end_date: '2026-12-18' },
     { id: 2, session_id: 1, name: '2nd Term', is_current: false, start_date: '2027-01-11', end_date: '2027-04-09' },
@@ -1024,7 +1042,8 @@ function _loadDemoSchool() {
         const base = clamp(strength + wobble, 0.05, 0.98);
         grades.push({
           id: gId++, student_id: st.id, subject_id: s.id, term_id: termId,
-          ca_score: clamp(Math.round(base * 40 + rand(s.id + termId) * 3), 0, 40),
+          midterm_score: clamp(Math.round(base * 20 + rand(s.id + termId) * 1.5), 0, 20),
+          ca_score: clamp(Math.round(base * 20 + rand(s.id + termId) * 1.5), 0, 20),
           exam_score: clamp(Math.round(base * 60 + rand(s.id * 2 + termId) * 4), 0, 60)
         });
       });
@@ -1046,7 +1065,8 @@ function _loadDemoSchool() {
         const base = clamp(emekaRecovery + (rand(emeka.id * 31 + s.id * 13 + termId * 5) - 0.5) * 0.10, 0.05, 0.55);
         grades.push({
           id: gId++, student_id: emeka.id, subject_id: s.id, term_id: termId,
-          ca_score:   clamp(Math.round(base * 40), 0, 40),
+          midterm_score: clamp(Math.round(base * 20), 0, 20),
+          ca_score:   clamp(Math.round(base * 20), 0, 20),
           exam_score: clamp(Math.round(base * 60), 0, 60)
         });
       });
@@ -1282,7 +1302,7 @@ const Data = {
     let row = { id: uid('sess_'), name: label, isCurrent: false, isClosed: false };
     try {
       const { data, error } = await _sb.from('sessions')
-        .insert({ name: label, is_current: false, upload_open: { test: false, exam: false } })
+        .insert({ name: label, is_current: false, upload_open: { midterm: false, test: false, exam: false } })
         .select().single();
       if (error) throw error;
       row = { id: String(data.id), name: label, isCurrent: false, isClosed: false };
@@ -1363,14 +1383,18 @@ const Data = {
   async saveTermDates(termNum, start, end) {
     const s = _cache.session; if (!s) return;
     const t = s.terms.find(x => x.term === Number(termNum)); if (!t) return;
+    if (!start || new Date(`${start}T12:00:00Z`).getUTCDay() !== 1) return false;
     t.start = start || null;
     t.end   = end   || null;
     DB.set('session', s);
-    if (!t._id) return;
+    if (!t._id) return true;
     try {
-      await _sb.from('terms').update({ start_date: t.start, end_date: t.end }).eq('id', Number(t._id));
+      const { error } = await _sb.from('terms').update({ start_date: t.start, end_date: t.end }).eq('id', Number(t._id));
+      if (error) throw error;
+      return true;
     } catch (err) {
       console.warn('[HMA] term dates not saved remotely:', err?.message || err);
+      return false;
     }
   },
 
@@ -1455,7 +1479,7 @@ const Data = {
     let newId = null, termRows = [];
     try {
       const { data: s } = await _sb.from('sessions')
-        .insert({ name: label, is_current: true, upload_open: { test: false, exam: false }, midterm_break: null })
+        .insert({ name: label, is_current: true, upload_open: { midterm: false, test: false, exam: false }, midterm_break: null })
         .select().single();
       newId = s?.id ?? null;
       if (newId) {
@@ -1482,7 +1506,7 @@ const Data = {
       _id: newId ? String(newId) : null,
       name: label,
       currentTerm: 1,
-      uploadOpen: { test: false, exam: false },
+      uploadOpen: { midterm: false, test: false, exam: false },
       midtermBreak: { start: null, end: null },
       terms: termRows.length ? [1, 2, 3].map(fromDb) : [def(1), def(2), def(3)]
     };
@@ -1520,6 +1544,19 @@ const Data = {
   // ── Users ─────────────────────────────────────────────────
   users()            { return _cache.users; },
   userByEmail(email) { return _cache.users.find(u => u.email === email) || null; },
+  async emailExists(email) {
+    const normalised = String(email || '').trim().toLowerCase();
+    if (!normalised) return false;
+    if (_cache.users.some(u => String(u.email || '').toLowerCase() === normalised)) return true;
+    try {
+      const { data, error } = await _sb.from('users').select('id').eq('email', normalised).limit(1).maybeSingle();
+      if (error) throw error;
+      return !!data;
+    } catch (err) {
+      console.warn('[HMA] email availability could not be checked remotely:', err?.message || err);
+      return false;
+    }
+  },
   user(id)           { return _cache.users.find(u => u.id === String(id)) || null; },
   teachers()         { return _cache.users.filter(u => ['Subject Teacher','Class Teacher','HOD'].includes(u.role)); },
 
@@ -1852,7 +1889,7 @@ const Data = {
 
   // Write a single CA/exam entry for one student+subject+term to both the
   // in-memory cache and the Supabase grades table.
-  async saveGrade(studentId, subjectId, term, ca, exam) {
+  async saveGrade(studentId, subjectId, term, midterm, ca, exam) {
     const sid  = String(studentId);
     const sub  = String(subjectId);
     const termId = _termIdFromNum(term);
@@ -1860,14 +1897,18 @@ const Data = {
     // Update cache immediately so the UI reflects the change without a reload
     if (!_cache.scores[sid]) _cache.scores[sid] = {};
     if (!_cache.scores[sid][sub]) _cache.scores[sid][sub] = {};
-    _cache.scores[sid][sub][term] = { test: Number(ca) || 0, exam: Number(exam) || 0 };
+    const cleanMidterm = Math.min(20, Math.max(0, Number(midterm) || 0));
+    const cleanCa = Math.min(20, Math.max(0, Number(ca) || 0));
+    const cleanExam = Math.min(60, Math.max(0, Number(exam) || 0));
+    _cache.scores[sid][sub][term] = { midterm: cleanMidterm, test: cleanCa, exam: cleanExam };
     try {
       const { error } = await _sb.from('grades').upsert({
         student_id: Number(sid),
         subject_id: Number(sub),
         term_id:    Number(termId),
-        ca_score:   Math.min(40, Math.max(0, Number(ca)  || 0)),
-        exam_score: Math.min(60, Math.max(0, Number(exam) || 0))
+        midterm_score: cleanMidterm,
+        ca_score: cleanCa,
+        exam_score: cleanExam
       }, { onConflict: 'student_id,subject_id,term_id' });
       if (error) throw error;
       return true;
@@ -2015,6 +2056,23 @@ const Data = {
 
   // ── Attendance (daily) ────────────────────────────────────
   dailyAttendance(term) { return _cache.attendanceDaily[term || this.currentTerm()] || {}; },
+  dailyAttendanceDates(term) { return _cache.attendanceDailyDates[term || this.currentTerm()] || {}; },
+  todayDate() { return _isoDateInSchoolTimezone(); },
+  attendanceDates(term) {
+    const termRow = this.session()?.terms?.find(t => t.term === Number(term || this.currentTerm()));
+    if (!termRow?.start) return [];
+    const start = termRow.start;
+    const breakStart = this.session()?.midtermBreak?.start || null;
+    const breakEnd = this.session()?.midtermBreak?.end || breakStart;
+    const schoolDates = [];
+    for (let date = start, guard = 0; schoolDates.length < 80 && guard < 400; date = _addIsoDays(date, 1), guard++) {
+      const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+      if (dow === 0 || dow === 6) continue;
+      if (breakStart && breakEnd && date >= breakStart && date <= breakEnd) continue;
+      schoolDates.push(date);
+    }
+    return schoolDates;
+  },
   dayStatus(sid, week, dayIdx, term) {
     const arr = this.dailyAttendance(term)[`W${week || 1}`]?.[String(sid)];
     return (arr && arr[dayIdx]) || null;
@@ -2026,6 +2084,8 @@ const Data = {
     const termId = _termIdFromNum(t);
     const day   = this.dailyAttendance(t);
     day[wk] = day[wk] || {};
+    _cache.attendanceDailyDates[t] = _cache.attendanceDailyDates[t] || {};
+    _cache.attendanceDailyDates[t][wk] = _cache.attendanceDailyDates[t][wk] || {};
     const inserts = [];
     const touched = [];
     const weekly  = [];
@@ -2038,8 +2098,9 @@ const Data = {
         else arr[d] = '';
       }
       day[wk][String(sid)] = arr;
+      _cache.attendanceDailyDates[t][wk][String(sid)] = Array(5).fill(null);
       if (!any) continue;
-      const presentDays = arr.filter(st => st && st !== 'absent').length;
+      const presentDays = arr.filter(st => st === 'present' || st === 'late').length;
       touched.push(Number(sid));
       weekly.push({ student_id: Number(sid), term_id: termId, week_number: week, days_present: presentDays });
       // roll the touched students into the weekly summary
@@ -2052,6 +2113,7 @@ const Data = {
       }
     }
     DB.set('attendanceDaily', _cache.attendanceDaily);
+    DB.set('attendanceDailyDates', _cache.attendanceDailyDates);
     DB.set('attendance', _cache.attendance);
     if (!termId || !touched.length) return;
     try {
@@ -2072,25 +2134,38 @@ const Data = {
   // Mark one school day for the whole class.
   // marks = { studentId: 'present' | 'absent' }; the week's roll-up and the
   // student/parent/admin views all update from this single save.
-  async saveDailyDay(week, dayIdx, marks, term) {
+  async saveDailyDay(week, dayIdx, marks, term, attendanceDate) {
     const t      = term || this.currentTerm();
     const wk     = `W${week}`;
     const termId = _termIdFromNum(t);
     const day    = this.dailyAttendance(t);
+    const slot = (Number(week) - 1) * 5 + Number(dayIdx);
+    const expectedDate = this.attendanceDates(t)[slot];
+    if (!expectedDate || attendanceDate !== expectedDate || attendanceDate !== this.todayDate()) {
+      console.warn('[HMA] attendance can only be changed for the current school date.');
+      return false;
+    }
     day[wk] = day[wk] || {};
+    _cache.attendanceDailyDates[t] = _cache.attendanceDailyDates[t] || {};
+    _cache.attendanceDailyDates[t][wk] = _cache.attendanceDailyDates[t][wk] || {};
     const upsert = [];
+    const touchedStudentIds = [];
     const weekly = [];
     for (const [sid, st] of Object.entries(marks)) {
-      if (st !== 'present' && st !== 'late' && st !== 'absent') continue;
+      if (st !== '' && st !== 'present' && st !== 'late' && st !== 'absent') continue;
       const arr = (day[wk][String(sid)] || []).slice();
-      arr[dayIdx] = st;
+      arr[dayIdx] = st || '';
       day[wk][String(sid)] = arr;
+      const dates = (_cache.attendanceDailyDates[t][wk][String(sid)] || []).slice();
+      dates[dayIdx] = attendanceDate;
+      _cache.attendanceDailyDates[t][wk][String(sid)] = dates;
+      touchedStudentIds.push(Number(sid));
       upsert.push({
         student_id: Number(sid), term_id: termId,
-        week_number: Number(week), day_index: Number(dayIdx), status: st
+        week_number: Number(week), day_index: Number(dayIdx), attendance_date: attendanceDate, status: st || 'unmarked'
       });
       // recompute that student's week from the five cells now that the day is in
-      const presentDays = arr.filter(x => x && x !== 'absent').length;
+      const presentDays = arr.filter(x => x === 'present' || x === 'late').length;
       weekly.push({ student_id: Number(sid), term_id: termId, week_number: Number(week), days_present: presentDays });
       const att = _cache.attendance[t] || {};
       att[String(sid)] = att[String(sid)] || {};
@@ -2098,17 +2173,23 @@ const Data = {
       _cache.attendance[t] = att;
     }
     DB.set('attendanceDaily', _cache.attendanceDaily);
+    DB.set('attendanceDailyDates', _cache.attendanceDailyDates);
     DB.set('attendance', _cache.attendance);
-    if (!termId || !upsert.length) return;
+    if (!touchedStudentIds.length) return false;
+    if (!termId) return true;
     try {
-      const { error } = await _sb.from('attendance_daily')
-        .upsert(upsert, { onConflict: 'student_id,term_id,week_number,day_index' });
-      if (error) throw error;
+      if (upsert.length) {
+        const { error } = await _sb.from('attendance_daily')
+          .upsert(upsert, { onConflict: 'student_id,term_id,week_number,day_index' });
+        if (error) throw error;
+      }
       const { error: wErr } = await _sb.from('attendance_weekly')
         .upsert(weekly, { onConflict: 'student_id,term_id,week_number' });
       if (wErr) throw wErr;
+      return true;
     } catch (err) {
       console.warn('[HMA] daily attendance not saved remotely:', err?.message || err);
+      return false;
     }
   },
   // Derive a week of daily marks from a manually-entered weekly total.
@@ -2120,7 +2201,11 @@ const Data = {
     const day = this.dailyAttendance(t);
     day[wk] = day[wk] || {};
     day[wk][String(sid)] = arr;
+    _cache.attendanceDailyDates[t] = _cache.attendanceDailyDates[t] || {};
+    _cache.attendanceDailyDates[t][wk] = _cache.attendanceDailyDates[t][wk] || {};
+    _cache.attendanceDailyDates[t][wk][String(sid)] = Array(5).fill(null);
     DB.set('attendanceDaily', _cache.attendanceDaily);
+    DB.set('attendanceDailyDates', _cache.attendanceDailyDates);
     if (!termId) return;
     (async () => {
       try {
@@ -2674,13 +2759,14 @@ function _unmapRole(appRole) {
 //  ACADEMIC LOGIC
 // ============================================================
 const Academic = {
-  MAX_CA:   40,   // continuous assessment
+  MAX_MIDTERM: 20,
+  MAX_CA:   20,   // second-half continuous assessment
   MAX_EXAM: 60,   // examination
   PASS_MARK: 50,  // promotion threshold — a mark must be AT LEAST this to pass
 
   subjectScore(studentId, subjectId, term) {
     const entry = Data.studentScores(studentId)[String(subjectId)]?.[term];
-    return entry ? entry.test + entry.exam : null;
+    return entry ? (entry.midterm == null ? entry.test : entry.midterm + entry.test) + entry.exam : null;
   },
 
   // Subjects a student sits — filtered by the level and stream of their class
@@ -2699,9 +2785,10 @@ const Academic = {
         color:     sub.color,
         type:      sub.type,
         group:     sub.group,
+        midterm:   entry ? entry.midterm : null,
         ca:        entry ? entry.test : null,
         exam:      entry ? entry.exam : null,
-        score:     entry ? entry.test + entry.exam : null
+        score:     entry ? (entry.midterm == null ? entry.test : entry.midterm + entry.test) + entry.exam : null
       };
     });
   },
@@ -2725,7 +2812,7 @@ const Academic = {
     const termsToCheck = [1, 2, 3].filter(t => t <= term);
     const subjectOveralls = subs.map(sub => {
       const vals = termsToCheck
-        .map(t => { const e = sc[sub.id]?.[t]; return e ? e.test + e.exam : null; })
+        .map(t => { const e = sc[sub.id]?.[t]; return e ? (e.midterm == null ? e.test : e.midterm + e.test) + e.exam : null; })
         .filter(v => v !== null);
       return { sub, overall: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null };
     });
@@ -2766,11 +2853,27 @@ const Academic = {
   },
 
   attendancePct(studentId, term) {
-    const days = Object.values(Data.studentAttendance(studentId, term));
-    if (!days.length) return '0%';
-    const total   = days.length * 5;
-    const present = days.reduce((a, b) => a + b, 0);
-    return Math.round((present / total) * 100) + '%';
+    const weeks = Data.studentAttendance(studentId, term);
+    const daily = Data.dailyAttendance(term);
+    const dates = Data.dailyAttendanceDates(term);
+    let total = 0, present = 0;
+    for (const [week, weeklyPresent] of Object.entries(weeks)) {
+      const sid = String(studentId);
+      const statuses = daily[week]?.[sid] || [];
+      const stamps = dates[week]?.[sid] || [];
+      const hasDatedMarks = stamps.some(Boolean);
+      if (!hasDatedMarks) {
+        total += 5;
+        present += Number(weeklyPresent) || 0;
+        continue;
+      }
+      statuses.forEach((status, index) => {
+        if (!stamps[index] || !['present', 'late', 'absent'].includes(status)) return;
+        total++;
+        if (status === 'present' || status === 'late') present++;
+      });
+    }
+    return total ? Math.round((present / total) * 100) + '%' : '0%';
   },
 
   // Monthly attendance — the term's recorded weeks grouped into 4-week
@@ -2859,7 +2962,7 @@ const Academic = {
           student:   s,
           rows:      subjects.map(sub => byId[sub.id] || {
             subjectId: sub.id, name: sub.name, code: sub.code, color: sub.color,
-            ca: null, exam: null, score: null
+            midterm: null, ca: null, exam: null, score: null
           }),
           average:   this.termAverage(s.id, term),
           status:    this.promotionStatus(s.id, term),
@@ -2917,7 +3020,7 @@ const Progression = {
     const allTerms = [1, 2, 3];
     const subjectOveralls = subs.map(sub => {
       const termScores = allTerms
-        .map(t => { const e = sc[sub.id]?.[t]; return e ? e.test + e.exam : null; })
+        .map(t => { const e = sc[sub.id]?.[t]; return e ? (e.midterm == null ? e.test : e.midterm + e.test) + e.exam : null; })
         .filter(v => v !== null);
       if (!termScores.length) return null;
       return termScores.reduce((a, b) => a + b, 0) / termScores.length;
@@ -2937,7 +3040,7 @@ const Progression = {
     if (!sub) return null;
     const allTerms = [1, 2, 3];
     const termScores = allTerms
-      .map(t => { const e = sc[sub.id]?.[t]; return e ? e.test + e.exam : null; })
+        .map(t => { const e = sc[sub.id]?.[t]; return e ? (e.midterm == null ? e.test : e.midterm + e.test) + e.exam : null; })
       .filter(v => v !== null);
     if (!termScores.length) return null;
     return Math.round(termScores.reduce((a, b) => a + b, 0) / termScores.length);

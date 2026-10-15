@@ -505,6 +505,81 @@ test('Modals — open and close', async ({ page }) => {
   expect(results.filter(r => r.status === 'FAIL'), formatFailures(results.filter(r => r.status === 'FAIL'))).toHaveLength(0);
 });
 
+// ── TEST: Add-person modal controls and student directory ─────
+test('Admin Add Person modal controls and student creation', async ({ page }) => {
+  // Keep the UI test isolated from the connected school database and its credentials.
+  await page.route('https://erlhyrswcqpqpqzbgmgb.supabase.co/rest/v1/**', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'content-range': '*/0' }, body: '[]' })
+  );
+  await page.route(/\/auth\/v1\/token/, route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      access_token: 'ui-test-token', token_type: 'bearer', expires_in: 3600,
+      refresh_token: 'ui-test-refresh-token',
+      user: { id: '00000000-0000-4000-8000-000000000001', aud: 'authenticated', role: 'authenticated',
+        email: 'admin@happyman.edu', app_metadata: { provider: 'email', providers: ['email'] },
+        user_metadata: {}, created_at: new Date().toISOString() }
+    })
+  }));
+  await login(page, 'admin@happyman.edu');
+  await goView(page, 'view-admin-people');
+  await page.locator('#people-tabs [data-tab="students-all"]').click();
+
+  const modal = page.locator('#add-user-modal');
+  await page.locator('#add-user-btn').click();
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('button')).toHaveCount(3); // X, Cancel, Add person
+  await expect(modal.locator('button[type="button"]')).toHaveCount(3);
+  await expect(page.locator('#nu-first-name')).toBeVisible();
+  await expect(page.locator('#nu-middle-name')).toBeVisible();
+  await expect(page.locator('#nu-last-name')).toBeVisible();
+  await modal.locator('.close-modal').click();
+  await expect(modal).toBeHidden();
+
+  await page.locator('#add-user-btn').click();
+  await modal.getByRole('button', { name: 'Cancel' }).click();
+  await expect(modal).toBeHidden();
+
+  await page.locator('#add-user-btn').click();
+  await page.selectOption('#nu-role', 'Student');
+  await expect(page.locator('#nu-class-group')).toBeVisible();
+  await expect(page.locator('#nu-gender-group')).toBeVisible();
+  await expect(page.locator('#nu-admission-group')).toBeVisible();
+  await expect(page.locator('#nu-mentor-group')).toBeVisible();
+
+  // Exercise the Add person button's validation without creating a record.
+  await page.locator('#save-user-btn').click();
+  await expect(page.locator('#nu-feedback')).toContainText('First name and last name are required');
+
+  const expectedEmail = 'amara.okafor2@happy.edu';
+  await page.evaluate(() => {
+    window.Data.users().push({ id: 'email-collision-1', email: 'amara.okafor@happy.edu', role: 'Student' });
+    window.Data.emailExists = async email => email === 'amara.okafor1@happy.edu';
+    window.Data.addStudent = async ({ name, email, classId, gender, admissionNo, mentorId }) => {
+      const id = `test-student-${Date.now()}`;
+      const userId = `test-user-${Date.now()}`;
+      const user = { id: userId, name, email, role: 'Student', initials: 'AO', tone: 'blue', studentId: id };
+      const student = { id, _userId: userId, name, initials: 'AO', tone: 'blue', classId: String(classId),
+        gender, admissionNo: admissionNo || 'TEST-001', mentorId: mentorId || null, status: 'active' };
+      window.Data.users().push(user);
+      window.Data.students().push(student);
+      return student;
+    };
+  });
+  await page.fill('#nu-first-name', 'Amara');
+  await page.fill('#nu-middle-name', 'Joy');
+  await page.fill('#nu-last-name', 'Okafor');
+  await expect(page.locator('#nu-email')).toHaveValue(expectedEmail);
+  await page.fill('#nu-password', 'DemoPass2026!');
+  const classId = await page.locator('#nu-class option:not([value=""])').first().getAttribute('value');
+  await page.selectOption('#nu-class', classId);
+  await page.locator('#save-user-btn').click();
+  await expect(modal).toBeHidden();
+  await expect(page.locator('#people-table-wrap tbody')).toContainText('Amara Joy Okafor');
+  await expect(page.locator('#people-table-wrap tbody')).toContainText(expectedEmail);
+});
+
 // ── TEST: Student report drawer ───────────────────────────────
 test('Student report drawer', async ({ page }) => {
   const errors = collectErrors(page);

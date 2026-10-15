@@ -50,6 +50,7 @@ export function renderParentDashboard() {
         <span><small>Attendance</small><b>${att}</b></span>
         <span class="status ${released ? statusClass(status) : 'review'}">${released ? status : 'Locked'}</span>
         ${released ? `<button class="text-button" data-child="${s.id}">CA &amp; exam scores ↗</button>` : '<small class="muted-cell">Awaiting release</small>'}
+        <button type="button" class="text-button" data-report-child="${s.id}">View report history ↗</button>
       </div>
     </div>`;
   }).join('') || '<p class="muted-cell">No children are linked to this account.</p>';
@@ -58,6 +59,7 @@ export function renderParentDashboard() {
     showChildResults(btn.dataset.child);
   }));
   $all('[data-student]').forEach(btn => btn.addEventListener('click', () => openStudentReport(btn.dataset.student)));
+  $all('[data-report-child]').forEach(btn => btn.addEventListener('click', () => openStudentReport(btn.dataset.reportChild)));
 
   if (children.length) {
     const sel = $('par-child-sel');
@@ -65,7 +67,7 @@ export function renderParentDashboard() {
     showChildResults(sel.value || children[0].id);
     sel.onchange = () => showChildResults(sel.value);
   } else {
-    $('par-results-table').innerHTML = '<tr><td colspan="7" class="muted-cell">No children linked.</td></tr>';
+    $('par-results-table').innerHTML = '<tr><td colspan="8" class="muted-cell">No children linked.</td></tr>';
     $('par-results-meta').textContent = '';
   }
 
@@ -83,7 +85,7 @@ export function showChildResults(studentId) {
 
   if (!Data.published(term)) {
     $('par-results-meta').textContent = `${s.name} · ${cl?.name || '—'} · ${termNameOf(term)} · awaiting release`;
-    $('par-results-table').innerHTML  = `<tr><td colspan="7" class="muted-cell">${resultsLockedNote(term)}</td></tr>`;
+    $('par-results-table').innerHTML  = `<tr><td colspan="8" class="muted-cell">${resultsLockedNote(term)}</td></tr>`;
     return;
   }
 
@@ -96,14 +98,15 @@ export function showChildResults(studentId) {
     const pass  = total !== null && total >= passMark();
     return `<tr>
       <td><div class="student">${subjectChip(sub)}${esc(sub.name)}</div></td>
+      <td class="muted-cell">${sub.midterm ?? '—'}</td>
       <td class="muted-cell">${sub.ca ?? '—'}</td>
       <td class="muted-cell">${sub.exam ?? '—'}</td>
       <td><strong>${total ?? '—'}</strong></td>
       <td>${total !== null ? gradeLabel(total) : '—'}</td>
-      <td class="cr-caexam">${sub.ca === null ? '—' : `${sub.ca} + ${sub.exam} = ${sub.score}`}</td>
+      <td class="cr-caexam">${sub.ca === null ? '—' : `${sub.midterm == null ? '' : `${sub.midterm} + `}${sub.ca} + ${sub.exam} = ${sub.score}`}</td>
       <td><span class="status ${total === null ? 'review' : pass ? 'promoted' : 'repeat'}">${total === null ? '—' : pass ? 'Pass' : 'Fail'}</span></td>
     </tr>`;
-  }).join('') : '<tr><td colspan="7" class="muted-cell">No results recorded.</td></tr>';
+  }).join('') : '<tr><td colspan="8" class="muted-cell">No results recorded.</td></tr>';
 }
 
 // ── Shared child selector helper ──────────────────────────────

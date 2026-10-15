@@ -87,19 +87,20 @@ export function openClassReportModal(classId) {
           <tr>
             <th rowspan="2">Student</th>
             ${report.subjects.map(s =>
-              `<th colspan="3" class="cr-sub-head">${esc(s.code)}<br><span class="cr-sub-name">${esc(s.name)}</span></th>`
+              `<th colspan="4" class="cr-sub-head">${esc(s.code)}<br><span class="cr-sub-name">${esc(s.name)}</span></th>`
             ).join('')}
             <th rowspan="2">Avg</th>
             <th rowspan="2">Remark</th>
           </tr>
           <tr class="cr-sub-row">
-            ${report.subjects.map(() => `<th>CA</th><th>Exam</th><th>Total</th>`).join('')}
+            ${report.subjects.map(() => `<th>Mid-term</th><th>Second-half CA</th><th>Exam</th><th>Total</th>`).join('')}
           </tr>
         </thead><tbody>` +
         report.students.map(row => `<tr>
           <td><div class="student"><span class="student-avatar ${toneClass(row.student.tone)}">${row.student.initials}</span>${esc(row.student.name)}</div></td>
           ${row.rows.map(r =>
-            `<td class="cr-split">${r.ca   !== null ? r.ca   : '—'}</td>
+            `<td class="cr-split">${r.midterm !== null ? r.midterm : '—'}</td>
+             <td class="cr-split">${r.ca   !== null ? r.ca   : '—'}</td>
              <td class="cr-split">${r.exam !== null ? r.exam : '—'}</td>
              <td class="cr-split cr-cell">
                ${r.ca !== null ? `<b>${r.score}</b>` : '—'}
@@ -115,22 +116,22 @@ export function openClassReportModal(classId) {
     const term   = +termSel.value;
     const report = Academic.classReport(klass.id, term);
     const summaryRows = [
-      ['Admission No', 'Student', ...report.subjects.flatMap(s => [`${s.name} CA`, `${s.name} Exam`]), 'Average', 'Status']
+        ['Admission No', 'Student', ...report.subjects.flatMap(s => [`${s.name} Mid-term`, `${s.name} Second-half CA`, `${s.name} Exam`]), 'Average', 'Status']
     ];
     report.students.forEach(r => {
       summaryRows.push([r.student.admissionNo || '', r.student.name,
-        ...r.rows.flatMap(x => [x.ca ?? '', x.exam ?? '']), r.average, r.status]);
+        ...r.rows.flatMap(x => [x.midterm ?? '', x.ca ?? '', x.exam ?? '']), r.average, r.status]);
     });
     const sheets = [{ name: 'Register', rows: summaryRows }];
     report.subjects.forEach(sub => {
       const subRows = [
         [`${klass.name} · ${sub.name} · Term ${term}`],
-        ['Admission No', 'Student', 'CA (40)', 'Exam (60)', 'Total']
+        ['Admission No', 'Student', 'Mid-term (20)', 'Second-half CA (20)', 'Exam (60)', 'Total']
       ];
       report.students.forEach(r => {
         const sc = r.rows.find(x => x.subjectId === sub.id);
         subRows.push([r.student.admissionNo || '', r.student.name,
-          sc?.ca ?? '', sc?.exam ?? '', sc?.score ?? '']);
+          sc?.midterm ?? '', sc?.ca ?? '', sc?.exam ?? '', sc?.score ?? '']);
       });
       sheets.push({ name: sub.code.slice(0, 31), rows: subRows });
     });
@@ -271,7 +272,7 @@ export function renderPassport(studentId) {
 
   const rows = Academic.termScores(sid, term);
   const table = rows.length ? rows.map(sc => `
-    <tr><td class="p-subj">${esc(sc.name)}</td><td>${sc.ca ?? '—'}</td><td>${sc.exam ?? '—'}</td><td><strong>${sc.score ?? '—'}</strong></td><td>${sc.score !== null ? gradeLabel(sc.score) : '—'}</td></tr>
+    <tr><td class="p-subj">${esc(sc.name)}</td><td>${sc.midterm ?? '—'}</td><td>${sc.ca ?? '—'}</td><td>${sc.exam ?? '—'}</td><td><strong>${sc.score ?? '—'}</strong></td><td>${sc.score !== null ? gradeLabel(sc.score) : '—'}</td></tr>
   `).join('') : `<tr><td colspan="5">No recorded scores yet.</td></tr>`;
 
   $('passport-sheet').innerHTML = `
@@ -294,9 +295,9 @@ export function renderPassport(studentId) {
       </div>
     </div>
     <div class="p-section">
-      <h4>Term ${term} academic record — CA (40) + Exam (60) = Total (100)</h4>
+      <h4>Term ${term} academic record — Mid-term (20) + Second-half CA (20) + Exam (60) = Total (100)</h4>
       <table class="p-table">
-        <thead><tr><th>Subject</th><th>CA</th><th>Exam</th><th>Total</th><th>Grade</th></tr></thead>
+        <thead><tr><th>Subject</th><th>Mid-term</th><th>Second-half CA</th><th>Exam</th><th>Total</th><th>Grade</th></tr></thead>
         <tbody>${table}</tbody>
       </table>
     </div>
@@ -327,9 +328,9 @@ export function renderPassport(studentId) {
 // ── Attendance day chips ──────────────────────────────────────
 export function dayChipsHTML(studentId, term, wk) {
   const arr = Data.dailyAttendance(term)[wk]?.[String(studentId)] || [];
-  if (!arr.some(Boolean)) return '';
+  if (!arr.some(st => st && st !== 'unmarked')) return '';
   return `<span class="att-days">${[0, 1, 2, 3, 4].map(i => {
-    const st = arr[i];
+    const st = arr[i] === 'unmarked' ? '' : arr[i];
     return `<b class="att-day ${st || 'off'}" title="${ATT_DAYS[i]}: ${st || 'unmarked'}">${st ? st[0].toUpperCase() : '&middot;'}</b>`;
   }).join('')}</span>`;
 }

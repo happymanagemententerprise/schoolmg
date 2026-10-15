@@ -77,7 +77,7 @@ function SessionSummaryCards({ data, subjects: _subjects }) {
     const rows = data.gradesByTerm[t] || [];
     const valids = rows.filter(r => r.test != null && r.exam != null);
     if (valids.length === 0) return null;
-    const sum = valids.reduce((acc, r) => acc + (r.test + r.exam), 0);
+    const sum = valids.reduce((acc, r) => acc + (r.midterm == null ? r.test : r.midterm + r.test) + r.exam, 0);
     return Math.round(sum / valids.length);
   });
 
@@ -136,8 +136,9 @@ function scoresForTerm(data, termNum, subjects) {
     const sub = subjects.find(s => String(s.id) === String(row.subject_id)) || null;
     const ca   = row.test  ?? null;
     const exam = row.exam  ?? null;
-    const total = (ca !== null && exam !== null) ? ca + exam : null;
-    return { sub, ca, exam, total };
+    const midterm = row.midterm ?? null;
+    const total = (ca !== null && exam !== null) ? (midterm == null ? ca : midterm + ca) + exam : null;
+    return { sub, midterm, ca, exam, total };
   });
 }
 
@@ -172,7 +173,8 @@ function ScoreTable({ data, activeTerm, subjects }) {
           <tr>
             <th>Subject</th>
             <th>Type</th>
-            <th>CA (40)</th>
+            <th>Mid-term (20)</th>
+            <th>Second-half CA (20)</th>
             <th>Exam (60)</th>
             {isTerm3 ? (
               <>
@@ -203,6 +205,7 @@ function ScoreTable({ data, activeTerm, subjects }) {
                 <tr key={idx}>
                   <td>{row.sub?.name ?? '—'}</td>
                   <td>{row.sub?.type === 'core' ? 'Core' : 'Elective'}</td>
+                  <td>{row.midterm ?? '—'}</td>
                   <td>{row.ca ?? '—'}</td>
                   <td>{row.exam ?? '—'}</td>
                   <td>{row.total ?? '—'}</td>
@@ -223,7 +226,8 @@ function ScoreTable({ data, activeTerm, subjects }) {
               <tr key={idx}>
                 <td>{row.sub?.name ?? '—'}</td>
                 <td>{row.sub?.type === 'core' ? 'Core' : 'Elective'}</td>
-                <td>{row.ca ?? '—'}</td>
+                  <td>{row.midterm ?? '—'}</td>
+                  <td>{row.ca ?? '—'}</td>
                 <td>{row.exam ?? '—'}</td>
                 <td>{row.total ?? '—'}</td>
                 <td>{row.total !== null ? gradeLabel(row.total) : '—'}</td>

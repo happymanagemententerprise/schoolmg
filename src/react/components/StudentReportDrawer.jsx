@@ -17,7 +17,10 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
   const s = Data.student(studentId);
   if (!s) return null;
 
-  const term   = termProp || currentTerm();
+  const [reportTerm, setReportTerm] = useState(termProp || currentTerm());
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [selectedSessionName, setSelectedSessionName] = useState(null);
+  const term   = reportTerm;
   const cl     = Data.cls(s.classId);
   const avg    = Academic.termAverage(studentId, term);
   const status = Academic.promotionStatus(studentId, term);
@@ -29,14 +32,11 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
   const allTermsPublished = [1, 2, 3].every(t => Data.published(t));
   const showStatus    = !isConsumerView || allTermsPublished;
 
-  // Session selector state — null means "show current session"
-  const [selectedSessionId, setSelectedSessionId] = useState(null);
-  const [selectedSessionName, setSelectedSessionName] = useState(null);
-
   // Reset to current session whenever the displayed student changes
   useEffect(() => {
     setSelectedSessionId(null);
     setSelectedSessionName(null);
+    setReportTerm(termProp || currentTerm());
   }, [studentId]);
 
   // Open the drawer after mount / re-render
@@ -47,6 +47,15 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
     const termName = Data.session().terms.find(t => t.term === Number(term))?.name || `Term ${term}`;
     return (
       <div className="drawer-content">
+        <SessionSelector
+          studentId={studentId}
+          currentSessionName={Data.session().name}
+          selectedSessionId={selectedSessionId}
+          onSelect={(id, name) => { setSelectedSessionId(id); setSelectedSessionName(name); }}
+        />
+        {selectedSessionId !== null ? (
+          <PreviousSessionPanel studentId={studentId} sessionId={selectedSessionId} sessionName={selectedSessionName} />
+        ) : <>
         <p className="eyebrow">{`Term ${term} report · ${Data.session().name}`}</p>
         <h2>{s.name}</h2>
         <p className="drawer-meta">{`${cl?.name || '—'} · ${esc(s.admissionNo || '—')}`}</p>
@@ -55,7 +64,7 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
           <span className="promotion-badge review">Locked</span>
         </div>
         <p className="formula">
-          Score = CA (40) + Exam (60) · Attendance <strong>{Academic.attendancePct(studentId, term)}</strong>
+          Score = Mid-term (20) + Second-half CA (20) + Exam (60) · Attendance <strong>{Academic.attendancePct(studentId, term)}</strong>
         </p>
         <div className="report-subjects">
           <div className="subject-row">
@@ -70,6 +79,7 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
           <button className="btn-primary" disabled>Download report ↓</button>
           <button className="outline-button" disabled>Print / PDF ↗</button>
         </div>
+        </>}
       </div>
     );
   }
@@ -86,8 +96,8 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
 
   const handleDownload = () => {
     const headers = isTerm3
-      ? ['Subject', 'CA (40)', 'Exam (60)', 'T3 Total', 'T2 Total', 'T1 Total', '3-Term Avg', 'Grade']
-      : ['Subject', 'CA (40)', 'Exam (60)', 'Total', 'Grade'];
+      ? ['Subject', 'Mid-term (20)', 'Second-half CA (20)', 'Exam (60)', 'T3 Total', 'T2 Total', 'T1 Total', '3-Term Avg', 'Grade']
+      : ['Subject', 'Mid-term (20)', 'Second-half CA (20)', 'Exam (60)', 'Total', 'Grade'];
     const rows = [
       ['Student', s.name], ['Class', cl?.name || ''], ['Term', term],
       ['Average', avg], ['Status', status], [],
@@ -99,9 +109,9 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
         const t1 = t1ById[sc.subjectId] ?? null;
         const vals = [sc.score, t2, t1].filter(v => v !== null);
         const avg3 = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
-        rows.push([sc.name, sc.ca ?? '', sc.exam ?? '', sc.score ?? '', t2 ?? '', t1 ?? '', avg3 ?? '', avg3 !== null ? gradeLabel(avg3) : '']);
+        rows.push([sc.name, sc.midterm ?? '', sc.ca ?? '', sc.exam ?? '', sc.score ?? '', t2 ?? '', t1 ?? '', avg3 ?? '', avg3 !== null ? gradeLabel(avg3) : '']);
       } else {
-        rows.push([sc.name, sc.ca ?? '', sc.exam ?? '', sc.score ?? '', sc.score !== null ? gradeLabel(sc.score) : '']);
+        rows.push([sc.name, sc.midterm ?? '', sc.ca ?? '', sc.exam ?? '', sc.score ?? '', sc.score !== null ? gradeLabel(sc.score) : '']);
       }
     });
     downloadXlsx(`report_${s.name.replace(/\s+/g, '_')}_term${term}.xlsx`, rows, `Term ${term}`);
@@ -113,8 +123,8 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
     const sheets = [1, 2, 3].map(termNum => {
       const isT3 = termNum === 3;
       const headers = isT3
-        ? ['Subject', 'CA (40)', 'Exam (60)', 'T3 Total', 'T2 Total', 'T1 Total', '3-Term Avg', 'Grade']
-        : ['Subject', 'CA (40)', 'Exam (60)', 'Total', 'Grade'];
+        ? ['Subject', 'Mid-term (20)', 'Second-half CA (20)', 'Exam (60)', 'T3 Total', 'T2 Total', 'T1 Total', '3-Term Avg', 'Grade']
+        : ['Subject', 'Mid-term (20)', 'Second-half CA (20)', 'Exam (60)', 'Total', 'Grade'];
       const gradeRows = prevData.gradesByTerm[termNum] || [];
 
       // For T3: build lookups for T2/T1 totals
@@ -124,28 +134,31 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
         (prevData.gradesByTerm[2] || []).forEach(r => {
           const ca = r.test ?? null;
           const ex = r.exam ?? null;
-          if (ca !== null && ex !== null) t2Map[String(r.subject_id)] = ca + ex;
+          const mt = r.midterm ?? null;
+          if (ca !== null && ex !== null) t2Map[String(r.subject_id)] = (mt == null ? ca : mt + ca) + ex;
         });
         (prevData.gradesByTerm[1] || []).forEach(r => {
           const ca = r.test ?? null;
           const ex = r.exam ?? null;
-          if (ca !== null && ex !== null) t1Map[String(r.subject_id)] = ca + ex;
+          const mt = r.midterm ?? null;
+          if (ca !== null && ex !== null) t1Map[String(r.subject_id)] = (mt == null ? ca : mt + ca) + ex;
         });
       }
 
       const dataRows = gradeRows.map(r => {
         const sub  = allSubjects.find(x => String(x.id) === String(r.subject_id));
+        const mt   = r.midterm ?? null;
         const ca   = r.test  ?? null;
         const exam = r.exam  ?? null;
-        const total = (ca !== null && exam !== null) ? ca + exam : null;
+        const total = (ca !== null && exam !== null) ? (mt == null ? ca : mt + ca) + exam : null;
         if (isT3) {
           const t2 = t2Map[String(r.subject_id)] ?? null;
           const t1 = t1Map[String(r.subject_id)] ?? null;
           const vals = [total, t2, t1].filter(v => v !== null);
           const avg3 = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
-          return [sub?.name ?? '—', ca ?? '', exam ?? '', total ?? '', t2 ?? '', t1 ?? '', avg3 ?? '', avg3 !== null ? gradeLabel(avg3) : ''];
+          return [sub?.name ?? '—', mt ?? '', ca ?? '', exam ?? '', total ?? '', t2 ?? '', t1 ?? '', avg3 ?? '', avg3 !== null ? gradeLabel(avg3) : ''];
         }
-        return [sub?.name ?? '—', ca ?? '', exam ?? '', total ?? '', total !== null ? gradeLabel(total) : ''];
+        return [sub?.name ?? '—', mt ?? '', ca ?? '', exam ?? '', total ?? '', total !== null ? gradeLabel(total) : ''];
       });
 
       return {
@@ -180,6 +193,17 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
         />
       ) : (
         <>
+          <label className="role-muted" htmlFor="report-term-select">Current-session report</label>
+          <select
+            id="report-term-select"
+            className="select-inline"
+            value={term}
+            onChange={e => setReportTerm(Number(e.target.value))}
+          >
+            {Data.session().terms.filter(t => t.term <= currentTerm() && Data.published(t.term)).map(t => (
+              <option key={t.term} value={t.term}>{t.name}</option>
+            ))}
+          </select>
           <p className="eyebrow">{`Term ${term} report · ${Data.session().name}`}</p>
           <h2>{s.name}</h2>
           <p className="drawer-meta">{`${cl?.name || '—'} · ${s.admissionNo || '—'}`}</p>
@@ -190,7 +214,7 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
             </span>
           </div>
           <p className="formula">
-            Score = CA (40) + Exam (60) · Attendance <strong>{Academic.attendancePct(studentId, term)}</strong>
+            Score = Mid-term (20) + Second-half CA (20) + Exam (60) · Attendance <strong>{Academic.attendancePct(studentId, term)}</strong>
           </p>
           <div className="report-subjects">
             {s.status === 'archived' && (
@@ -218,12 +242,12 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
                 <thead>
                   <tr>
                     <th rowSpan={2} style={{textAlign:'left'}}>Subject</th>
-                    <th colSpan={3}>Score breakdown</th>
+                    <th colSpan={4}>Score breakdown</th>
                     {isTerm3 && <><th rowSpan={2}>T2</th><th rowSpan={2}>T1</th><th rowSpan={2}>3-Avg</th></>}
                     <th rowSpan={2}>Grade</th>
                   </tr>
                   <tr className="cr-sub-row">
-                    <th>CA</th><th>Exam</th><th>Total</th>
+                    <th>Mid-term</th><th>Second-half CA</th><th>Exam</th><th>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -237,6 +261,7 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
                       return (
                         <tr key={sc.subjectId || sc.name}>
                           <td>{sc.name}<br/><small className="muted-cell">{sc.type === 'core' ? 'Core' : 'Elective'}</small></td>
+                          <td className="cr-split">{sc.midterm ?? '—'}</td>
                           <td className="cr-split">{sc.ca ?? '—'}</td>
                           <td className="cr-split">{sc.exam ?? '—'}</td>
                           <td className="cr-split"><b className={pass ? '' : 'text-danger'}>{sc.score ?? '—'}</b></td>
@@ -252,6 +277,7 @@ export default function StudentReportDrawer({ studentId, term: termProp = null }
                     return (
                       <tr key={sc.subjectId || sc.name}>
                         <td>{sc.name}<br/><small className="muted-cell">{sc.type === 'core' ? 'Core' : 'Elective'}</small></td>
+                        <td className="cr-split">{sc.midterm ?? '—'}</td>
                         <td className="cr-split">{sc.ca ?? '—'}</td>
                         <td className="cr-split">{sc.exam ?? '—'}</td>
                         <td className="cr-split"><b className={pass ? '' : 'text-danger'}>{sc.score ?? '—'}</b></td>

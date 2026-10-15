@@ -9,6 +9,7 @@ import { myClassRecord } from '../../auth.js';
 
 const ATT_DAYS      = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 const ATT_DAYS_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const TERM_WEEKS = 16;
 
 export default function ClassAttendance({ focusSid = null }) {
   const currentUser = getCurrentUser();
@@ -19,25 +20,34 @@ export default function ClassAttendance({ focusSid = null }) {
 
   const students = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');
   const term     = currentTerm();
+  const schoolDates = Data.attendanceDates(term);
+  const today = Data.todayDate();
+  const todaySlot = schoolDates.indexOf(today);
 
   // Build initial draft from saved daily attendance
   const buildDraft = () => {
     const daily = Data.dailyAttendance(term);
     const d = {};
-    const normDay = arr => Array.from({ length: 5 }, (_, i) => (arr && arr[i]) || '');
+    const normDay = arr => Array.from({ length: 5 }, (_, i) => {
+      const status = (arr && arr[i]) || '';
+      return status === 'unmarked' ? '' : status;
+    });
     students.forEach(s => {
       d[s.id] = {};
-      [1, 2, 3, 4].forEach(w => {
+      Array.from({ length: TERM_WEEKS }, (_, i) => i + 1).forEach(w => {
         d[s.id][w] = normDay(daily[`W${w}`]?.[String(s.id)]);
       });
     });
     return d;
   };
 
-  const [week,  setWeek]  = useState(1);
-  const [day,   setDay]   = useState(0);
+  const [selectedDate, setSelectedDate] = useState(todaySlot >= 0 ? today : (schoolDates[0] || ''));
   const [draft, setDraft] = useState(buildDraft);
   const [v,     setV]     = useState(0); // re-render version after saves
+  const dateSlot = schoolDates.indexOf(selectedDate);
+  const week = dateSlot >= 0 ? Math.floor(dateSlot / 5) + 1 : 1;
+  const day = dateSlot >= 0 ? dateSlot % 5 : 0;
+  const canEditSelectedDate = dateSlot >= 0 && selectedDate === today && dateSlot === todaySlot;
 
   const isPresent = st => st === 'present' || st === 'late';
 
@@ -49,6 +59,7 @@ export default function ClassAttendance({ focusSid = null }) {
     n + ((draft[s.id]?.[week] || []).filter(st => st === 'late').length), 0);
 
   const toggleStatus = (sid, status) => {
+    if (!canEditSelectedDate) return;
     setDraft(prev => {
       const prevWeek = prev[sid]?.[week] || Array(5).fill('');
       const newWeek  = [...prevWeek];
@@ -58,6 +69,7 @@ export default function ClassAttendance({ focusSid = null }) {
   };
 
   const setAll = status => {
+    if (!canEditSelectedDate) return;
     setDraft(prev => {
       const next = { ...prev };
       students.forEach(s => {
@@ -71,10 +83,15 @@ export default function ClassAttendance({ focusSid = null }) {
   };
 
   const saveDay = async () => {
+    if (!canEditSelectedDate) {
+      toast('Attendance can only be edited for today’s school date.', 'error');
+      return;
+    }
     const marks = {};
-    students.forEach(s => { marks[s.id] = draft[s.id]?.[week]?.[day] || 'absent'; });
-    await Data.saveDailyDay(week, day, marks, term);
-    toast(`Register saved · ${ATT_DAYS_FULL[day]}, Week ${week}.`);
+    students.forEach(s => { marks[s.id] = draft[s.id]?.[week]?.[day] || ''; });
+    const saved = await Data.saveDailyDay(week, day, marks, term, selectedDate);
+    if (!saved) { toast('Register not saved. Check the term calendar and try again.', 'error'); return; }
+    toast(`Register saved · ${selectedDate} · Week ${week}.`);
     setV(prev => prev + 1);
   };
 
@@ -87,7 +104,7 @@ export default function ClassAttendance({ focusSid = null }) {
 
   // Heatmap for a student
   const termHeatmap = sid =>
-    [1, 2, 3, 4].map(w => (
+    Array.from({ length: TERM_WEEKS }, (_, i) => i + 1).map(w => (
       <span className="att-week-group" title={`Week ${w}`} key={w}>
         {ATT_DAYS.map((d, di) => {
           const st  = draft[sid]?.[w]?.[di] || '';
@@ -115,7 +132,7 @@ export default function ClassAttendance({ focusSid = null }) {
           <p className="subcopy">Take the daily register Mon–Fri, track late arrivals, and see the term overview at a glance.</p>
         </div>
         <div className="form-row tight">
-          <button className="btn-primary" onClick={saveDay}>Save day ↑</button>
+          <button className="btn-primary" disabled={!canEditSelectedDate} onClick={saveDay}>Save day ↑</button>
         </div>
       </section>
 
@@ -168,24 +185,15 @@ export default function ClassAttendance({ focusSid = null }) {
         </div>
         <div className="att-daily-bar mt16">
           <label>
-            Week
-            <select value={week} onChange={e => setWeek(Number(e.target.value))}>
-              {[1, 2, 3, 4].map(w => (
-                <option key={w} value={w}>Week {w}</option>
-              ))}
-            </select>
+            School date
+            <input type="date" value={selectedDate} min={schoolDates[0] || undefined}
+              max={schoolDates[schoolDates.length - 1] || undefined}
+              onChange={e => setSelectedDate(e.target.value)} />
           </label>
-          <label>
-            Day
-            <select value={day} onChange={e => setDay(Number(e.target.value))}>
-              {ATT_DAYS_FULL.map((d, i) => (
-                <option key={i} value={i}>{d}</option>
-              ))}
-            </select>
-          </label>
+          <span className="muted-cell">{dateSlot >= 0 ? `Week ${week} · ${ATT_DAYS_FULL[day]}` : 'Choose a date inside the 16-week term'}</span>
           <span className="att-daily-actions">
-            <button type="button" className="btn-sm-save" onClick={() => setAll('present')}>✓ All present</button>
-            <button type="button" className="btn-sm-save att-all-absent-btn" onClick={() => setAll('absent')}>✗ All absent</button>
+            <button type="button" className="btn-sm-save" disabled={!canEditSelectedDate} onClick={() => setAll('present')}>✓ All present</button>
+            <button type="button" className="btn-sm-save att-all-absent-btn" disabled={!canEditSelectedDate} onClick={() => setAll('absent')}>✗ All absent</button>
           </span>
         </div>
         <div className="table-wrap mt16">
@@ -227,7 +235,9 @@ export default function ClassAttendance({ focusSid = null }) {
                         {['present', 'late', 'absent'].map(status => (
                           <button
                             key={status}
+                            type="button"
                             className={`att-state-btn ${st === status ? `active-${status}` : ''}`}
+                            disabled={!canEditSelectedDate}
                             onClick={() => toggleStatus(s.id, status)}
                           >
                             {status === 'present' ? '✓ Present' : status === 'late' ? '⏱ Late' : '✗ Absent'}
@@ -269,7 +279,7 @@ function WeeklySummary({ students, cl, term, focusSid, v: _v }) {
           <thead>
             <tr>
               <th>Student</th>
-              {['W1', 'W2', 'W3', 'W4'].map(w => (
+          {Array.from({ length: TERM_WEEKS }, (_, i) => `W${i + 1}`).map(w => (
                 <th key={w}>
                   {w}{' '}
                   <span className="muted-cell att-term-col-note">/5</span>
@@ -293,7 +303,7 @@ function WeeklySummary({ students, cl, term, focusSid, v: _v }) {
                       {s.name}
                     </div>
                   </td>
-                  {['W1', 'W2', 'W3', 'W4'].map(wk => (
+                  {Array.from({ length: TERM_WEEKS }, (_, i) => `W${i + 1}`).map(wk => (
                     <td key={wk} className="muted-cell att-weekly-td">
                       {saved[wk] ?? '—'}
                     </td>

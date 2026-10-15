@@ -270,9 +270,10 @@ export function renderSubjectScores() {
       if (!inp) return;
       const { sid, sub, term: t, type } = inp.dataset;
       const entry = Data.studentScores(sid)[sub]?.[+t] || {};
+      const midterm = type === 'midterm' ? Number(inp.value) : (entry.midterm ?? 0);
       const ca    = type === 'test' ? Number(inp.value) : (entry.test  ?? 0);
       const exam  = type === 'exam' ? Number(inp.value) : (entry.exam  ?? 0);
-      const ok    = await Data.saveGrade(sid, sub, +t, ca, exam);
+      const ok    = await Data.saveGrade(sid, sub, +t, midterm, ca, exam);
       if (ok) { toast('Score saved.'); draw(); }
       else    { toast('Score not saved — check your connection.', 'error'); }
     });
@@ -295,6 +296,7 @@ export function renderSubjectScores() {
       : [...new Set(mine.filter(ts => ts.subjectId === subjectId).map(ts => ts.classId))];
 
     const sess     = Data.session();
+    const midtermOpen = sess?.uploadOpen?.midterm ?? false;
     const caOpen   = sess?.uploadOpen?.test  ?? false;
     const examOpen = sess?.uploadOpen?.exam  ?? false;
 
@@ -302,20 +304,24 @@ export function renderSubjectScores() {
     $('st-scores-meta').textContent =
       `${subject?.name} · ${classId ? Data.cls(classId)?.name : `${classIds.length} classes you teach`} · Term ${term}`;
 
-    const closedNoticeRow = (!caOpen && !examOpen)
+    const closedNoticeRow = (!midtermOpen && !caOpen && !examOpen)
       ? `<tr><td colspan="7" class="muted-cell" style="font-style:italic">Score entry is currently closed. The admin can open CA or Exam upload windows from the dashboard.</td></tr>`
       : '';
 
     $('st-scores-table').innerHTML = rows.length
       ? rows.map(({ s, cid }) => {
           const entry = Data.studentScores(s.id)[subjectId]?.[term];
+          const midterm = entry?.midterm ?? null;
           const ca    = entry?.test  ?? null;
           const exam  = entry?.exam  ?? null;
-          const total = entry ? ca + exam : null;
+          const total = entry ? (entry.midterm == null ? ca : midterm + ca) + exam : null;
           const grade = total !== null ? gradeLabel(total) : '—';
           const pass  = total !== null && total >= passMark();
+          const midtermCell = midtermOpen
+            ? `<input class="score-input" type="number" min="0" max="20" value="${midterm ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="midterm">`
+            : (midterm ?? '—');
           const caCell = caOpen
-            ? `<input class="score-input" type="number" min="0" max="40" value="${ca ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="test">`
+            ? `<input class="score-input" type="number" min="0" max="20" value="${ca ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="test">`
             : (ca ?? '—');
           const examCell = examOpen
             ? `<input class="score-input" type="number" min="0" max="60" value="${exam ?? ''}" placeholder="—" data-sid="${s.id}" data-sub="${subjectId}" data-term="${term}" data-type="exam">`
@@ -323,7 +329,7 @@ export function renderSubjectScores() {
           return `<tr>
             <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
             <td>${esc(Data.cls(cid)?.name || '—')}</td>
-            <td>${caCell}</td><td>${examCell}</td>
+            <td>${midtermCell}</td><td>${caCell}</td><td>${examCell}</td>
             <td><strong>${total ?? '—'}</strong></td>
             <td><span class="status ${total === null ? 'review' : pass ? 'promoted' : 'repeat'}">${grade}</span></td>
           </tr>`;
@@ -360,7 +366,7 @@ export function downloadScoreSheet(asExcel) {
     ? [classId]
     : [...new Set(mine.filter(ts => ts.subjectId === subjectId).map(ts => ts.classId))];
 
-  const header = ['Class', 'Admission No', 'Student Name', 'CA Score (max 40)', 'Exam Score (max 60)', 'Total', 'Feedback'];
+  const header = ['Class', 'Admission No', 'Student Name', 'Mid-term Score (max 20)', 'Second-half CA Score (max 20)', 'Exam Score (max 60)', 'Total', 'Feedback'];
 
   if (asExcel) {
     const sheets = classIds.map(cid => {
@@ -375,7 +381,7 @@ export function downloadScoreSheet(asExcel) {
         const fb = Data.feedback()[s.id];
         const remark = fb && fb.term === term ? (fb.text || '') : '';
         rows.push([cl?.name || '', s.admissionNo || '', s.name,
-          e?.test ?? '', e?.exam ?? '', e ? e.test + e.exam : '', remark]);
+          e?.midterm ?? '', e?.test ?? '', e?.exam ?? '', e ? ((e.midterm == null ? e.test : e.midterm + e.test) + e.exam) : '', remark]);
       });
       return { name: (cl?.name || cid).slice(0, 31), rows };
     });
@@ -389,7 +395,7 @@ export function downloadScoreSheet(asExcel) {
         const fb = Data.feedback()[s.id];
         const remark = fb && fb.term === term ? (fb.text || '') : '';
         rows.push([cl?.name || '', s.admissionNo || '', s.name,
-          e?.test ?? '', e?.exam ?? '', e ? e.test + e.exam : '', remark]);
+          e?.midterm ?? '', e?.test ?? '', e?.exam ?? '', e ? ((e.midterm == null ? e.test : e.midterm + e.test) + e.exam) : '', remark]);
       });
     });
     downloadCsv(`scores_${subject?.code || 'sub'}_term${term}.csv`, rows);
@@ -434,11 +440,12 @@ export async function processScoreUpload(file) {
 
   const colAdm  = col('admission');
   const colName = col('student name') >= 0 ? col('student name') : col('name');
-  const colCA   = col('ca') >= 0 ? col('ca') : col('test');
+  const colMidterm = col('mid-term') >= 0 ? col('mid-term') : col('midterm');
+  const colCA   = col('second-half ca') >= 0 ? col('second-half ca') : (col('ca') >= 0 ? col('ca') : col('test'));
   const colExam = col('exam');
 
-  if (colCA < 0 || colExam < 0) {
-    toast('Missing columns. The sheet must have "CA Score" and "Exam Score" columns.', 'error');
+  if (colMidterm < 0 || colCA < 0 || colExam < 0) {
+    toast('Missing columns. Use the score sheet with Mid-term, Second-half CA, and Exam columns.', 'error');
     return;
   }
 
@@ -460,12 +467,14 @@ export async function processScoreUpload(file) {
     const row = rows[i];
     const admVal  = colAdm  >= 0 ? String(row[colAdm]  ?? '').toLowerCase().trim() : '';
     const nameVal = colName >= 0 ? String(row[colName] ?? '').toLowerCase().trim() : '';
+    const midRaw = row[colMidterm];
     const caRaw   = row[colCA];
     const exRaw   = row[colExam];
 
-    if (!caRaw && !exRaw) { skipped++; continue; }
+    if (!midRaw && !caRaw && !exRaw) { skipped++; continue; }
 
-    const ca   = Math.min(40, Math.max(0, Number(String(caRaw  ?? '').replace(/[^0-9.]/g, '')) || 0));
+    const midterm = Math.min(20, Math.max(0, Number(String(midRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
+    const ca   = Math.min(20, Math.max(0, Number(String(caRaw  ?? '').replace(/[^0-9.]/g, '')) || 0));
     const exam = Math.min(60, Math.max(0, Number(String(exRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
 
     const student = (admVal && byAdm.get(admVal)) || (nameVal && byName.get(nameVal));
@@ -475,7 +484,7 @@ export async function processScoreUpload(file) {
       continue;
     }
 
-    const ok = await Data.saveGrade(student.id, subjectId, term, ca, exam);
+    const ok = await Data.saveGrade(student.id, subjectId, term, midterm, ca, exam);
     if (ok) saved++; else skipped++;
   }
 
@@ -659,20 +668,21 @@ export function renderClassReport() {
           <tr>
             <th rowspan="2">Student</th>
             ${subjects.map(s =>
-              `<th colspan="3" class="cr-sub-head" title="${esc(s.name)}">${subjectChip(s)}${esc(s.code)}</th>`
+              `<th colspan="4" class="cr-sub-head" title="${esc(s.name)}">${subjectChip(s)}${esc(s.code)}</th>`
             ).join('')}
             <th rowspan="2">Avg</th>
             <th rowspan="2">Status</th>
             <th rowspan="2"></th>
           </tr>
           <tr class="cr-sub-row">
-            ${subjects.map(() => `<th>CA</th><th>Exam</th><th>Total</th>`).join('')}
+            ${subjects.map(() => `<th>Mid-term</th><th>Second-half CA</th><th>Exam</th><th>Total</th>`).join('')}
           </tr>
         </thead><tbody>` +
         report.students.map(row => `<tr>
           <td><div class="student"><span class="student-avatar ${toneClass(row.student.tone)}">${row.student.initials}</span>${esc(row.student.name)}</div></td>
           ${row.rows.map(r =>
-            `<td class="cr-split">${r.ca   !== null ? r.ca   : '<small>—</small>'}</td>
+            `<td class="cr-split">${r.midterm !== null ? r.midterm : '<small>—</small>'}</td>
+             <td class="cr-split">${r.ca   !== null ? r.ca   : '<small>—</small>'}</td>
              <td class="cr-split">${r.exam !== null ? r.exam : '<small>—</small>'}</td>
              <td class="cr-split cr-cell ${r.score === null ? 'cr-empty' : ''}">
                ${r.score === null ? '—' : `<b class="${r.score >= passMark() ? 'cr-pass' : 'cr-fail'}">${r.score}</b>`}
@@ -716,13 +726,13 @@ export function renderClassReport() {
     report.subjects.forEach(sub => {
       const subRows = [
         [`${cl.name} · ${sub.name} · Term ${term}`],
-        ['Admission No', 'Student', 'CA (40)', 'Exam (60)', 'Total', 'Grade', 'Status']
+        ['Admission No', 'Student', 'Mid-term (20)', 'Second-half CA (20)', 'Exam (60)', 'Total', 'Grade', 'Status']
       ];
       report.students.forEach(r => {
         const sc = r.rows.find(x => x.subjectId === sub.id);
         const total = sc?.score ?? null;
         subRows.push([r.student.admissionNo || '', r.student.name,
-          sc?.ca ?? '', sc?.exam ?? '', total ?? '',
+          sc?.midterm ?? '', sc?.ca ?? '', sc?.exam ?? '', total ?? '',
           total !== null ? gradeLabel(total) : '',
           total === null ? '' : total >= passMark() ? 'Pass' : 'Fail']);
       });
@@ -761,7 +771,7 @@ function _legacyRenderClassAttendance(focusSid = null) {
   const daily   = Data.dailyAttendance(term);
   students.forEach(s => {
     draft[s.id] = {};
-    [1, 2, 3, 4].forEach(w => {
+    Array.from({ length: 16 }, (_, i) => i + 1).forEach(w => {
       draft[s.id][w] = normDay(daily[`W${w}`]?.[String(s.id)]);
     });
   });
@@ -798,7 +808,7 @@ function _legacyRenderClassAttendance(focusSid = null) {
   }
 
   function termHeatmap(sid) {
-    return [1, 2, 3, 4].map(w => {
+    return Array.from({ length: 16 }, (_, i) => i + 1).map(w => {
       const row = draft[sid][w].map((st, d) => {
         const cls = st === 'present' ? 'present' : st === 'late' ? 'late' : st === 'absent' ? 'absent' : 'off';
         return `<span class="att-day ${cls}" title="W${w} ${ATT_DAYS[d]}: ${st || 'not marked'}">${ATT_DAYS[d][0]}</span>`;
@@ -891,7 +901,7 @@ function _legacyRenderClassAttendance(focusSid = null) {
       const pctNum = parseInt(pct, 10) || 0;
       const rowCls = s.id === focusSid ? 'att-focused' : '';
 
-      const cells = ['W1', 'W2', 'W3', 'W4'].map(wk =>
+      const cells = Array.from({ length: 16 }, (_, i) => `W${i + 1}`).map(wk =>
         `<td class="muted-cell" style="text-align:center">${saved[wk] ?? '—'}</td>`
       ).join('');
 
