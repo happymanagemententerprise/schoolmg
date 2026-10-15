@@ -650,7 +650,7 @@ function SensitiveConfirmModal({ open, title, message, onConfirm, onClose }) {
       <div className="modal">
         <div className="modal-header">
           <h3>{title}</h3>
-          <button className="close-modal" onClick={handleClose}>&times;</button>
+          <button type="button" className="close-modal" onClick={handleClose}>&times;</button>
         </div>
         <div className="modal-body">
           <p className="role-muted">{message}</p>
@@ -716,7 +716,7 @@ function PlacementModal({ open, studentId, onClose, onDone }) {
       <div className="modal">
         <div className="modal-header">
           <h3>Place student</h3>
-          <button className="close-modal" onClick={handleClose}>&times;</button>
+          <button type="button" className="close-modal" onClick={handleClose}>&times;</button>
         </div>
         <div className="modal-body">
           <p className="eyebrow">Picks the senior subject list of the chosen track.</p>

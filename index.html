@@ -213,17 +213,10 @@
         <div><p class="eyebrow">Directory</p><h1>People</h1><p class="subcopy">Staff, students, and parents at Happy Man Academy.</p></div>
         <button class="btn-primary" id="add-user-btn">+ Add person</button>
       </section>
-      <div class="tab-bar" id="people-tabs"
-           x-data="{ tab: 'staff', switchTab(t){ this.tab = t; $nextTick(() => window.renderPeopleTab?.(t)); } }">
-        <button class="tab-btn" data-tab="staff"
-                :class="{ active: tab === 'staff' }"
-                @click="switchTab('staff')">Staff</button>
-        <button class="tab-btn" data-tab="students-all"
-                :class="{ active: tab === 'students-all' }"
-                @click="switchTab('students-all')">Students</button>
-        <button class="tab-btn" data-tab="parents"
-                :class="{ active: tab === 'parents' }"
-                @click="switchTab('parents')">Parents</button>
+      <div class="tab-bar" id="people-tabs">
+        <button type="button" class="tab-btn active" data-tab="staff">Staff</button>
+        <button type="button" class="tab-btn" data-tab="students-all">Students</button>
+        <button type="button" class="tab-btn" data-tab="parents">Parents</button>
       </div>
       <div id="people-tab-content" class="panel mt16">
         <div class="table-wrap" id="people-table-wrap"></div>
@@ -1144,7 +1137,7 @@
 <div class="modal-overlay" id="add-user-modal" aria-hidden="true"
      x-data x-show="$store.modals['add-user-modal']">
   <div class="modal">
-    <div class="modal-header"><h3 id="nu-modal-title">Add person</h3><button class="close-modal" data-modal="add-user-modal">&times;</button></div>
+    <div class="modal-header"><h3 id="nu-modal-title">Add person</h3><button type="button" class="close-modal" data-modal="add-user-modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-group"><label for="nu-name">Full name</label><input id="nu-name" type="text" placeholder="e.g. Kwame Asante"></div>
       <div class="form-group"><label for="nu-email">Email</label><input id="nu-email" type="email" placeholder="kwame@happyman.edu"></div>
@@ -1199,7 +1192,7 @@
 <div class="modal-overlay" id="reset-password-modal" aria-hidden="true"
      x-data x-show="$store.modals['reset-password-modal']">
   <div class="modal">
-    <div class="modal-header"><h3 id="rp-title">Reset password</h3><button class="close-modal" data-modal="reset-password-modal">&times;</button></div>
+    <div class="modal-header"><h3 id="rp-title">Reset password</h3><button type="button" class="close-modal" data-modal="reset-password-modal">&times;</button></div>
     <div class="modal-body">
       <p class="role-muted" id="rp-eyebrow" style="margin-top:0"></p>
       <p class="rp-name" id="rp-sub"></p>
@@ -1230,7 +1223,7 @@
       <span class="role-muted">Print this A4 sheet &mdash; it travels with the student.</span>
       <span style="flex:1"></span>
       <button class="btn-primary" id="passport-print-btn" style="width:auto;margin:0">Print &nearr;</button>
-      <button class="close-modal" data-modal="passport-modal">&times;</button>
+      <button type="button" class="close-modal" data-modal="passport-modal">&times;</button>
     </div>
     <div class="modal-body">
       <div id="passport-sheet" class="passport-sheet"></div>
@@ -1246,7 +1239,7 @@
 <div class="modal-overlay" id="sensitive-confirm-modal" aria-hidden="true"
      x-data x-show="$store.modals['sensitive-confirm-modal']">
   <div class="modal">
-    <div class="modal-header"><h3 id="sc-title">Confirm</h3><button class="close-modal" data-modal="sensitive-confirm-modal">&times;</button></div>
+    <div class="modal-header"><h3 id="sc-title">Confirm</h3><button type="button" class="close-modal" data-modal="sensitive-confirm-modal">&times;</button></div>
     <div class="modal-body">
       <p class="role-muted" id="sc-message" style="margin-top:0"></p>
       <div class="form-group">
@@ -1266,7 +1259,7 @@
 <div class="modal-overlay" id="place-student-modal" aria-hidden="true"
      x-data x-show="$store.modals['place-student-modal']">
   <div class="modal">
-    <div class="modal-header"><h3>Place pool entrant</h3><button class="close-modal" data-modal="place-student-modal">&times;</button></div>
+    <div class="modal-header"><h3>Place pool entrant</h3><button type="button" class="close-modal" data-modal="place-student-modal">&times;</button></div>
     <div class="modal-body">
       <p class="rp-name" id="pl-student"></p>
       <p class="role-muted" id="pl-eyebrow" style="margin-top:0"></p>
@@ -1289,7 +1282,7 @@
 <div class="modal-overlay" id="choose-subjects-modal" aria-hidden="true"
      x-data x-show="$store.modals['choose-subjects-modal']">
   <div class="modal">
-    <div class="modal-header"><h3>Choose subjects</h3><button class="close-modal" data-modal="choose-subjects-modal">&times;</button></div>
+    <div class="modal-header"><h3>Choose subjects</h3><button type="button" class="close-modal" data-modal="choose-subjects-modal">&times;</button></div>
     <div class="modal-body">
       <p class="role-muted" id="cs-eyebrow" style="margin-top:0">&mdash;</p>
       <div id="cs-rules" class="mt16"></div>
@@ -1307,7 +1300,7 @@
 <div class="modal-overlay" id="add-class-modal" aria-hidden="true"
      x-data x-show="$store.modals['add-class-modal']">
   <div class="modal">
-    <div class="modal-header"><h3>Add class</h3><button class="close-modal" data-modal="add-class-modal">&times;</button></div>
+    <div class="modal-header"><h3>Add class</h3><button type="button" class="close-modal" data-modal="add-class-modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-group"><label for="nc-name">Class name</label><input id="nc-name" type="text" placeholder="e.g. Grade 7 Gold"></div>
       <div class="form-group"><label for="nc-level">Level</label>
@@ -1351,7 +1344,7 @@
 <div class="modal-overlay" id="class-teacher-modal" aria-hidden="true"
      x-data x-show="$store.modals['class-teacher-modal']">
   <div class="modal">
-    <div class="modal-header"><h3 id="ct-modal-title">Assign class teacher</h3><button class="close-modal" data-modal="class-teacher-modal">&times;</button></div>
+    <div class="modal-header"><h3 id="ct-modal-title">Assign class teacher</h3><button type="button" class="close-modal" data-modal="class-teacher-modal">&times;</button></div>
     <div class="modal-body">
       <p class="role-muted">A class teacher owns the class attendance, end-of-term feedback and the full
         class report &mdash; on top of everything they teach as a subject teacher.</p>
@@ -1363,7 +1356,7 @@
       <div id="ct-modal-feedback" class="form-feedback mt8"></div>
     </div>
     <div class="modal-footer">
-      <button class="outline-button close-modal" data-modal="class-teacher-modal" style="width:auto;margin:0">Cancel</button>
+      <button type="button" class="outline-button close-modal" data-modal="class-teacher-modal" style="width:auto;margin:0">Cancel</button>
       <button class="btn-primary" id="save-class-teacher-btn" style="width:auto;margin:0">Save</button>
     </div>
   </div>
@@ -1373,7 +1366,7 @@
 <div class="modal-overlay" id="add-subject-modal" aria-hidden="true"
      x-data x-show="$store.modals['add-subject-modal']">
   <div class="modal">
-    <div class="modal-header"><h3>Add subject</h3><button class="close-modal" data-modal="add-subject-modal">&times;</button></div>
+    <div class="modal-header"><h3>Add subject</h3><button type="button" class="close-modal" data-modal="add-subject-modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-group"><label for="ns-name">Subject name</label><input id="ns-name" type="text" placeholder="e.g. Economics"></div>
       <div class="form-group"><label for="ns-code">Short code</label><input id="ns-code" type="text" placeholder="e.g. ECO" maxlength="3"></div>
@@ -1409,7 +1402,7 @@
 <div class="modal-overlay" id="add-assignment-modal" aria-hidden="true"
      x-data x-show="$store.modals['add-assignment-modal']">
   <div class="modal">
-    <div class="modal-header"><h3>Create assignment</h3><button class="close-modal" data-modal="add-assignment-modal">&times;</button></div>
+    <div class="modal-header"><h3>Create assignment</h3><button type="button" class="close-modal" data-modal="add-assignment-modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-group"><label for="na-title">Title</label><input id="na-title" type="text" placeholder="e.g. Reading response"></div>
       <div class="form-group"><label for="na-subject">Subject</label><select id="na-subject"></select></div>
@@ -1428,12 +1421,12 @@
 <div class="modal-overlay" id="class-students-modal" aria-hidden="true"
      x-data x-show="$store.modals['class-students-modal']">
   <div class="modal modal-wide">
-    <div class="modal-header"><h3 id="class-students-title">Class Students</h3><button class="close-modal" data-modal="class-students-modal">&times;</button></div>
+    <div class="modal-header"><h3 id="class-students-title">Class Students</h3><button type="button" class="close-modal" data-modal="class-students-modal">&times;</button></div>
     <div class="modal-body">
       <div class="table-wrap" id="class-students-table-wrap"></div>
     </div>
     <div class="modal-footer">
-      <button class="outline-button close-modal" data-modal="class-students-modal" style="width:auto;margin:0">Close</button>
+      <button type="button" class="outline-button close-modal" data-modal="class-students-modal" style="width:auto;margin:0">Close</button>
     </div>
   </div>
 </div>
@@ -1442,7 +1435,7 @@
 <div class="modal-overlay" id="class-register-modal" aria-hidden="true"
      x-data x-show="$store.modals['class-register-modal']">
   <div class="modal modal-wide">
-    <div class="modal-header"><h3 id="register-title">Class Register</h3><button class="close-modal" data-modal="class-register-modal">&times;</button></div>
+    <div class="modal-header"><h3 id="register-title">Class Register</h3><button type="button" class="close-modal" data-modal="class-register-modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-row tight" style="margin-bottom:12px">
         <select id="register-term-sel" class="select-inline" aria-label="Term">
@@ -1452,7 +1445,7 @@
       <div class="table-wrap" id="register-table-wrap" style="overflow-x:auto"></div>
     </div>
     <div class="modal-footer">
-      <button class="outline-button close-modal" data-modal="class-register-modal" style="width:auto;margin:0">Close</button>
+      <button type="button" class="outline-button close-modal" data-modal="class-register-modal" style="width:auto;margin:0">Close</button>
       <button class="outline-button" id="register-download-btn" style="width:auto;margin:0">Download Excel &darr;</button>
     </div>
   </div>
@@ -1462,7 +1455,7 @@
 <div class="modal-overlay" id="assign-mentor-modal" aria-hidden="true"
      x-data x-show="$store.modals['assign-mentor-modal']">
   <div class="modal">
-    <div class="modal-header"><h3>Assign Mentor</h3><button class="close-modal" data-modal="assign-mentor-modal">&times;</button></div>
+    <div class="modal-header"><h3>Assign Mentor</h3><button type="button" class="close-modal" data-modal="assign-mentor-modal">&times;</button></div>
     <div class="modal-body">
       <p class="role-muted" id="am-scope">&mdash;</p>
       <div class="form-group"><label for="am-student">Student</label><select id="am-student"></select></div>
@@ -1470,7 +1463,7 @@
       <div id="am-feedback" class="form-feedback mt8"></div>
     </div>
     <div class="modal-footer">
-      <button class="outline-button close-modal" data-modal="assign-mentor-modal" style="width:auto;margin:0">Cancel</button>
+      <button type="button" class="outline-button close-modal" data-modal="assign-mentor-modal" style="width:auto;margin:0">Cancel</button>
       <button class="btn-primary" id="save-mentor-btn" style="width:auto;margin:0">Assign</button>
     </div>
   </div>
@@ -1482,7 +1475,7 @@
   <div class="modal">
     <div class="modal-header">
       <h3 id="cs-modal-title">Change stream</h3>
-      <button class="close-modal" data-modal="change-stream-modal">&times;</button>
+      <button type="button" class="close-modal" data-modal="change-stream-modal">&times;</button>
     </div>
     <div class="modal-body">
       <p class="role-muted" id="cs-modal-student"></p>

@@ -16,19 +16,21 @@
 import { $ } from './utils.js';
 
 export function openModal(id) {
-  if (window.Alpine) {
-    Alpine.store('modals')[id] = true;
-  } else {
-    document.getElementById(id)?.removeAttribute('hidden');
+  const m = document.getElementById(id);
+  const modalStore = window.Alpine?.store?.('modals');
+  if (modalStore) modalStore[id] = true;
+  if (m) {
+    m.hidden = false;
+    m.setAttribute('aria-hidden', 'false');
   }
-  const m = document.getElementById(id); if (m) m.setAttribute('aria-hidden', 'false');
 }
 
 export function closeModal(id) {
-  if (window.Alpine) {
-    Alpine.store('modals')[id] = false;
-  } else {
-    document.getElementById(id)?.setAttribute('hidden', '');
+  const m = document.getElementById(id);
+  const modalStore = window.Alpine?.store?.('modals');
+  if (modalStore) modalStore[id] = false;
+  if (m) {
+    m.hidden = true;
+    m.setAttribute('aria-hidden', 'true');
   }
-  const m = document.getElementById(id); if (m) m.setAttribute('aria-hidden', 'true');
 }

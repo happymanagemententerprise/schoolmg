@@ -102,9 +102,15 @@ export function closeMenus()   { $all('.row-menu-list').forEach(m => { m.hidden 
 // ── Global event wiring ──────────────────────────────────────
 export function wireGlobals() {
   $all('[data-close-drawer]').forEach(el => el.addEventListener('click', closeDrawer));
-  $all('.close-modal').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.modal)));
-  $all('[data-modal]').forEach(btn => {
-    if (!btn.classList.contains('close-modal')) btn.addEventListener('click', () => closeModal(btn.dataset.modal));
+  // Delegate modal close handling so buttons added after startup also work.
+  // A close button can name its modal explicitly or inherit the containing overlay's id.
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.close-modal, [data-modal]');
+    if (!btn) return;
+    const id = btn.dataset.modal || btn.closest('.modal-overlay')?.id;
+    if (!id) return; // React-owned modals close through their own state handler.
+    e.preventDefault();
+    closeModal(id);
   });
   $('logout-btn').addEventListener('click', logout);
   $('mobile-menu').addEventListener('click', () => $q('.sidebar').classList.toggle('open'));

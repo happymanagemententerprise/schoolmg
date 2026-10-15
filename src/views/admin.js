@@ -328,16 +328,27 @@ export async function saveUserFromForm() {
   renderPeopleTab($q('#people-tabs .tab-btn.active')?.dataset.tab || 'staff');
 
   pending.then(() => {
-    if ($('add-user-modal').hidden) {
+    // Student creation finishes asynchronously after both user and student rows
+    // are reconciled. Refresh the visible directory after that completes; the
+    // modal's visibility is controlled by Alpine and does not update `.hidden`.
+    if (!$('view-admin-people').hidden) {
       renderPeopleTab($q('#people-tabs .tab-btn.active')?.dataset.tab || 'staff');
     }
   });
 }
 
 export function bindPeopleTabs() {
-  // Active-class management is handled by Alpine @click on #people-tabs.
-  // renderPeopleTab is called from the Alpine @click expression via window.renderPeopleTab.
-  // This function is kept as a no-op to avoid breaking any existing call sites.
+  const tabs = $('people-tabs');
+  if (!tabs || tabs.dataset.peopleTabsBound) return;
+  tabs.dataset.peopleTabsBound = 'true';
+  tabs.addEventListener('click', e => {
+    const button = e.target.closest('[data-tab]');
+    if (!button || !tabs.contains(button)) return;
+    tabs.querySelectorAll('[data-tab]').forEach(tab => {
+      tab.classList.toggle('active', tab === button);
+    });
+    renderPeopleTab(button.dataset.tab);
+  });
 }
 
 function myTeacherSubjectsOf(teacherId) {
