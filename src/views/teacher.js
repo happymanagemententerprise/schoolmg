@@ -1177,13 +1177,23 @@ export function renderTeacherLessons() {
 
 export function renderLessonsTable() {
   const currentUser = getCurrentUser();
-  const mine = (Data.lmsLessons() || []).filter(l => l.teacherId === currentUser.id);
+  const schoolDates = Data.attendanceDates(currentTerm());
+  const weekOf = lesson => {
+    const date = String(lesson.createdAt || '').slice(0, 10);
+    if (!date || !schoolDates.length) return 0;
+    const elapsedSchoolDays = schoolDates.reduce((count, schoolDate) => count + (schoolDate <= date ? 1 : 0), 0);
+    return Math.max(1, Math.min(16, Math.ceil(elapsedSchoolDays / 5)));
+  };
+  const mine = (Data.lmsLessons() || []).filter(l => l.teacherId === currentUser.id)
+    .map(lesson => ({ ...lesson, schoolWeek: weekOf(lesson) }))
+    .sort((a, b) => a.schoolWeek - b.schoolWeek || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   $('ls-count').textContent = mine.length;
   const list = $('ls-list');
   list.innerHTML = mine.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Class</th><th>Title</th><th class="muted-cell">Posted</th><th></th></tr></thead>` +
+    ? `<div class="table-wrap"><table><thead><tr><th>Week</th><th>Subject</th><th>Class</th><th>Title</th><th class="muted-cell">Posted</th><th></th></tr></thead>` +
       `<tbody>${mine.map(l => `
         <tr>
+          <td>${l.schoolWeek ? `Week ${l.schoolWeek}` : '—'}</td>
           <td>${esc(Data.subject(l.subjectId)?.name || '—')}</td>
           <td>${esc(Data.classNameOf(l.classId))}</td>
           <td>${esc(l.title)}</td>

@@ -125,6 +125,26 @@ export const _xlsxCol = (() => { const cache = {}; return n => {
 
 export const _xlsxEscape = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+// XML 1.0 disallows most C0 control characters. They can appear in copied
+// remarks, so remove them before writing a worksheet instead of leaving Excel
+// to repair the downloaded workbook.
+const _xlsxText = value => String(value ?? '')
+  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function _xlsxSheetName(value, index, used) {
+  const base = String(value || `Sheet ${index + 1}`)
+    .replace(/[\u0000-\u001F\uFFFE\uFFFF]/g, '')
+    .replace(/[\\/*?:\[\]]/g, ' ').trim().slice(0, 31) || `Sheet ${index + 1}`;
+  let name = base, suffix = 2;
+  while (used.has(name.toLowerCase())) {
+    const end = ` (${suffix++})`;
+    name = `${base.slice(0, 31 - end.length)}${end}`;
+  }
+  used.add(name.toLowerCase());
+  return name;
+}
+
 export function xlsxSheetXml(rows) {
   const body = rows.map((r, i) => {
     const rowN = i + 1;
@@ -133,8 +153,8 @@ export function xlsxSheetXml(rows) {
       if (typeof v === 'number' && Number.isFinite(v)) {
         return `<c r="${ref}"${i === 0 ? ' s="1"' : ''}><v>${v}</v></c>`;
       }
-      const safe = _xlsxEscape(v ?? '');
-      return `<c r="${ref}" t="str"${i === 0 ? ' s="1"' : ''}><v>${safe}</v></c>`;
+      const safe = _xlsxText(v ?? '');
+      return `<c r="${ref}" t="inlineStr"${i === 0 ? ' s="1"' : ''}><is><t xml:space="preserve">${safe}</t></is></c>`;
     }).join('');
     return `<row r="${rowN}">${cells}</row>`;
   }).join('');
@@ -221,16 +241,18 @@ export function xlsxBlob(sheetName, rows) {
 }
 
 export function xlsxBlobMulti(sheets) {
-  const sheetRefs = sheets.map((s, i) =>
-    `<sheet name="${_xlsxEscape(s.name.slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`
+  const normalizedSheets = sheets?.length ? sheets : [{ name: 'Report', rows: [['No report data available']] }];
+  const usedSheetNames = new Set();
+  const sheetRefs = normalizedSheets.map((s, i) =>
+    `<sheet name="${_xlsxEscape(_xlsxSheetName(s.name, i, usedSheetNames))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`
   ).join('');
 
-  const wbRels = sheets.map((_, i) =>
+  const wbRels = normalizedSheets.map((_, i) =>
     `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`
   ).join('') +
-    `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;
+    `<Relationship Id="rId${normalizedSheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;
 
-  const extraTypes = sheets.map((_, i) =>
+  const extraTypes = normalizedSheets.map((_, i) =>
     `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
   ).join('');
   const contentTypes = _xlsxXml +
@@ -251,7 +273,7 @@ export function xlsxBlobMulti(sheets) {
     { name: 'xl/_rels/workbook.xml.rels', data: _xlsxXml +
       `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${wbRels}</Relationships>` },
     { name: 'xl/styles.xml', data: _xlsxStyles },
-    ...sheets.map((s, i) => ({
+    ...normalizedSheets.map((s, i) => ({
       name: `xl/worksheets/sheet${i + 1}.xml`,
       data: xlsxSheetXml(s.rows)
     }))
@@ -263,16 +285,16 @@ export function downloadXlsx(filename, rows, sheetName = 'Sheet1') {
   const name = filename.endsWith('.xlsx') ? filename : filename + '.xlsx';
   const url  = URL.createObjectURL(xlsxBlob(sheetName, rows));
   const a    = document.createElement('a');
-  a.href = url; a.download = name; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function downloadXlsxMulti(filename, sheets) {
   const name = filename.endsWith('.xlsx') ? filename : filename + '.xlsx';
   const url  = URL.createObjectURL(xlsxBlobMulti(sheets));
   const a    = document.createElement('a');
-  a.href = url; a.download = name; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ── PDF export ───────────────────────────────────────────────

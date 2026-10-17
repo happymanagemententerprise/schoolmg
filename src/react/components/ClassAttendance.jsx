@@ -134,9 +134,10 @@ export default function ClassAttendance({ focusSid = null }) {
           <p className="subcopy">Take the daily register Mon–Fri, track late arrivals, and see the term overview at a glance.</p>
         </div>
         <div className="form-row tight">
-          <button className="btn-primary" disabled={!canEditSelectedDate} onClick={saveDay}>Save day ↑</button>
+          <button className="btn-primary" disabled={!canEditSelectedDate} onClick={saveDay} title="Save the present, late, and absent marks for today">Save today’s register</button>
         </div>
       </section>
+      <p className="role-muted attendance-save-hint">This saves the marks for the selected school date. You can edit today’s register only.</p>
 
       {/* Stat cards */}
       <section className="stat-grid" aria-label="Attendance summary">

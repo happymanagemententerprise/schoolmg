@@ -355,11 +355,7 @@
         <div><p class="eyebrow">Academic analysis</p><h1>Analytics</h1><p class="subcopy">Max, min, average, and standard deviation per subject and class.</p></div>
         <div class="form-row tight">
           <select id="analytics-class" class="select-inline"></select>
-          <select id="analytics-term" class="select-inline">
-            <option value="1">Term 1</option>
-            <option value="2">Term 2</option>
-            <option value="3">Term 3</option>
-          </select>
+          <select id="analytics-term" class="select-inline" aria-label="Select term"></select>
         </div>
       </section>
       <div class="stat-grid" id="analytics-summary-cards"></div>
@@ -413,7 +409,11 @@
         <div><p class="eyebrow">Academic excellence</p><h1>Leaderboard</h1><p class="subcopy">Top performing students school-wide and per class, ranked by session average.</p></div>
       </section>
       
-      <div class="panel mt16">
+      <div class="segmented mt16" id="leaderboard-mode" role="group" aria-label="Leaderboard scope">
+        <button type="button" class="active" data-mode="school">School top 10</button>
+        <button type="button" data-mode="class">By grade and class</button>
+      </div>
+      <div class="panel mt16" id="leaderboard-overall-panel">
         <div class="panel-heading">
           <div><p class="eyebrow">School-wide</p><h2>Top 10 Overall</h2></div>
           <span class="read-only-badge">Ranked by session average</span>
@@ -421,10 +421,15 @@
         <div class="table-wrap mt16" id="leaderboard-overall"></div>
       </div>
 
-      <section class="welcome-row mt16">
-        <div><h2>Top Performers by Class</h2><p class="subcopy">Best students in each class</p></div>
-      </section>
-      <div id="leaderboard-classes" class="mt16" style="display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(500px,1fr))"></div>
+      <div class="panel mt16" id="leaderboard-class-panel" hidden>
+        <div class="panel-heading"><div><h2>Top performers by class</h2><p class="subcopy">Choose a grade, then a class to see its top 10.</p></div>
+          <div class="form-row tight leaderboard-selectors">
+            <label class="sr-only" for="leaderboard-grade">Grade</label><select id="leaderboard-grade" class="select-inline"></select>
+            <label class="sr-only" for="leaderboard-class">Class</label><select id="leaderboard-class" class="select-inline"></select>
+          </div>
+        </div>
+        <div id="leaderboard-classes" class="table-wrap mt16"></div>
+      </div>
       <section class="welcome-row mt16">
         <div><h2>Top 3 by Subject and Class</h2><p class="subcopy">Highest current-term scores in each class and subject</p></div>
       </section>
@@ -1157,7 +1162,7 @@
 <div class="modal-overlay" id="add-user-modal" aria-hidden="true"
      x-data x-show="$store.modals['add-user-modal']">
   <div class="modal">
-    <div class="modal-header"><h3 id="nu-modal-title">Add person</h3><button type="button" class="close-modal" data-modal="add-user-modal">&times;</button></div>
+    <div class="modal-header"><h2 id="nu-modal-title">Add person</h2><button type="button" class="close-modal" data-modal="add-user-modal">&times;</button></div>
     <div class="modal-body">
       <div class="form-row">
         <div class="form-group"><label for="nu-first-name">First name</label><input id="nu-first-name" type="text" autocomplete="given-name" required></div>

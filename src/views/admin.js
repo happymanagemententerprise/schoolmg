@@ -121,7 +121,19 @@ export function bindStudentRowMenus() {
     const list = btn.nextElementSibling;
     const open = list.hidden;
     closeMenus();
-    if (open) list.hidden = false;
+    if (open) {
+      list.hidden = false;
+      list.classList.add('row-menu-floating');
+      const anchor = btn.getBoundingClientRect();
+      const menu = list.getBoundingClientRect();
+      const left = Math.max(8, Math.min(anchor.right - menu.width, window.innerWidth - menu.width - 8));
+      const below = anchor.bottom + menu.height + 8 <= window.innerHeight;
+      const top = below
+        ? anchor.bottom + 4
+        : Math.max(8, anchor.top - menu.height - 4);
+      list.style.left = `${left}px`;
+      list.style.top = `${top}px`;
+    }
   }));
   $all('[data-student]').forEach(btn => btn.addEventListener('click', () => {
     closeMenus(); openStudentReport(btn.dataset.student);
@@ -986,6 +998,9 @@ export function timetableCsv(schedule) {
 export function renderAdminAnalytics() {
   const classSel = $('analytics-class');
   classSel.innerHTML = Data.classes().map(cl => `<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+  const termSel = $('analytics-term');
+  const visibleTerms = Data.terms().filter(t => Number(t.term) <= currentTerm()).sort((a, b) => a.term - b.term);
+  termSel.innerHTML = visibleTerms.map(t => `<option value="${t.term}">${esc(t.name)}</option>`).join('');
   $('analytics-term').value = currentTerm();
 
   function draw() {
@@ -996,7 +1011,7 @@ export function renderAdminAnalytics() {
     const promoted = students.filter(s => Academic.canPromote(s.id, term)).length;
 
     $('analytics-summary-cards').innerHTML = `
-      <article class="stat-card accent-coral"><div class="stat-top"><span class="stat-label">Class</span><span class="stat-icon">C</span></div><strong>${esc(cl?.name || '—')}</strong><div class="stat-trend neutral">Term ${term}</div></article>
+      <article class="stat-card accent-coral"><div class="stat-top"><span class="stat-label">Class</span><span class="stat-icon">C</span></div><strong>${esc(cl?.name || '—')}</strong><div class="stat-trend neutral">${esc(termNameOf(term))}</div></article>
       <article class="stat-card accent-blue"><div class="stat-top"><span class="stat-label">Class average</span><span class="stat-icon">A</span></div><strong>${classAvg}%</strong><div class="stat-trend neutral">${students.length} students</div></article>
       <article class="stat-card accent-green"><div class="stat-top"><span class="stat-label">Promotion rate</span><span class="stat-icon">✓</span></div><strong>${students.length ? Math.round(promoted / students.length * 100) : 0}%</strong><div class="stat-trend up">${promoted}/${students.length}</div></article>
       <article class="stat-card accent-yellow"><div class="stat-top"><span class="stat-label">Top score</span><span class="stat-icon">↑</span></div><strong>${allAvgs.length ? Math.max(...allAvgs) : 0}%</strong><div class="stat-trend neutral">Highest avg</div></article>`;
@@ -1098,11 +1113,7 @@ export function renderAdminLeaderboard() {
     .filter(s => s.avg !== null);
   allStudents.sort((a, b) => (b.avg || 0) - (a.avg || 0));
   const topOverall = allStudents.slice(0, topN);
-  const classes = Data.classes();
-  const topPerClass = classes.map(cl => {
-    const classStudents = allStudents.filter(s => s.classId === cl.id).slice(0, topN);
-    return { class: cl, students: classStudents };
-  }).filter(c => c.students.length > 0);
+  const classes = Data.classes().slice().sort((a, b) => a.name.localeCompare(b.name));
 
   $('leaderboard-overall').innerHTML = topOverall.length
     ? `<table>
@@ -1118,26 +1129,38 @@ export function renderAdminLeaderboard() {
         </tr>`).join('') + `</tbody></table>`
     : '<p class="muted-cell" style="padding:16px">No students with scores yet.</p>';
 
-  $('leaderboard-classes').innerHTML = topPerClass.map(c => `
-    <article class="panel">
-      <div class="panel-heading">
-        <div><h3>${esc(c.class.name)}</h3></div>
-        <span class="read-only-badge">${c.students.length} ${c.students.length === 1 ? 'student' : 'students'}</span>
-      </div>
-      <div class="table-wrap mt16">
-        <table>
-          <thead><tr><th>#</th><th>Student</th><th>Session Avg</th><th>Term ${term} Avg</th></tr></thead>
-          <tbody>` +
-          c.students.map((s, i) => `<tr>
-            <td><strong class="leaderboard-rank ${i < 3 ? 'top-' + (i + 1) : ''}">${i + 1}</strong></td>
-            <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
-            <td><span class="score">${Math.round(s.avg)}%</span></td>
-            <td><span class="score">${s.termAvg}%</span></td>
-          </tr>`).join('') +
-          `</tbody></table>
-      </div>
-    </article>
-  `).join('');
+  const gradeOf = cl => cl.name.match(/^(Grade\s+\d+)/i)?.[1] || cl.level || 'Other classes';
+  const grades = [...new Set(classes.map(gradeOf))];
+  const gradeSel = $('leaderboard-grade');
+  const classSel = $('leaderboard-class');
+  gradeSel.innerHTML = grades.map(grade => `<option value="${esc(grade)}">${esc(grade)}</option>`).join('');
+
+  const renderClassOptions = () => {
+    const gradeClasses = classes.filter(cl => gradeOf(cl) === gradeSel.value);
+    classSel.innerHTML = gradeClasses.map(cl => `<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+  };
+  const renderSelectedClass = () => {
+    const cl = Data.cls(classSel.value);
+    const ranked = allStudents.filter(student => String(student.classId) === String(cl?.id)).slice(0, topN);
+    $('leaderboard-classes').innerHTML = ranked.length
+      ? `<table><thead><tr><th>#</th><th>Student</th><th>Session Avg</th><th>${esc(termNameOf(term))} Avg</th></tr></thead><tbody>${ranked.map((s, i) => `
+          <tr><td><strong class="leaderboard-rank ${i < 3 ? `top-${i + 1}` : ''}">${i + 1}</strong></td>
+          <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+          <td><span class="score">${Math.round(s.avg)}%</span></td><td><span class="score">${s.termAvg}%</span></td></tr>`).join('')}</tbody></table>`
+      : '<p class="muted-cell p16">No students with scores in this class yet.</p>';
+  };
+  renderClassOptions();
+  renderSelectedClass();
+  gradeSel.onchange = () => { renderClassOptions(); renderSelectedClass(); };
+  classSel.onchange = renderSelectedClass;
+  $all('#leaderboard-mode button').forEach(button => {
+    button.onclick = () => {
+      const schoolMode = button.dataset.mode === 'school';
+      $('leaderboard-overall-panel').hidden = !schoolMode;
+      $('leaderboard-class-panel').hidden = schoolMode;
+      $all('#leaderboard-mode button').forEach(item => item.classList.toggle('active', item === button));
+    };
+  });
 
   $('leaderboard-subjects').innerHTML = classes.map(cl => {
     const classStudents = Data.studentsByClass(cl.id).filter(s => s.status !== 'archived');

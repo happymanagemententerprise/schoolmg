@@ -778,7 +778,7 @@ tr:last-child td { border-bottom: 0; }
   padding: 20px 24px; border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
-.modal-header h3 { font: 700 17px 'Space Grotesk', sans-serif; }
+.modal-header h2, .modal-header h3 { margin: 0; font: 700 17px 'Space Grotesk', sans-serif; }
 .close-modal { font-size: 22px; color: var(--muted); }
 .close-modal:hover { color: var(--coral); }
 .modal-body   { padding: 22px 24px 10px; overflow-y: auto; flex: 1; min-height: 0; }
@@ -923,6 +923,7 @@ tr.att-focused { background: var(--blue-soft); }
   border-radius: var(--radius); box-shadow: 0 14px 34px rgba(37,43,56,.16);
   text-align: left; white-space: nowrap;
 }
+.row-menu-list.row-menu-floating { position: fixed; right: auto; top: auto; }
 .row-menu-list button {
   display: block; width: 100%; padding: 8px 10px;
   border-radius: 5px; font-size: 12px; font-weight: 500; color: var(--ink);
@@ -1197,6 +1198,13 @@ tr.att-focused { background: var(--blue-soft); }
 }
 .att-week strong { display: block; font-size: 12px; }
 .att-week span  { font-size: 11px; color: var(--muted); }
+.att-week-future { background: #f3f3ef; border-style: dashed; color: #727873; }
+.att-week-future > span, .att-week-future .att-day { opacity: .48; }
+.att-week-status { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: 600; color: var(--muted); }
+.attendance-save-hint { margin: 8px 0 0; }
+.leaderboard-selectors { align-items: center; }
+.leaderboard-selectors select { min-width: 132px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .att-summary { display: flex; gap: 12px; flex-wrap: wrap; }
 .att-summary > div {
   flex: 1; min-width: 120px; border: 1px solid var(--line);

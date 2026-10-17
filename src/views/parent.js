@@ -127,7 +127,7 @@ export function renderParentAttendance() {
     $('par-att-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.name || '')} · ${termNameOf(currentTerm())}`;
     $('par-att-grid').innerHTML = mode() === 'monthly'
       ? monthlyAttendanceHTML(childId, currentTerm())
-      : attendanceGridHTML(childId, currentTerm());
+      : attendanceGridHTML(childId, currentTerm(), { fullTerm: true, showFutureWeeks: true });
   });
   $all('#par-att-mode button').forEach(b => b.onclick = () => {
     $all('#par-att-mode button').forEach(x => x.classList.toggle('active', x === b));

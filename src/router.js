@@ -100,7 +100,7 @@ export function openDrawer()   { const d=$('report-drawer'); d.classList.add('op
 export function closeDrawer()  { const d=$('report-drawer'); d.classList.remove('open'); d.setAttribute('aria-hidden','true'); }
 
 // ── Row menu helpers ─────────────────────────────────────────
-export function closeMenus()   { $all('.row-menu-list').forEach(m => { m.hidden = true; }); }
+export function closeMenus()   { $all('.row-menu-list').forEach(m => { m.hidden = true; m.classList.remove('row-menu-floating'); m.style.left = ''; m.style.top = ''; }); }
 
 // ── Global event wiring ──────────────────────────────────────
 export function wireGlobals() {
