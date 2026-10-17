@@ -72,7 +72,13 @@ export function renderAdminStudentTable(query = '') {
   const term = currentTerm();
   const q    = query.toLowerCase();
   const list = Data.students().filter(s =>
-    s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
+    s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const averageGap = Academic.termAverage(a.id, term) - Academic.termAverage(b.id, term);
+      if (averageGap) return averageGap;
+      return (parseInt(Academic.attendancePct(a.id, term), 10) || 0) -
+        (parseInt(Academic.attendancePct(b.id, term), 10) || 0);
+    });
 
   $('admin-student-table').innerHTML = list.length
     ? list.map(s => {
@@ -83,13 +89,12 @@ export function renderAdminStudentTable(query = '') {
         const yPos   = yearRank(s.id, term);
         const posStr = cPos !== null ? `${ordinal(cPos)}<span class="muted-cell"> (${ordinal(yPos)})</span>` : '—';
         return `<tr>
-          <td><div class="student"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span>${esc(s.name)}</div></td>
+          <td><div class="student admin-student-cell"><span class="student-avatar ${toneClass(s.tone)}">${s.initials}</span><span>${esc(s.name)}</span>${studentRowMenu(s.id)}</div></td>
           <td>${esc(cl?.name || '—')}</td>
           <td><span class="score">${avg}%</span></td>
-          <td class="muted-cell">${Academic.attendancePct(s.id)}</td>
+          <td class="muted-cell">${Academic.attendancePct(s.id, term)}</td>
           <td>${posStr}</td>
           <td><span class="status ${statusClass(status)}">${status}</span></td>
-          <td>${studentRowMenu(s.id)}</td>
         </tr>`;
       }).join('')
     : '<tr><td colspan="7" class="muted-cell">No students match.</td></tr>';

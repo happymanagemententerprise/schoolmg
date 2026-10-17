@@ -169,15 +169,31 @@ export async function logout() {
 
 export function buildNav(user) {
   const items = navForUser(user);
-  $('main-nav').innerHTML =
-    '<p class="nav-label">Workspace</p>' +
-    items.map(n =>
-      `<button class="nav-item" data-page="${n.page}">
-         <span class="nav-icon">${n.icon}</span>${n.label}
-       </button>`
-    ).join('') +
-    '<p class="nav-label secondary-label">Account</p>' +
-    '<button class="nav-item" id="nav-logout"><span class="nav-icon">⏻</span>Sign out</button>';
+  const groups = navGroupsForUser(user, items);
+  const iconPaths = {
+    Today: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    Teaching: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21z"/><path d="M4 5.5v15.5M8 7h8M8 11h8"/>',
+    Classroom: '<path d="M3 4h18v13H3zM8 21h8M12 17v4M7 8h10M7 12h6"/>',
+    Learning: '<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22z"/><path d="M4 4.5v15M8 7h8M8 11h8M8 15h5"/>',
+    Academics: '<path d="m12 3 9 5-9 5-9-5zM5 11v5l7 4 7-4v-5M21 8v7"/>',
+    Planning: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    People: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM16 5.5a3 3 0 0 1 0 5.8M18 14a5 5 0 0 1 3 4.6V20h-4"/>',
+    Family: '<path d="M3 11.5 12 4l9 7.5M5 10v10h14V10M9 20v-6h6v6"/>',
+    School: '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-7h6v7M8 10h.01M12 10h.01M16 10h.01"/>',
+    Settings: '<circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.8-1l-1.7.7-1.4-2.4 1.4-1.1a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.8 1l1.7-.7 1.4 2.4-1.4 1.1a8 8 0 0 1 0 2Z" transform="translate(-1 -1) scale(1.08)"/>'
+  };
+  $('main-nav').innerHTML = groups.map(group =>
+    `<section class="nav-group" aria-label="${group.label}">
+       <p class="nav-label">${group.label}</p>
+       ${group.items.map(n =>
+         `<button class="nav-item" data-page="${n.page}">
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${iconPaths[group.label] || iconPaths.School}</svg></span>${n.label}
+          </button>`
+       ).join('')}
+     </section>`
+  ).join('') +
+    '<section class="nav-group nav-account" aria-label="Account"><p class="nav-label">Account</p>' +
+    '<button class="nav-item" id="nav-logout"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5M15 12H3M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></svg></span>Sign out</button></section>';
 
   $all('.nav-item').forEach(btn => btn.addEventListener('click', () => {
     if (btn.id === 'nav-logout') { logout(); return; }
@@ -187,6 +203,43 @@ export function buildNav(user) {
       renderView(btn.dataset.page);
     });
   }));
+}
+
+function navGroupsForUser(user, items) {
+  const definitions = {
+    Administrator: [
+      ['Today', ['view-admin-overview']],
+      ['People', ['view-admin-people', 'view-campus', 'view-admin-recognition']],
+      ['Academics', ['view-admin-classes', 'view-admin-subjects', 'view-admin-progression']],
+      ['Planning', ['view-admin-timetable', 'view-admin-analytics', 'view-admin-leaderboard']],
+      ['Settings', ['view-admin-setup']]
+    ],
+    Teacher: [
+      ['Today', ['view-subject-dashboard']],
+      ['Teaching', ['view-subject-scores', 'view-teacher-lessons', 'view-teacher-quizzes', 'view-teacher-discussions']],
+      ['Classroom', ['view-class-overview', 'view-class-report', 'view-class-attendance', 'view-class-feedback', 'view-admin-timetable', 'view-campus', 'view-hod-dashboard']]
+    ],
+    Student: [
+      ['Today', ['view-student-dashboard']],
+      ['Academics', ['view-student-results', 'view-student-pathway', 'view-student-attendance', 'view-student-timetable']],
+      ['Learning', ['view-student-lessons', 'view-student-quizzes', 'view-student-discussions', 'view-student-assignments']]
+    ],
+    Parent: [
+      ['Family', ['view-parent-dashboard', 'view-parent-attendance', 'view-parent-assignments', 'view-parent-timetable']]
+    ]
+  };
+  const role = user?.role === 'Administrator' ? 'Administrator'
+    : ['Subject Teacher', 'Class Teacher', 'HOD'].includes(user?.role) ? 'Teacher'
+    : user?.role;
+  const defs = user?.role === 'Security Guard' || user?.role === 'Hostel Supervisor'
+    ? [['School', items.map(item => item.page)]]
+    : (definitions[role] || [['School', items.map(item => item.page)]]);
+  const groups = defs.map(([label, pages]) => ({ label, items: items.filter(item => pages.includes(item.page)) }))
+    .filter(group => group.items.length);
+  const assigned = new Set(groups.flatMap(group => group.items.map(item => item.page)));
+  const ungrouped = items.filter(item => !assigned.has(item.page));
+  if (ungrouped.length) groups.push({ label: 'School', items: ungrouped });
+  return groups;
 }
 
 export function updateSidebarUser(user) {

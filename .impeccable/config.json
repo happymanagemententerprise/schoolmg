@@ -10,7 +10,7 @@
           "index.html"
         ],
         "createdAt": "2026-10-17T11:18:28.563Z",
-        "reason": "Agent: src/styles.css sets body at 14px, .panel h2 at 19px, and .welcome-row h1 at 26–36px; the finding is a stylesheet-blind false positive."
+        "reason": "Agent review: false positive; src/styles.css sets body to 14px and page headings to 30-40px (login title 28-36px), so the hierarchy exceeds 1.25x. Detector misses stylesheet context."
       }
     ]
   }

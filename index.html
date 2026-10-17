@@ -204,13 +204,14 @@
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Student</th><th>Class</th><th>Term avg</th><th>Attendance</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th>Student</th><th>Class</th><th>Term avg</th><th>Attendance</th><th>Position</th><th>Standing</th></tr></thead>
               <tbody id="admin-student-table"></tbody>
             </table>
           </div>
         </article>
         <article class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">Score upload</p><h2>Upload periods</h2></div></div>
+          <div class="panel-heading"><div><p class="eyebrow">Action queue</p><h2>Score entry windows</h2></div></div>
+          <p class="role-muted">Check which score periods are open before teachers submit this term’s marks.</p>
           <div class="upload-toggles" id="admin-upload-toggles"></div>
         </article>
       </section>
@@ -743,6 +744,7 @@
       </section>
       <div class="panel mt16">
         <p class="role-muted" id="st-scores-meta">&mdash;</p>
+        <p class="score-save-feedback" id="st-scores-feedback" role="status" aria-live="polite"></p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Student</th><th>Class</th><th>Mid-term (20)</th><th>Second-half CA (20)</th><th>Exam (60)</th><th>Total (100)</th><th>Grade</th></tr></thead>

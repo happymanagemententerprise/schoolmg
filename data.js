@@ -2057,6 +2057,9 @@ const Data = {
     const sub  = String(subjectId);
     const termId = _termIdFromNum(term);
     if (!termId) { console.warn('[HMA] saveGrade: unknown term', term); return false; }
+    const previous = _cache.scores[sid]?.[sub]?.[term]
+      ? { ..._cache.scores[sid][sub][term] }
+      : null;
     // Update cache immediately so the UI reflects the change without a reload
     if (!_cache.scores[sid]) _cache.scores[sid] = {};
     if (!_cache.scores[sid][sub]) _cache.scores[sid][sub] = {};
@@ -2076,6 +2079,10 @@ const Data = {
       if (error) throw error;
       return true;
     } catch (err) {
+      if (_cache.scores[sid]?.[sub]) {
+        if (previous) _cache.scores[sid][sub][term] = previous;
+        else delete _cache.scores[sid][sub][term];
+      }
       console.warn('[HMA] grade not saved:', err?.message || err);
       return false;
     }
@@ -2319,8 +2326,18 @@ const Data = {
     const upsert = [];
     const touchedStudentIds = [];
     const weekly = [];
+    const previousMarks = new Map();
     for (const [sid, st] of Object.entries(marks)) {
       if (st !== '' && st !== 'present' && st !== 'late' && st !== 'absent') continue;
+      const key = String(sid);
+      const attendanceCache = _cache.attendance[t] || {};
+      previousMarks.set(key, {
+        daily: day[wk][key] ? day[wk][key].slice() : null,
+        dates: _cache.attendanceDailyDates[t][wk][key]
+          ? _cache.attendanceDailyDates[t][wk][key].slice() : null,
+        weekly: attendanceCache[key]?.[wk] ?? null,
+        hadWeekly: attendanceCache[key] && Object.prototype.hasOwnProperty.call(attendanceCache[key], wk)
+      });
       const arr = (day[wk][String(sid)] || []).slice();
       arr[dayIdx] = st || '';
       day[wk][String(sid)] = arr;
@@ -2345,6 +2362,21 @@ const Data = {
     DB.set('attendance', _cache.attendance);
     if (!touchedStudentIds.length) return false;
     if (!termId) return true;
+    const restorePreviousMarks = () => {
+      for (const [sid, previous] of previousMarks) {
+        if (previous.daily) day[wk][sid] = previous.daily;
+        else delete day[wk][sid];
+        if (previous.dates) _cache.attendanceDailyDates[t][wk][sid] = previous.dates;
+        else delete _cache.attendanceDailyDates[t][wk][sid];
+        const att = _cache.attendance[t] || {};
+        att[sid] = att[sid] || {};
+        if (previous.hadWeekly) att[sid][wk] = previous.weekly;
+        else delete att[sid][wk];
+      }
+      DB.set('attendanceDaily', _cache.attendanceDaily);
+      DB.set('attendanceDailyDates', _cache.attendanceDailyDates);
+      DB.set('attendance', _cache.attendance);
+    };
     const queuedRecord = { id: `${termId}:${week}:${dayIdx}:${attendanceDate}`, upsert, weekly };
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -2365,10 +2397,15 @@ const Data = {
     } catch (err) {
       console.warn('[HMA] daily attendance not saved remotely:', err?.message || err);
       if (err instanceof TypeError || (typeof navigator !== 'undefined' && !navigator.onLine)) {
-        await attendanceQueuePut(queuedRecord);
-        _attendanceSaveQueued = true;
-        return true;
+        try {
+          await attendanceQueuePut(queuedRecord);
+          _attendanceSaveQueued = true;
+          return true;
+        } catch (queueError) {
+          console.warn('[HMA] attendance could not be queued:', queueError?.message || queueError);
+        }
       }
+      restorePreviousMarks();
       return false;
     }
   },

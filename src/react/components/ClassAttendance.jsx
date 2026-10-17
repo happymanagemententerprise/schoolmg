@@ -44,6 +44,8 @@ export default function ClassAttendance({ focusSid = null }) {
   const [selectedDate, setSelectedDate] = useState(todaySlot >= 0 ? today : (schoolDates[0] || ''));
   const [draft, setDraft] = useState(buildDraft);
   const [v,     setV]     = useState(0); // re-render version after saves
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveState, setSaveState] = useState({ tone: '', message: '' });
   const dateSlot = schoolDates.indexOf(selectedDate);
   const week = dateSlot >= 0 ? Math.floor(dateSlot / 5) + 1 : 1;
   const day = dateSlot >= 0 ? dateSlot % 5 : 0;
@@ -60,6 +62,7 @@ export default function ClassAttendance({ focusSid = null }) {
 
   const toggleStatus = (sid, status) => {
     if (!canEditSelectedDate) return;
+    setSaveState({ tone: 'pending', message: 'Unsaved changes to today’s register.' });
     setDraft(prev => {
       const prevWeek = prev[sid]?.[week] || Array(5).fill('');
       const newWeek  = [...prevWeek];
@@ -70,6 +73,9 @@ export default function ClassAttendance({ focusSid = null }) {
 
   const setAll = status => {
     if (!canEditSelectedDate) return;
+    const action = status === 'absent' ? 'mark every student absent' : 'mark every student present';
+    if (!window.confirm(`This will ${action} for ${students.length} students on ${selectedDate}, replacing any marks already entered for this date. Continue?`)) return;
+    setSaveState({ tone: 'pending', message: 'Unsaved changes to today’s register.' });
     setDraft(prev => {
       const next = { ...prev };
       students.forEach(s => {
@@ -83,18 +89,36 @@ export default function ClassAttendance({ focusSid = null }) {
   };
 
   const saveDay = async () => {
+    if (isSaving) return;
     if (!canEditSelectedDate) {
       toast('Attendance can only be edited for today’s school date.', 'error');
       return;
     }
     const marks = {};
     students.forEach(s => { marks[s.id] = draft[s.id]?.[week]?.[day] || ''; });
-    const saved = await Data.saveDailyDay(week, day, marks, term, selectedDate);
-    if (!saved) { toast('Register not saved. Check the term calendar and try again.', 'error'); return; }
-    toast(Data.lastDailySaveQueued?.()
-      ? `Register saved on this device · it will sync when you reconnect.`
-      : `Register saved · ${selectedDate} · Week ${week}.`);
-    setV(prev => prev + 1);
+    setIsSaving(true);
+    setSaveState({ tone: 'pending', message: 'Saving today’s attendance…' });
+    try {
+      const saved = await Data.saveDailyDay(week, day, marks, term, selectedDate);
+      if (!saved) {
+        setSaveState({ tone: 'error', message: 'Could not save this register. Your previous saved marks have been restored.' });
+        toast('Register not saved. Check your connection and try again.', 'error');
+        setDraft(buildDraft());
+        return;
+      }
+      const queued = Data.lastDailySaveQueued?.();
+      const message = queued
+        ? `Saved on this device · ${students.length} students · will sync when you reconnect.`
+        : `Saved to the school record · ${students.length} students · ${selectedDate} · Week ${week}.`;
+      setSaveState({ tone: 'success', message });
+      toast(queued ? 'Register queued to sync when you reconnect.' : 'Register saved to the school record.');
+      setV(prev => prev + 1);
+    } catch {
+      setSaveState({ tone: 'error', message: 'The register could not be confirmed as saved. Check your connection before leaving this page.' });
+      toast('Register not saved. Check your connection and try again.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const present  = students.filter(s => isPresent(draft[s.id]?.[week]?.[day])).length;
@@ -134,10 +158,11 @@ export default function ClassAttendance({ focusSid = null }) {
           <p className="subcopy">Take the daily register Mon–Fri, track late arrivals, and see the term overview at a glance.</p>
         </div>
         <div className="form-row tight">
-          <button className="btn-primary" disabled={!canEditSelectedDate} onClick={saveDay} title="Save the present, late, and absent marks for today">Save today’s register</button>
+          <button className="btn-primary" disabled={!canEditSelectedDate || isSaving} onClick={saveDay} title="Save the present, late, and absent marks for today">{isSaving ? 'Saving register…' : 'Save today’s register'}</button>
         </div>
       </section>
       <p className="role-muted attendance-save-hint">This saves the marks for the selected school date. You can edit today’s register only.</p>
+      <p className={`form-feedback attendance-save-state ${saveState.tone}`} role="status" aria-live="polite">{saveState.message}</p>
 
       {/* Stat cards */}
       <section className="stat-grid" aria-label="Attendance summary">
@@ -189,14 +214,14 @@ export default function ClassAttendance({ focusSid = null }) {
         <div className="att-daily-bar mt16">
           <label>
             School date
-            <input type="date" value={selectedDate} min={schoolDates[0] || undefined}
+            <input type="date" value={selectedDate} min={schoolDates[0] || undefined} disabled={isSaving}
               max={schoolDates[schoolDates.length - 1] || undefined}
-              onChange={e => setSelectedDate(e.target.value)} />
+              onChange={e => { setSelectedDate(e.target.value); setSaveState({ tone: '', message: '' }); }} />
           </label>
           <span className="muted-cell">{dateSlot >= 0 ? `Week ${week} · ${ATT_DAYS_FULL[day]}` : 'Choose a date inside the 16-week term'}</span>
           <span className="att-daily-actions">
-            <button type="button" className="btn-sm-save" disabled={!canEditSelectedDate} onClick={() => setAll('present')}>✓ All present</button>
-            <button type="button" className="btn-sm-save att-all-absent-btn" disabled={!canEditSelectedDate} onClick={() => setAll('absent')}>✗ All absent</button>
+            <button type="button" className="btn-sm-save" disabled={!canEditSelectedDate || isSaving} onClick={() => setAll('present')}>✓ All present</button>
+            <button type="button" className="btn-sm-save att-all-absent-btn" disabled={!canEditSelectedDate || isSaving} onClick={() => setAll('absent')}>✗ All absent</button>
           </span>
         </div>
         <div className="table-wrap mt16">
@@ -240,7 +265,7 @@ export default function ClassAttendance({ focusSid = null }) {
                             key={status}
                             type="button"
                             className={`att-state-btn ${st === status ? `active-${status}` : ''}`}
-                            disabled={!canEditSelectedDate}
+              disabled={!canEditSelectedDate || isSaving}
                             onClick={() => toggleStatus(s.id, status)}
                           >
                             {status === 'present' ? '✓ Present' : status === 'late' ? '⏱ Late' : '✗ Absent'}

@@ -238,6 +238,10 @@ export function renderSubjectScores() {
   const subSel  = $('st-score-subject');
   const clsSel  = $('st-score-class');
   const termSel = $('st-score-term');
+  const clearScoreFeedback = () => {
+    const feedback = $('st-scores-feedback');
+    if (feedback) { feedback.className = 'score-save-feedback'; feedback.textContent = ''; }
+  };
 
   const subjects = [...new Map(mine.map(ts => [ts.subjectId, Data.subject(ts.subjectId)])).values()].filter(Boolean);
 
@@ -252,9 +256,9 @@ export function renderSubjectScores() {
     clsSel.innerHTML = '<option value="">All my classes</option>' +
       classes.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   }
-  subSel.onchange = () => { fillClasses(); draw(); };
-  clsSel.onchange  = draw;
-  termSel.onchange = draw;
+  subSel.onchange = () => { clearScoreFeedback(); fillClasses(); draw(); };
+  clsSel.onchange  = () => { clearScoreFeedback(); draw(); };
+  termSel.onchange = () => { clearScoreFeedback(); draw(); };
   fillClasses();
   termSel.value = currentTerm();
 
@@ -270,12 +274,44 @@ export function renderSubjectScores() {
       if (!inp) return;
       const { sid, sub, term: t, type } = inp.dataset;
       const entry = Data.studentScores(sid)[sub]?.[+t] || {};
+      const scoreLimits = { midterm: 20, test: 20, exam: 60 };
+      const requestedScore = inp.value.trim() === '' ? 0 : Number(inp.value);
+      const feedback = $('st-scores-feedback');
+      if (!Number.isFinite(requestedScore) || requestedScore < 0 || requestedScore > scoreLimits[type]) {
+        if (feedback) {
+          feedback.className = 'score-save-feedback error';
+          feedback.textContent = `Enter a score from 0 to ${scoreLimits[type]}. No change was saved.`;
+        }
+        inp.setAttribute('aria-invalid', 'true');
+        return;
+      }
+      inp.removeAttribute('aria-invalid');
       const midterm = type === 'midterm' ? Number(inp.value) : (entry.midterm ?? 0);
       const ca    = type === 'test' ? Number(inp.value) : (entry.test  ?? 0);
       const exam  = type === 'exam' ? Number(inp.value) : (entry.exam  ?? 0);
-      const ok    = await Data.saveGrade(sid, sub, +t, midterm, ca, exam);
-      if (ok) { toast('Score saved.'); draw(); }
-      else    { toast('Score not saved — check your connection.', 'error'); }
+      if (feedback) {
+        feedback.className = 'score-save-feedback pending';
+        feedback.textContent = `Saving ${inp.closest('tr')?.querySelector('.student')?.textContent.trim() || 'student'}’s mark…`;
+      }
+      inp.disabled = true;
+      let ok = false;
+      try { ok = await Data.saveGrade(sid, sub, +t, midterm, ca, exam); }
+      catch { ok = false; }
+      finally { inp.disabled = false; }
+      if (ok) {
+        if (feedback) {
+          feedback.className = 'score-save-feedback success';
+          feedback.textContent = `Saved to the school record · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`;
+        }
+        draw();
+      } else {
+        if (feedback) {
+          feedback.className = 'score-save-feedback error';
+          feedback.textContent = 'Could not save this mark. The previous saved value has been restored; check your connection and try again.';
+        }
+        toast('Score not saved — the previous value is unchanged.', 'error');
+        draw();
+      }
     });
   }
 
@@ -286,6 +322,7 @@ export function renderSubjectScores() {
     if (!subjectId) {
       $('st-scores-table').innerHTML = '<tr><td colspan="7" class="muted-cell">No subjects are assigned to you.</td></tr>';
       $('st-scores-meta').textContent = '';
+      clearScoreFeedback();
       return;
     }
     const subject   = Data.subject(subjectId);
