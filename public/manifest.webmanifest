@@ -1,0 +1,14 @@
+{
+  "name": "Happy Man Academy School Management",
+  "short_name": "HMA School",
+  "description": "School attendance and academic management for Happy Man Academy.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f4",
+  "theme_color": "#252b38",
+  "icons": [
+    { "src": "/icons/hma-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/hma-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

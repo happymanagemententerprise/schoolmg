@@ -34,6 +34,7 @@ export const STATIC_NAV = {
   'Administrator': [
     { page: 'view-admin-overview',   label: 'Overview',   icon: 'O' },
     { page: 'view-admin-people',     label: 'People',     icon: 'P' },
+    { page: 'view-campus',           label: 'Campus safety', icon: '◆' },
     { page: 'view-admin-classes',    label: 'Classes',    icon: 'C' },
     { page: 'view-admin-subjects',   label: 'Subjects',   icon: 'S' },
     { page: 'view-admin-progression', label: 'Progression', icon: '⇈' },
@@ -72,6 +73,7 @@ export function buildTeacherCapabilities(user) {
     { page: 'view-teacher-quizzes',     label: 'Quizzes',     icon: 'Q' },
     { page: 'view-teacher-discussions', label: 'Discussions', icon: '◇' }
   );
+  nav.push({ page: 'view-campus', label: 'Campus safety', icon: '◆' });
   const cl = myClassRecord(user);
   if (cl) {
     nav.push(
@@ -91,6 +93,8 @@ export function buildTeacherCapabilities(user) {
 }
 
 export function navForUser(user) {
+  if (user?.role === 'Security Guard') return [{ page: 'view-campus', label: 'Gate register', icon: 'G' }];
+  if (user?.role === 'Hostel Supervisor') return [{ page: 'view-campus', label: 'Hostel register', icon: 'H' }];
   if (isTeacher(user)) return buildTeacherCapabilities(user);
   if (isStudent(user)) {
     const nav = [...STATIC_NAV['Student']];
@@ -143,6 +147,8 @@ export function initLogin() {
 
 export function login(user) {
   setCurrentUser(user);
+  Data.startRealtime();
+  import('./pwa.js').then(({ showPWAActions }) => showPWAActions());
   $('login-screen').hidden = true;
   $('app-shell').hidden    = false;
   buildNav(user);
@@ -151,6 +157,7 @@ export function login(user) {
 }
 
 export async function logout() {
+  window.dispatchEvent(new Event('hma:logout'));
   await Data.signOut();
   setCurrentUser(null);
   clearPrevSessionCache();

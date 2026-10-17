@@ -9,6 +9,7 @@ import { initLogin, login } from './auth.js';
 import { wireGlobals } from './router.js';
 import { Data, DB } from './data/index.js';
 import { initAdminModals } from './views/admin.js';
+import { initPWA } from './pwa.js';
 
 document.addEventListener('alpine:init', () => {
   Alpine.store('toast', { visible: false, message: '', type: 'info' });
@@ -24,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   wireGlobals();
   initLogin();
   initAdminModals();
+  initPWA();
 
   // Disable the login button while data is loading and show a subtle
   // status hint inside the form instead of a full-screen overlay.

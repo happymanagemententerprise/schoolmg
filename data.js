@@ -65,6 +65,108 @@ const DB = {
   set(key, val){ localStorage.setItem('hma_' + key, JSON.stringify(val)); }
 };
 
+let _attendanceSaveQueued = false;
+let _attendanceFlushRunning = false;
+let _attendanceSyncInstalled = false;
+let _usingSeedFallback = false;
+const ATTENDANCE_QUEUE_KEY = 'hma-attendance-outbox-v1';
+function attendanceDb() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) return reject(new Error('IndexedDB unavailable'));
+    const request = indexedDB.open('hma-offline', 1);
+    request.onupgradeneeded = () => request.result.createObjectStore('attendance', { keyPath: 'id' });
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function attendanceQueueGet() {
+  try {
+    const db = await attendanceDb();
+    const indexed = await new Promise((resolve, reject) => {
+      const tx = db.transaction('attendance', 'readonly');
+      const req = tx.objectStore('attendance').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+    const local = DB.get(ATTENDANCE_QUEUE_KEY) || [];
+    return [...new Map([...indexed, ...local].map(row => [row.id, row])).values()];
+  } catch { return DB.get(ATTENDANCE_QUEUE_KEY) || []; }
+}
+async function attendanceQueuePut(record) {
+  try {
+    const db = await attendanceDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('attendance', 'readwrite');
+      tx.objectStore('attendance').put(record);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    const rows = DB.get(ATTENDANCE_QUEUE_KEY) || [];
+    DB.set(ATTENDANCE_QUEUE_KEY, [...rows.filter(row => row.id !== record.id), record]);
+  }
+}
+async function attendanceQueueDelete(id) {
+  try {
+    const db = await attendanceDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('attendance', 'readwrite');
+      tx.objectStore('attendance').delete(id);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {}
+  try { DB.set(ATTENDANCE_QUEUE_KEY, (DB.get(ATTENDANCE_QUEUE_KEY) || []).filter(row => row.id !== id)); } catch {}
+}
+function installAttendanceSync() {
+  if (_attendanceSyncInstalled || typeof window === 'undefined') return;
+  _attendanceSyncInstalled = true;
+  window.addEventListener('online', () => flushAttendanceQueue());
+  navigator.serviceWorker?.ready?.then(reg => reg.sync?.register('hma-attendance-sync')).catch(() => {});
+  navigator.serviceWorker?.addEventListener('message', event => {
+    if (event.data?.type === 'SYNC_ATTENDANCE') flushAttendanceQueue();
+  });
+}
+async function flushAttendanceQueue() {
+  if (_attendanceFlushRunning || typeof navigator !== 'undefined' && !navigator.onLine) return;
+  _attendanceFlushRunning = true;
+  try {
+    const records = await attendanceQueueGet();
+    for (const record of records) {
+      const { error } = await _sb.from('attendance_daily').upsert(record.upsert, { onConflict: 'student_id,term_id,week_number,day_index' });
+      if (error) throw error;
+      const { error: weeklyError } = await _sb.from('attendance_weekly').upsert(record.weekly, { onConflict: 'student_id,term_id,week_number' });
+      if (weeklyError) throw weeklyError;
+      await attendanceQueueDelete(record.id);
+    }
+  } catch (err) { console.warn('[HMA] offline attendance sync deferred:', err?.message || err); }
+  finally { _attendanceFlushRunning = false; }
+}
+async function applyQueuedAttendanceToCache() {
+  const records = await attendanceQueueGet();
+  for (const record of records) {
+    for (const row of record.upsert || []) {
+      const term = _termNumFromId(row.term_id), week = `W${row.week_number}`;
+      _cache.attendanceDaily[term] = _cache.attendanceDaily[term] || {};
+      _cache.attendanceDaily[term][week] = _cache.attendanceDaily[term][week] || {};
+      const days = (_cache.attendanceDaily[term][week][String(row.student_id)] || Array(5).fill('')).slice();
+      days[row.day_index] = row.status === 'unmarked' ? '' : row.status;
+      _cache.attendanceDaily[term][week][String(row.student_id)] = days;
+      _cache.attendanceDailyDates[term] = _cache.attendanceDailyDates[term] || {};
+      _cache.attendanceDailyDates[term][week] = _cache.attendanceDailyDates[term][week] || {};
+      const dates = (_cache.attendanceDailyDates[term][week][String(row.student_id)] || Array(5).fill(null)).slice();
+      dates[row.day_index] = row.attendance_date;
+      _cache.attendanceDailyDates[term][week][String(row.student_id)] = dates;
+    }
+    for (const row of record.weekly || []) {
+      const term = _termNumFromId(row.term_id), week = `W${row.week_number}`;
+      _cache.attendance[term] = _cache.attendance[term] || {};
+      _cache.attendance[term][String(row.student_id)] = _cache.attendance[term][String(row.student_id)] || {};
+      _cache.attendance[term][String(row.student_id)][week] = row.days_present;
+    }
+  }
+}
+
 // ── Query map: one failure must not break the whole app ─────
 const _sources = {
   session:      () => _sb.from('sessions').select('*').eq('is_current', true).limit(1),
@@ -177,6 +279,8 @@ function _hydrate(raw) {
     mentorId:    s.mentor_id ? String(s.mentor_id) : null,
     gender:      s.gender || 'M',
     admissionNo: s.admission_no,
+    residenceStatus: s.residence_status || 'DAY_STUDENT',
+    hostelId: s.hostel_id ? String(s.hostel_id) : null,
     status:      s.status || 'active',     // active | inactive | withdrawn | archived
     statusReason: s.status_reason || null  // pool_timeout | ss3_completed | archived ...
   }));
@@ -606,6 +710,8 @@ async function loadFromSupabase() {
 
   if (!raw.session.length) _ensureSession();
   _hydrate(raw);
+  installAttendanceSync();
+  if (typeof window !== 'undefined' && window.navigator?.onLine) flushAttendanceQueue();
   if (_cache.failed.length) console.warn('[HMA] could not read:', _cache.failed.join(', '));
 
   // Fall back to the bundled demo school when the database cannot supply a
@@ -622,7 +728,11 @@ async function loadFromSupabase() {
     console.warn('[HMA] database has no usable school (missing: ' + thin.join(', ') +
                  ') - loading the bundled demo school instead');
     _loadSeedFallback();
+    _usingSeedFallback = true;
+  } else {
+    _usingSeedFallback = false;
   }
+  await applyQueuedAttendanceToCache();
   console.log('[HMA] Supabase data loaded ✓');
 }
 
@@ -1642,6 +1752,19 @@ const Data = {
       const stu = this.student(userId);
       if (!cls || !stu || String(stu.classId) !== String(cls.id)) return null;
     }
+    if (['Security Guard', 'Hostel Supervisor'].includes(user.role)) {
+      const token = await this.getAccessToken();
+      const base = String(import.meta.env.VITE_CAMPUS_API_URL || '').replace(/\/$/, '');
+      const response = await fetch(`${base}/api/users/${encodeURIComponent(userId)}/password`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword })
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || 'Could not update this campus staff password.');
+      }
+      return { ok: true };
+    }
     const salt = newSalt();
     const hash = hashPassword(newPassword, salt);
     user.passwordHash = hash; user.passwordSalt = salt;
@@ -1657,7 +1780,7 @@ const Data = {
     const hash = u.password != null && u.password !== '' ? hashPassword(u.password, salt) : null;
     const payload = {
       name: u.name, email: u.email,
-      role: _unmapRole(u.role), staff_role: u.role === 'Administrator' || ['Student','Parent'].includes(u.role) ? null : u.role,
+      role: _unmapRole(u.role), staff_role: ['Class Teacher','Subject Teacher','HOD'].includes(u.role) ? u.role : null,
       phone: u.phone || null, tone: u.tone || 'blue',
       initials: u.initials || avatarInitials(u.name),
       is_mentor: !!u.isMentor
@@ -1703,7 +1826,7 @@ const Data = {
     if (patch.isMentor   !== undefined) { payload.is_mentor = patch.isMentor; }
     if (patch.role !== undefined) {
       payload.role = _unmapRole(patch.role);
-      const isStaff = STAFF_ROLES.includes(patch.role);
+      const isStaff = ['Class Teacher', 'Subject Teacher', 'HOD'].includes(patch.role);
       payload.staff_role = isStaff ? patch.role : null;
       // A user who is no longer staff cannot mentor. Keep the existing
       // flag when the role is unchanged and no flag was supplied.
@@ -1731,6 +1854,46 @@ const Data = {
   students()           { return _cache.students; },
   student(id)          { return _cache.students.find(s => s.id === String(id)) || null; },
   studentsByClass(cid) { return _cache.students.filter(s => s.classId === String(cid)); },
+
+  async updateResidenceStatus(studentId, residenceStatus, hostelId = null) {
+    if (!['BOARDER', 'DAY_STUDENT'].includes(residenceStatus)) throw new Error('Choose boarder or day student.');
+    if (residenceStatus === 'BOARDER' && (!hostelId || !Number.isInteger(Number(hostelId)))) throw new Error('Assign a hostel to every boarder.');
+    const { data: auth } = await _sb.auth.getUser();
+    const actor = auth?.user?.id ? _cache.users.find(u => u.email === auth.user.email) : null;
+    if (!actor || actor.role !== 'Administrator') throw new Error('Only an administrator can change student residence status.');
+    const patch = { residence_status: residenceStatus, hostel_id: residenceStatus === 'BOARDER' && hostelId ? Number(hostelId) : null };
+    const { error } = await _sb.from('students').update(patch).eq('id', Number(studentId));
+    if (error) throw error;
+    const row = this.student(studentId);
+    if (row) { row.residenceStatus = residenceStatus; row.hostelId = patch.hostel_id ? String(patch.hostel_id) : null; }
+    return row;
+  },
+
+  async fetchHostels() {
+    const { data, error } = await _sb.from('hostels').select('id,name,active').eq('active', true).order('name');
+    if (error) throw error;
+    return data || [];
+  },
+
+  startRealtime() {
+    if (typeof window === 'undefined' || window._hmaRealtime) return;
+    window._hmaRealtime = _sb.channel('hma-campus-live')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'students' }, payload => {
+        const row = this.student(payload.new?.id);
+        if (!row) return;
+        row.residenceStatus = payload.new.residence_status || 'DAY_STUDENT';
+        row.hostelId = payload.new.hostel_id ? String(payload.new.hostel_id) : null;
+        window.dispatchEvent(new CustomEvent('hma:residence-updated', { detail: { studentId: row.id, residenceStatus: row.residenceStatus } }));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gate_events' }, payload => window.dispatchEvent(new CustomEvent('hma:gate-event', { detail: payload })))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hostel_presence_events' }, payload => window.dispatchEvent(new CustomEvent('hma:hostel-event', { detail: payload })))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'timetable_swaps' }, payload => window.dispatchEvent(new CustomEvent('hma:swap-updated', { detail: payload })))
+      .subscribe();
+    flushAttendanceQueue();
+  },
+
+  getAccessToken: async () => (await _sb.auth.getSession()).data?.session?.access_token || null,
+  lastDailySaveQueued: () => _attendanceSaveQueued,
 
   async addStudent({ name, classId, gender = 'M', admissionNo, email, password = 'student123', phone = null, mentorId = null }) {
     let classIdNum = Number(classId);
@@ -2135,6 +2298,7 @@ const Data = {
   // marks = { studentId: 'present' | 'absent' }; the week's roll-up and the
   // student/parent/admin views all update from this single save.
   async saveDailyDay(week, dayIdx, marks, term, attendanceDate) {
+    _attendanceSaveQueued = false;
     const t      = term || this.currentTerm();
     const wk     = `W${week}`;
     const termId = _termIdFromNum(t);
@@ -2143,6 +2307,10 @@ const Data = {
     const expectedDate = this.attendanceDates(t)[slot];
     if (!expectedDate || attendanceDate !== expectedDate || attendanceDate !== this.todayDate()) {
       console.warn('[HMA] attendance can only be changed for the current school date.');
+      return false;
+    }
+    if (_usingSeedFallback && typeof navigator !== 'undefined' && !navigator.onLine) {
+      console.warn('[HMA] offline attendance is disabled until the school roster has loaded from Supabase.');
       return false;
     }
     day[wk] = day[wk] || {};
@@ -2177,7 +2345,13 @@ const Data = {
     DB.set('attendance', _cache.attendance);
     if (!touchedStudentIds.length) return false;
     if (!termId) return true;
+    const queuedRecord = { id: `${termId}:${week}:${dayIdx}:${attendanceDate}`, upsert, weekly };
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        await attendanceQueuePut(queuedRecord);
+        _attendanceSaveQueued = true;
+        return true;
+      }
       if (upsert.length) {
         const { error } = await _sb.from('attendance_daily')
           .upsert(upsert, { onConflict: 'student_id,term_id,week_number,day_index' });
@@ -2186,9 +2360,15 @@ const Data = {
       const { error: wErr } = await _sb.from('attendance_weekly')
         .upsert(weekly, { onConflict: 'student_id,term_id,week_number' });
       if (wErr) throw wErr;
+      await attendanceQueueDelete(queuedRecord.id);
       return true;
     } catch (err) {
       console.warn('[HMA] daily attendance not saved remotely:', err?.message || err);
+      if (err instanceof TypeError || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+        await attendanceQueuePut(queuedRecord);
+        _attendanceSaveQueued = true;
+        return true;
+      }
       return false;
     }
   },
@@ -2746,12 +2926,13 @@ const STAFF_ROLES = ['Class Teacher', 'Subject Teacher', 'HOD'];
 
 function _mapRole(dbRole, staffRole) {
   if (dbRole === 'teacher') return staffRole || 'Subject Teacher';
-  return { admin: 'Administrator', teacher: 'Subject Teacher', student: 'Student', parent: 'Parent' }[dbRole] || dbRole;
+  return { admin: 'Administrator', teacher: 'Subject Teacher', student: 'Student', parent: 'Parent', security_guard: 'Security Guard', hostel_staff: 'Hostel Supervisor' }[dbRole] || dbRole;
 }
 function _unmapRole(appRole) {
   return {
     'Administrator': 'admin', 'Class Teacher': 'teacher', 'Subject Teacher': 'teacher',
-    'HOD': 'teacher', 'Student': 'student', 'Parent': 'parent'
+    'HOD': 'teacher', 'Student': 'student', 'Parent': 'parent',
+    'Security Guard': 'security_guard', 'Hostel Supervisor': 'hostel_staff'
   }[appRole] || 'teacher';
 }
 

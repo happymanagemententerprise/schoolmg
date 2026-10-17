@@ -1,17 +1,13 @@
 # Happy Man Academy
 
-A dependency-free front-end prototype for a school management system, backed by Supabase. There is
-no build step and no package manager — `index.html`, `styles.css`, `data.js` and `app.js` are the
-whole app.
+Happy Man Academy is a Vite single-page school management app using Supabase for authentication
+and PostgreSQL data. The browser experience lives in `src/`, its design system is in
+`src/styles.css`, and the shared data layer is `data.js`. `npm run dev` serves the app locally and
+`npm run build` creates the Cloudflare Pages output in `dist/`. A separate Node service in `server/`
+provides campus safety, SMS and scheduled push features.
 
-`data.js` imports the Supabase JS SDK from a CDN, so the page must be served over HTTP rather than
-opened as a `file://` URL. Any static server works, for example:
-
-```
-python -m http.server 8940
-```
-
-Then browse to `http://127.0.0.1:8940/`.
+Serve the app over HTTP rather than opening it as a `file://` URL. Run `npm install` and
+`npm run dev`, then browse to `http://localhost:8000/`.
 
 ## Setup
 
@@ -50,15 +46,16 @@ Then seed the demo school:
    the class teacher, plus the same parent's engagements (logins, result acknowledgement, PTA,
    early payment).
 
+Also apply `supabase/migrations/20261017104739_attendance_safety_pwa.sql` after the existing
+migrations for student residence, hostel presence, gate events, period attendance and PWA support.
 Every statement in the upgrade and the seed is idempotent, so both are safe to re-run. The app
 reports any table it could not read in the browser console (`[HMA] unreachable tables: …`).
 
 ## Running without a database
 
-The app works with no backend at all. If Supabase is unreachable, the key is rejected, or the
-database has not been migrated yet, `data.js` loads a **complete demo school that is bundled into
-the script itself** — the same school the seed file creates. Nothing is read from the network, so
-every screen, report, export and timetable is fully explorable offline.
+If Supabase cannot supply school data, `data.js` can load the bundled demo school for exploration.
+Signing in still requires a valid Supabase Auth session. Attendance can be queued offline after the
+real school roster has loaded; queued changes are not applied to demo data.
 
 Writes made in this mode update the local cache and are logged as
 `[HMA] … not saved remotely`, so nothing is silently lost. To reset, clear the site's local storage.
@@ -273,20 +270,44 @@ that the school sets the class directly.
 ## Project layout
 
 ```
-index.html                          markup for every role view
-styles.css                          all styling, no framework
-data.js                             Supabase client, cache, academic logic, timetable generator
-app.js                              role dashboards, routing, rendering, CSV export
+index.html                          application shell and route containers
+src/main.js                         Vite entry, authentication bootstrap, PWA bootstrap
+src/styles.css                      shared visual system
+src/views/*.js                      admin, teacher, student, parent, campus operations
+src/react/components/               interactive registers and reports
+data.js                             Supabase client, cache and academic logic
+server/index.js                     campus API, notifications and scheduled workflows
 supabase/migrations/*.sql           schema, applied in filename order
 supabase/seed.sql                   re-runnable demo data
 ```
 
-## Known limitations
+## Campus API security boundary
 
-This is a client-side prototype. The publishable key ships in `data.js` and the RLS policies are
-permissive, so **authentication and server-side permissions are not real yet** — any visitor can
-read and write the tables. Passwords are stored in plain text in `users.password` and checked in the
-browser. Spreadsheet upload currently only reports the chosen filename; it does not parse the file.
-The Supabase JS SDK is loaded from a CDN, so first load needs internet access even when no database
-is configured. Before this is used for real data, move authentication to Supabase Auth, tighten RLS
-to per-role policies, and hash passwords.
+Campus safety routes validate Supabase Auth access tokens and derive roles from `public.users`;
+they do not trust role claims sent by the browser. Keep the service-role key, VAPID private key and
+Twilio credentials only in the Node service environment. Deploy that Node service separately from
+the Cloudflare Pages frontend.
+# Campus attendance, safety and PWA deployment
+
+The browser app is deployed as a Vite/Cloudflare Pages site. The campus safety API is a separate, always-on Node.js service under `server/`; it owns service-role operations, scheduled web-push reminders, SMS delivery, cover approval, gate events and hostel closing summaries. Never put `SUPABASE_SERVICE_ROLE_KEY`, VAPID private keys or Twilio credentials in frontend variables.
+
+## Apply the Supabase changes
+
+Apply migrations in order, including `supabase/migrations/20261017104739_attendance_safety_pwa.sql`. It adds the `students.residence_status` classification (`BOARDER` / `DAY_STUDENT`), optional hostel assignment, scoped presence/event tables, approved timetable cover records, period attendance, push subscription storage and an end-of-day summary. Realtime publication membership is added for student status and campus-event tables. The migration has not been run against the hosted project from this workspace.
+
+Create one or more hostels from **Campus safety → Hostel setup**, then add users with the **Hostel Supervisor** or **Security Guard** role from People. Assign supervisors to hostels in Campus safety, then classify each student and assign boarders to a hostel from People → Students. Parent SMS requires parent phone numbers and Twilio credentials.
+
+## Run the campus API
+
+Copy `server/.env.example` to `server/.env` and set the Supabase URL, server-only service-role key, frontend origin(s), school timezone and optional VAPID/Twilio settings. Install and run the service from the repo root:
+
+```sh
+npm --prefix server install
+npm --prefix server run dev
+```
+
+Deploy this service on an always-on Node.js host (Node 20+). It polls the schedule for five-minute attendance reminders and performs hostel close-out at `HOSTEL_CHECKOUT_LOCAL_TIME` (default 22:00 in the school timezone). A process that sleeps between requests cannot run these jobs reliably. Set the frontend build variable `VITE_CAMPUS_API_URL` to the deployed service origin; the Vite dev server proxies `/api` to `http://localhost:8788`.
+
+Generate VAPID keys with `npx web-push generate-vapid-keys`, then set the public key, private key and contact subject in the API environment. Parent SMS delivery uses Twilio's REST API when all three Twilio variables are configured. Without these provider credentials the rest of the app remains available and notification status is surfaced in the gate register.
+
+The attendance outbox is stored in IndexedDB, falling back to localStorage. It is applied back to the on-device register after reload and synced when the app regains connectivity. Browser Background Sync is best-effort and asks an open app client to flush the queue; browsers that do not support Background Sync sync on the next `online` event while the app is open. PWA push reminders require the separate Node service and user permission.

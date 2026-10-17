@@ -1,0 +1,13 @@
+{
+  "name": "hma-campus-api",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node index.js", "dev": "node --watch index.js" },
+  "dependencies": {
+    "@supabase/supabase-js": "2.46.2",
+    "dotenv": "16.4.7",
+    "express": "5.1.0",
+    "web-push": "3.6.7"
+  }
+}

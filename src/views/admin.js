@@ -3,6 +3,7 @@
 // ============================================================
 
 import { Data, Academic, Progression, Timetable, Growth } from '../data/index.js';
+import { campusApi } from '../campus-api.js';
 import { getCurrentUser } from '../state.js';
 import {
   _prRows, set_prRows, getSensitiveRun, set_sensitiveRun,
@@ -336,7 +337,8 @@ export function syncPersonForm() {
   const role = $('nu-role').value;
   const isParentRole  = role === 'Parent';
   const isStudentRole = role === 'Student';
-  const isStaff   = ['Class Teacher', 'Subject Teacher', 'HOD'].includes(role);
+  const isStaff   = ['Class Teacher', 'Subject Teacher', 'HOD', 'Security Guard', 'Hostel Supervisor'].includes(role);
+  const isTeacherRole = ['Class Teacher', 'Subject Teacher', 'HOD'].includes(role);
 
   $('nu-phone-group').hidden   = !isParentRole && !isStaff;
   $('nu-phone-required').hidden = !isParentRole;
@@ -345,7 +347,7 @@ export function syncPersonForm() {
   $('nu-gender-group').hidden   = !isStudentRole;
   $('nu-admission-group').hidden = !isStudentRole;
   $('nu-mentor-group').hidden   = !isStudentRole;
-  $('nu-mentor-flag-row').hidden = !isStaff;
+  $('nu-mentor-flag-row').hidden = !isTeacherRole;
   $('nu-mentor').innerHTML = '<option value="">— No mentor —</option>' +
     Data.mentors().map(m => `<option value="${m.id}">${esc(m.name)} (${esc(m.role)})</option>`).join('');
 }
@@ -417,6 +419,24 @@ export async function saveUserFromForm() {
     return;
   }
 
+  if (['Security Guard', 'Hostel Supervisor'].includes(role)) {
+    const saveButton = $('save-user-btn');
+    saveButton.disabled = true;
+    try {
+      await campusApi('/api/users/campus-staff', { method: 'POST', body: JSON.stringify({
+        name, email, password: pw, phone, role: role === 'Security Guard' ? 'security_guard' : 'hostel_staff', initials: avatarInitials(name)
+      }) });
+      await window.loadFromSupabase?.();
+      closeModal('add-user-modal');
+      toast(`${name} added as ${role}.`);
+      renderPeopleTab($q('#people-tabs .tab-btn.active')?.dataset.tab || 'staff');
+    } catch (err) {
+      feedback.textContent = err.message || 'Could not create the campus staff account.';
+      feedback.className = 'form-feedback error mt8';
+    } finally { saveButton.disabled = false; }
+    return;
+  }
+
   const pending = role === 'Student'
     ? Data.addStudent({
         name, email, password: pw, phone: phone || null,
@@ -426,7 +446,7 @@ export async function saveUserFromForm() {
     : Data.addUser({
         name, email, password: pw, phone: phone || null, role,
         initials: avatarInitials(name), tone: 'blue',
-        isMentor: role === 'Parent' ? false : $('nu-mentor-flag')?.checked
+        isMentor: ['Class Teacher', 'Subject Teacher', 'HOD'].includes(role) && !!$('nu-mentor-flag')?.checked
       });
   closeModal('add-user-modal');
   toast(`${name} added as ${role}.`);
@@ -460,12 +480,12 @@ function myTeacherSubjectsOf(teacherId) {
   return Data.teacherSubjects().filter(ts => ts.teacherId === String(teacherId));
 }
 
-export function renderPeopleTab(tab) {
+export async function renderPeopleTab(tab) {
   const wrap = $('people-table-wrap');
   const term = currentTerm();
 
   if (tab === 'staff') {
-    const staff = Data.users().filter(isTeacher);
+  const staff = Data.users().filter(u => isTeacher(u) || ['Security Guard', 'Hostel Supervisor'].includes(u.role));
     wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Subjects</th><th>ID</th><th></th></tr></thead><tbody>` +
       staff.map(u => {
         const subs = [...new Set(myTeacherSubjectsOf(u.id).map(ts => Data.subject(ts.subjectId)?.code).filter(Boolean))];
@@ -474,7 +494,7 @@ export function renderPeopleTab(tab) {
           <td><span class="status review">${u.role}</span></td>
           <td class="muted-cell">${esc(u.phone || '—')}</td>
           <td class="muted-cell">${esc(u.email)}</td>
-          <td class="muted-cell">${esc(subs.slice(0, 3).join(', ') || '—')}${subs.length > 3 ? ` +${subs.length - 3}` : ''}</td>
+          <td class="muted-cell">${esc(subs.slice(0, 3).join(', ') || (['Security Guard','Hostel Supervisor'].includes(u.role) ? 'Campus operations' : '—'))}${subs.length > 3 ? ` +${subs.length - 3}` : ''}</td>
           <td class="muted-cell">${u.id}</td>
           <td><button class="btn-sm-save" data-reset-pw="${u.id}">Reset password</button></td>
         </tr>`;
@@ -483,7 +503,9 @@ export function renderPeopleTab(tab) {
 
   } else if (tab === 'students-all') {
     const students = directoryStudents();
-    wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Admission no</th><th>Mentor</th><th>Avg</th><th>Position</th><th>Status</th><th></th></tr></thead><tbody>` +
+    let hostels = [];
+    try { hostels = await Data.fetchHostels(); } catch (err) { console.warn('[HMA] hostel list unavailable:', err.message); }
+    wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Admission no</th><th>Mentor</th><th>Avg</th><th>Position</th><th>Academic status</th><th>Residence</th><th></th></tr></thead><tbody>` +
       (students.length ? students.map(s => {
         const profile = !s._profileMissing;
         const account = Data.users().find(u => String(u.id) === String(s._userId));
@@ -500,10 +522,22 @@ export function renderPeopleTab(tab) {
           <td><span class="score">${profile ? `${avg}%` : '—'}</span></td>
           <td class="muted-cell">${rank !== null ? ordinal(rank) : '—'}</td>
           <td>${profile ? `<span class="status ${statusClass(status)}">${status}</span>` : '<span class="status review">Student profile missing</span>'}</td>
+          <td>${profile ? `<div class="form-row tight"><select data-residence-status="${esc(s.id)}" aria-label="Residence status for ${esc(s.name)}"><option value="DAY_STUDENT" ${s.residenceStatus !== 'BOARDER' ? 'selected' : ''}>Day student</option><option value="BOARDER" ${s.residenceStatus === 'BOARDER' ? 'selected' : ''}>Boarder</option></select><select data-residence-hostel="${esc(s.id)}" aria-label="Hostel for ${esc(s.name)}"><option value="">Choose hostel</option>${hostels.map(h => `<option value="${h.id}" ${String(h.id) === String(s.hostelId) ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select><button type="button" class="btn-sm-save" data-save-residence="${esc(s.id)}">Save</button></div>` : '—'}</td>
           <td>${profile ? studentRowMenu(s.id) : ''}</td>
         </tr>`;
-      }).join('') : '<tr><td colspan="9" class="muted-cell">No student accounts found.</td></tr>') + '</tbody></table>';
+      }).join('') : '<tr><td colspan="10" class="muted-cell">No student accounts found.</td></tr>') + '</tbody></table>';
     if (students.length) bindStudentRowMenus();
+    $all('[data-save-residence]').forEach(button => button.addEventListener('click', async () => {
+      const id = button.dataset.saveResidence;
+      const residence = $q(`[data-residence-status="${id}"]`)?.value;
+      const hostelId = $q(`[data-residence-hostel="${id}"]`)?.value || null;
+      button.disabled = true;
+      try {
+        await Data.updateResidenceStatus(id, residence, hostelId);
+        toast('Student residence status updated.');
+      } catch (err) { toast(err.message || 'Could not update residence status.', 'error'); }
+      finally { button.disabled = false; }
+    }));
 
   } else {
     wrap.innerHTML = `<table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Children</th><th></th></tr></thead><tbody>` +

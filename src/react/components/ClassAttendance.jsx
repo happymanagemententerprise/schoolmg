@@ -91,7 +91,9 @@ export default function ClassAttendance({ focusSid = null }) {
     students.forEach(s => { marks[s.id] = draft[s.id]?.[week]?.[day] || ''; });
     const saved = await Data.saveDailyDay(week, day, marks, term, selectedDate);
     if (!saved) { toast('Register not saved. Check the term calendar and try again.', 'error'); return; }
-    toast(`Register saved · ${selectedDate} · Week ${week}.`);
+    toast(Data.lastDailySaveQueued?.()
+      ? `Register saved on this device · it will sync when you reconnect.`
+      : `Register saved · ${selectedDate} · Week ${week}.`);
     setV(prev => prev + 1);
   };
 

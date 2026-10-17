@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Happy Man Academy — School Management Dashboard">
+  <meta name="theme-color" content="#252b38">
+  <link rel="manifest" href="/manifest.webmanifest">
   <title>Happy Man Academy</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -115,6 +117,8 @@
         <strong id="page-title">Overview</strong>
       </div>
       <div class="top-actions">
+        <button class="btn-sm-save" id="push-enable-btn" type="button" hidden>Enable alerts</button>
+        <button class="btn-sm-save" id="install-app-btn" type="button" hidden>Install app</button>
         <button class="icon-button" aria-label="Notifications" id="notif-btn">&#128276;<i></i></button>
         <div class="topbar-user" id="topbar-user-badge">
           <span class="avatar sm-avatar coral" id="topbar-avatar">AM</span>
@@ -124,6 +128,16 @@
     </header>
 
     <!-- ── PAGE VIEWS ── -->
+
+    <!-- Campus operations: gated API access depends on the signed-in role. -->
+    <div class="page-wrap" id="view-campus" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Attendance and student safety</p><h1>Campus operations</h1><p class="subcopy">Day student gate events, boarder presence and class cover are recorded with a staff audit trail.</p></div>
+        <button type="button" class="btn-sm-save" id="campus-refresh">Refresh</button>
+      </section>
+      <div id="campus-feedback" class="form-feedback mt8" hidden></div>
+      <div id="campus-content"></div>
+    </div>
 
     <!-- ┌─────────────────────────────────────────────────────┐ -->
     <!-- │  ADMINISTRATOR VIEWS                                │ -->
@@ -1158,7 +1172,7 @@
       <div class="form-group"><label for="nu-role">Role</label>
         <select id="nu-role">
           <option>Administrator</option><option>Class Teacher</option><option>Subject Teacher</option>
-          <option>HOD</option><option>Student</option><option>Parent</option>
+          <option>HOD</option><option>Security Guard</option><option>Hostel Supervisor</option><option>Student</option><option>Parent</option>
         </select>
       </div>
 
