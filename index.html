@@ -52,15 +52,18 @@
     </form>
 
     <div class="demo-section">
-      <p class="demo-label">Demo accounts</p>
+      <p class="demo-label">Local demo accounts</p>
+      <p class="demo-note">Choose a role to explore. Demo changes stay in this browser and are never sent to the school database.</p>
       <div class="demo-grid">
-        <button class="demo-btn" data-email="admin@happyman.edu"   data-pw="admin123">Administrator</button>
-        <button class="demo-btn" data-email="class@happyman.edu"   data-pw="class123">Class Teacher</button>
-        <button class="demo-btn" data-email="subject@happyman.edu" data-pw="subject123">Subject Teacher</button>
-        <button class="demo-btn" data-email="hod@happyman.edu"     data-pw="hod123">HOD</button>
-        <button class="demo-btn" data-email="ama.osei@happyman.edu" data-pw="student123">Student</button>
-        <button class="demo-btn" data-email="emeka.okafor@happyman.edu" data-pw="student123">Repeated Student</button>
-        <button class="demo-btn" data-email="parent@happyman.edu"  data-pw="parent123">Parent</button>
+        <button class="demo-btn" data-email="admin@happyman.edu">Administrator</button>
+        <button class="demo-btn" data-email="class@happyman.edu">Class Teacher</button>
+        <button class="demo-btn" data-email="subject@happyman.edu">Subject Teacher</button>
+        <button class="demo-btn" data-email="hod@happyman.edu">HOD</button>
+        <button class="demo-btn" data-email="security@happyman.edu">Security Guard</button>
+        <button class="demo-btn" data-email="hostel@happyman.edu">Hostel Supervisor</button>
+        <button class="demo-btn" data-email="ama.osei@happyman.edu">Student</button>
+        <button class="demo-btn" data-email="emeka.okafor@happyman.edu">Repeated Student</button>
+        <button class="demo-btn" data-email="parent@happyman.edu">Parent</button>
       </div>
     </div>
   </div>
@@ -103,13 +106,17 @@
           <strong id="sidebar-name">Amara Mensah</strong>
           <small id="sidebar-role">Administrator</small>
         </div>
-        <button class="more logout-btn" id="logout-btn" title="Sign out" aria-label="Sign out">&#9211;</button>
+        <button class="logout-btn" id="logout-btn" title="Sign out" aria-label="Sign out">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M8 3H4.5A1.5 1.5 0 0 0 3 4.5v11A1.5 1.5 0 0 0 4.5 17H8M12.5 6.5 16 10l-3.5 3.5M7 10h9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Sign out</span>
+        </button>
       </div>
     </div>
   </aside>
 
   <!-- Main content -->
   <main class="main-content">
+    <div id="demo-mode-banner" class="demo-mode-banner" role="status" hidden>Local demo mode — changes stay in this browser and are never saved to the school database.</div>
     <header class="topbar">
       <button class="mobile-menu" id="mobile-menu" aria-label="Open navigation">&#9776;</button>
       <div class="crumb">
@@ -337,11 +344,11 @@
           </div>
           <div class="form-group form-group-action">
             <label>&nbsp;</label>
-            <button class="btn-primary" id="generate-tt-btn">Generate for class &nearr;</button>
+            <button class="btn-primary timetable-generate-btn" id="generate-tt-btn">Generate for class &nearr;</button>
           </div>
           <div class="form-group form-group-action">
             <label>&nbsp;</label>
-            <button class="btn-primary" id="generate-tt-all-btn">Generate for ALL classes &nearr;</button>
+            <button class="btn-primary timetable-generate-btn" id="generate-tt-all-btn">Generate for ALL classes &nearr;</button>
           </div>
         </div>
         <p class="role-muted">Whole-school generation uses each class's curriculum (JSS common list, or the
@@ -412,6 +419,7 @@
       
       <div class="segmented mt16" id="leaderboard-mode" role="group" aria-label="Leaderboard scope">
         <button type="button" class="active" data-mode="school">School top 10</button>
+        <button type="button" data-mode="grade">Top 10 by grade</button>
         <button type="button" data-mode="class">By grade and class</button>
       </div>
       <div class="panel mt16" id="leaderboard-overall-panel">
@@ -422,11 +430,18 @@
         <div class="table-wrap mt16" id="leaderboard-overall"></div>
       </div>
 
+      <div class="panel mt16" id="leaderboard-grade-panel" hidden>
+        <div class="panel-heading"><div><p class="eyebrow">Grade-wide</p><h2 id="leaderboard-grade-title">Top 10 by grade</h2><p class="subcopy">Students are ranked together across every class in the selected grade.</p></div>
+          <div class="leaderboard-picker"><div><span class="leaderboard-picker-label">Grade / year</span><div id="leaderboard-grade-overall-toggles" class="leaderboard-toggle-list" role="group" aria-label="Choose grade for grade leaderboard"></div></div></div>
+        </div>
+        <div class="table-wrap mt16" id="leaderboard-by-grade"></div>
+      </div>
+
       <div class="panel mt16" id="leaderboard-class-panel" hidden>
         <div class="panel-heading"><div><h2>Top performers by class</h2><p class="subcopy">Choose a grade, then a class to see its top 10.</p></div>
-          <div class="form-row tight leaderboard-selectors">
-            <label class="sr-only" for="leaderboard-grade">Grade</label><select id="leaderboard-grade" class="select-inline"></select>
-            <label class="sr-only" for="leaderboard-class">Class</label><select id="leaderboard-class" class="select-inline"></select>
+          <div class="leaderboard-picker">
+            <div><span class="leaderboard-picker-label">Grade</span><div id="leaderboard-grade-toggles" class="leaderboard-toggle-list" role="group" aria-label="Choose grade"></div></div>
+            <div><span class="leaderboard-picker-label">Class</span><div id="leaderboard-class-toggles" class="leaderboard-toggle-list" role="group" aria-label="Choose class"></div></div>
           </div>
         </div>
         <div id="leaderboard-classes" class="table-wrap mt16"></div>
@@ -907,9 +922,10 @@
       <section class="student-grid-top">
         <article class="panel">
           <div class="panel-heading">
-            <div><p class="eyebrow">Latest report</p><h2>Term results</h2></div>
+            <div><p class="eyebrow">Your learning</p><h2>Learning snapshot</h2></div>
             <button class="text-button" id="std-view-report-btn">View full report &nearr;</button>
           </div>
+          <p id="std-report-context" class="role-muted learning-snapshot-context"></p>
           <div id="std-subject-results" class="subject-results mt16"></div>
           <button class="btn-primary mt16" id="std-download-btn">Download report &darr;</button>
         </article>
@@ -995,7 +1011,7 @@
         <div><p class="eyebrow">Learning</p><h1>My lessons</h1><p class="subcopy">Lessons your teachers have published for your class.</p></div>
       </section>
       <div class="panel mt16">
-        <div class="panel-heading"><div><p class="eyebrow">Lesson library</p><h2>Newest first</h2></div></div>
+        <div class="panel-heading"><div><p class="eyebrow">Lesson library</p><h2>Lessons by school week</h2></div></div>
         <div id="stu-less-list" class="mt8"></div>
       </div>
       <div id="stu-less-detail" class="mt16"></div>
@@ -1019,7 +1035,7 @@
     <div class="page-wrap" id="view-student-attendance" data-role="Student" hidden>
       <section class="welcome-row">
         <div><p class="eyebrow">My record</p><h1>My attendance</h1><p class="subcopy">Days present for each week of the term, as marked by your class teacher.</p></div>
-        <select id="stu-att-term" class="select-inline" aria-label="Term"></select>
+        <span class="read-only-badge" id="stu-att-term-label" aria-label="Current term"></span>
       </section>
       <div class="panel mt16">
         <div class="panel-heading"><div><p class="eyebrow" id="stu-att-meta">&mdash;</p><h2>Attendance</h2></div>

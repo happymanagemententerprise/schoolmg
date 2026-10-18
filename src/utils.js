@@ -220,7 +220,10 @@ export function zipStore(parts) {
     hdr.setUint16(8, 0, true); hdr.setUint16(10, 0, true); hdr.setUint16(12, time, true); hdr.setUint16(14, date, true);
     hdr.setUint32(16, c.crc, true); hdr.setUint32(20, c.data.length, true); hdr.setUint32(24, c.data.length, true);
     hdr.setUint16(28, c.name.length, true); hdr.setUint16(30, 0, true); hdr.setUint16(32, 0, true);
-    hdr.setUint16(34, 0, true); hdr.setUint16(36, 0, true); hdr.setUint32(38, c.localOffset, true);
+    hdr.setUint16(34, 0, true); hdr.setUint16(36, 0, true);
+    // Central directory offsets 38–41 are external attributes; the local
+    // header offset is the 32-bit field at bytes 42–45.
+    hdr.setUint32(38, 0, true); hdr.setUint32(42, c.localOffset, true);
     chunks.push(new Uint8Array(hdr.buffer), c.name);
     offset += 46 + c.name.length;
   }

@@ -8,6 +8,9 @@ const userRole = () => getCurrentUser()?.role;
 const isGuard = () => userRole() === 'Security Guard';
 const isHostelStaff = () => userRole() === 'Hostel Supervisor';
 let stopCampusEvents = null;
+// Demo-only campus events live in memory. They are never submitted to Supabase.
+const demoGateEvents = new Map();
+const demoHostelPresence = new Map();
 const feedback = (message, isError = false) => {
   const el = $('campus-feedback');
   if (!el) return;
@@ -17,6 +20,10 @@ const feedback = (message, isError = false) => {
 };
 
 export async function renderCampus() {
+  if (Data.isDemoMode() && (isGuard() || isHostelStaff())) {
+    renderLocalCampusDemo();
+    return;
+  }
   if (!stopCampusEvents) stopCampusEvents = watchCampusEvents((type) => {
     if ($('view-campus')?.hidden) return;
     if (type === 'residence-updated') {
@@ -43,6 +50,64 @@ export async function renderCampus() {
     (teacher || admin) ? loadPeriodsAndSwaps() : Promise.resolve(),
     admin ? bindHostelSetup() : Promise.resolve()
   ]);
+}
+
+function renderLocalCampusDemo() {
+  const content = $('campus-content');
+  const students = Data.students();
+  if (isGuard()) {
+    const dayStudents = students.filter(s => Number(s.id) % 2 === 1);
+    content.innerHTML = `${renderGateSection()}<p class="muted-cell mt8">Local demo register · sample day students only. Events stay in this browser.</p>`;
+    renderLocalGateRoster(dayStudents);
+  } else {
+    const boarders = students.filter(s => Number(s.id) % 2 === 0);
+    content.innerHTML = `${renderHostelSection()}<p class="muted-cell mt8">Local demo hostel · sample boarders only. Presence changes stay in this browser.</p>`;
+    renderLocalHostelRoster(boarders);
+  }
+  $('campus-refresh').onclick = renderCampus;
+}
+
+function renderLocalGateRoster(roster) {
+  const root = $('gate-roster');
+  if (!root) return;
+  const find = value => roster.find(s => String(s.id) === value || String(s.admission_no).toLowerCase() === value.toLowerCase());
+  const eventLabel = student => {
+    const event = demoGateEvents.get(String(student.id));
+    return event ? `${event.type === 'arrival' ? 'Arrived' : 'Picked up'} · ${event.time} · Local demo` : '—';
+  };
+  const draw = () => {
+    root.innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Admission no.</th><th>Last gate event</th><th>Record</th></tr></thead><tbody>${roster.map(s => `<tr data-gate-student="${esc(s.id)}"><td>${esc(s.users?.name || 'Student')}</td><td>${esc(s.classes?.class_name || '—')}</td><td>${esc(s.admission_no)}</td><td data-last-event>${esc(eventLabel(s))}</td><td><button class="btn-sm-save" data-local-gate="arrival" data-student="${esc(s.id)}">Arrived</button> <button class="btn-sm-save" data-local-gate="pickup" data-student="${esc(s.id)}">Picked up</button></td></tr>`).join('')}</tbody></table>`;
+    root.querySelectorAll('[data-local-gate]').forEach(button => button.addEventListener('click', () => save(button.dataset.student, button.dataset.localGate)));
+  };
+  const save = (id, type) => {
+    demoGateEvents.set(String(id), { type, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+    draw();
+    toast(`Demo gate ${type === 'arrival' ? 'arrival' : 'pick-up'} recorded locally.`);
+  };
+  $('gate-record-btn').onclick = () => {
+    const student = find($('gate-student-query').value.trim());
+    if (!student) return feedback('No sample day student matches that admission number or ID.', true);
+    save(student.id, $('gate-event-type').value);
+  };
+  draw();
+}
+
+function renderLocalHostelRoster(roster) {
+  const root = $('hostel-dashboard');
+  if (!root) return;
+  const date = new Date().toLocaleDateString();
+  const draw = () => {
+    root.innerHTML = `<div class="mt16"><div class="panel-heading"><h3>Demo Boarding House</h3><span class="read-only-badge">${esc(date)} · ${roster.length} sample boarders</span></div><div class="table-wrap mt8"><table><thead><tr><th>Boarder</th><th>Class</th><th>Presence</th><th>Update</th></tr></thead><tbody>${roster.map(s => {
+      const present = demoHostelPresence.get(String(s.id)) ?? (Number(s.id) % 4 !== 0);
+      return `<tr><td>${esc(s.users?.name || 'Student')} <small class="muted-cell">${esc(s.admission_no)}</small></td><td>${esc(s.classes?.class_name || '—')}</td><td>${present ? '<span class="status promoted">Present</span>' : '<span class="status review">Out</span>'}</td><td><button type="button" class="btn-sm-save" data-local-hostel="in" data-student="${esc(s.id)}">Check in</button> <button type="button" class="btn-sm-save" data-local-hostel="out" data-student="${esc(s.id)}">Check out</button></td></tr>`;
+    }).join('')}</tbody></table></div></div>`;
+    root.querySelectorAll('[data-local-hostel]').forEach(button => button.addEventListener('click', () => {
+      demoHostelPresence.set(String(button.dataset.student), button.dataset.localHostel === 'in');
+      draw();
+      toast('Demo hostel presence updated locally.');
+    }));
+  };
+  draw();
 }
 
 function renderGateSection() {

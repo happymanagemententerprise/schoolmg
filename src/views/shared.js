@@ -20,23 +20,27 @@ const ATT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 // ── Timetable HTML table renderer ────────────────────────────
 export function timetableTable(schedule) {
   const colors = ['coral', 'blue', 'green', 'yellow', 'coral', 'blue', 'green'];
-  const periods = schedule.days[0]?.periods.length || 0;
+  const days = Array.isArray(schedule?.days) ? schedule.days.filter(day => Array.isArray(day.periods)) : [];
+  if (!days.length) return '<p class="muted-cell">This timetable is not available yet.</p>';
+  const periods = Math.max(0, ...days.map(day => day.periods.length));
+  const periodHeaders = Array.from({ length: periods }, (_, p) => {
+    const period = days.find(day => day.periods[p])?.periods[p];
+    return `<th><span class="tt-period">P${p + 1}</span>${period?.time ? `<small class="tt-time">${esc(period.time)}</small>` : ''}</th>`;
+  }).join('');
   let html = `<div class="timetable-wrap mt16"><table class="timetable-table">
-    <thead><tr><th>Period</th><th>Time</th>${schedule.days.map(d => `<th>${d.day}</th>`).join('')}</tr></thead><tbody>`;
-  for (let p = 0; p < periods; p++) {
-    html += `<tr><td class="tt-period">P${p + 1}</td><td class="tt-time muted-cell">${schedule.days[0].periods[p].time}</td>`;
-    schedule.days.forEach((day, di) => {
+    <thead><tr><th>Day</th>${periodHeaders}</tr></thead><tbody>`;
+  days.forEach((day, di) => {
+    html += `<tr><th scope="row" class="tt-day">${esc(day.day || `Day ${di + 1}`)}</th>`;
+    for (let p = 0; p < periods; p++) {
       const s = day.periods[p];
-      if (s.free) {
-        html += `<td><span class="tt-subject tt-free">${esc(s.subject)}</span></td>`;
-        return;
-      }
+      if (!s) { html += '<td class="muted-cell">—</td>'; continue; }
+      if (s.free) { html += `<td><span class="tt-subject tt-free">${esc(s.subject)}</span></td>`; continue; }
       html += `<td><span class="subject-chip chip-${s.color || colors[di % colors.length]}">${esc(s.code)}</span>
                 <span class="tt-subject">${esc(s.subject)}</span>
                 <small class="tt-teacher">${esc(s.teacher)}</small></td>`;
-    });
+    }
     html += '</tr>';
-  }
+  });
   return html + '</tbody></table></div>';
 }
 
@@ -344,7 +348,7 @@ export function attendanceGridHTML(studentId, term, { showFutureWeeks = false, f
   const elapsedSlots = schoolDates.reduce((count, date) => count + (date <= today ? 1 : 0), 0);
   const populatedWeeks = Object.keys(weeks).map(w => Number(w.replace('W', ''))).filter(Number.isFinite);
   const currentWeek = schoolDates.length
-    ? (todaySlot >= 0 ? Math.floor(todaySlot / 5) + 1 : Math.ceil(elapsedSlots / 5))
+    ? Math.max(1, todaySlot >= 0 ? Math.floor(todaySlot / 5) + 1 : Math.ceil(elapsedSlots / 5))
     : Math.max(1, ...populatedWeeks);
   const termEntries = Array.from({ length: 16 }, (_, i) => {
     const weekNumber = i + 1;
@@ -356,14 +360,15 @@ export function attendanceGridHTML(studentId, term, { showFutureWeeks = false, f
   const possible = fullTerm
     ? (schoolDates.length ? elapsedSlots : currentWeek * 5)
     : entries.length * 5;
-  return `<div class="att-legend"><b class="att-day present">P</b> present &nbsp;<b class="att-day late">L</b> late &nbsp;<b class="att-day absent">A</b> absent</div>
+  return `${showFutureWeeks ? '<p class="muted-cell att-future-note">All 16 term weeks are shown. Future weeks are inactive until they begin.</p>' : ''}
+    <div class="att-legend"><b class="att-day present">P</b> present &nbsp;<b class="att-day late">L</b> late &nbsp;<b class="att-day absent">A</b> absent</div>
     <div class="att-grid mt16">
       ${entries.length ? entries.map(([w, d]) => {
         const weekNumber = Number(w.slice(1));
         const future = showFutureWeeks && weekNumber > currentWeek;
         return `<div class="att-week${future ? ' att-week-future' : ''}"${future ? ' aria-label="Upcoming week; attendance is not active yet"' : ''}>
           <strong>${esc(w)}${future ? '<small class="att-week-status">Upcoming</small>' : ''}</strong>
-          <span>${Number(d) || 0} / 5 days</span>${dayChipsHTML(studentId, term, w)}
+          <span>${future ? 'Not started' : `${Number(d) || 0} / 5 days`}</span>${future ? '<span class="att-future-placeholder" aria-hidden="true">Attendance opens this week</span>' : dayChipsHTML(studentId, term, w)}
         </div>`;
       }).join('') : '<p class="muted-cell">No attendance recorded for this term.</p>'}
     </div>

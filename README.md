@@ -62,14 +62,9 @@ Writes made in this mode update the local cache and are logged as
 
 ### Demo accounts
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Administrator | `admin@happyman.edu` | `admin123` |
-| Class Teacher | `class@happyman.edu` | `class123` |
-| Subject Teacher | `subject@happyman.edu` | `subject123` |
-| HOD | `hod@happyman.edu` | `hod123` |
-| Student | `ama.osei@happyman.edu` | `student123` |
-| Parent | `parent@happyman.edu` | `parent123` |
+Choose a role on the login screen to enter the bundled local demo school. Demo access does not
+require a password or Supabase Auth account. Changes are kept in the browser and are not written
+to the school database. To use an actual school account, sign in with its email and password.
 
 
 ## Roles and what each one can do

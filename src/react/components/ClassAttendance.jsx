@@ -23,6 +23,7 @@ export default function ClassAttendance({ focusSid = null }) {
   const schoolDates = Data.attendanceDates(term);
   const today = Data.todayDate();
   const todaySlot = schoolDates.indexOf(today);
+  const currentWeek = todaySlot >= 0 ? Math.floor(todaySlot / 5) + 1 : 1;
 
   // Build initial draft from saved daily attendance
   const buildDraft = () => {
@@ -131,7 +132,8 @@ export default function ClassAttendance({ focusSid = null }) {
   // Heatmap for a student
   const termHeatmap = sid =>
     Array.from({ length: TERM_WEEKS }, (_, i) => i + 1).map(w => (
-      <span className="att-week-group" title={`Week ${w}`} key={w}>
+      <span className={`att-week-group${w > currentWeek ? ' att-week-group-future' : ''}`} title={`Week ${w}${w > currentWeek ? ' · Upcoming' : ''}`} key={w}>
+        <small className="att-week-number">W{w}</small>
         {ATT_DAYS.map((d, di) => {
           const st  = draft[sid]?.[w]?.[di] || '';
           const cls = st === 'present' ? 'present' : st === 'late' ? 'late' : st === 'absent' ? 'absent' : 'off';
@@ -158,10 +160,10 @@ export default function ClassAttendance({ focusSid = null }) {
           <p className="subcopy">Take the daily register Mon–Fri, track late arrivals, and see the term overview at a glance.</p>
         </div>
         <div className="form-row tight">
-          <button className="btn-primary" disabled={!canEditSelectedDate || isSaving} onClick={saveDay} title="Save the present, late, and absent marks for today">{isSaving ? 'Saving register…' : 'Save today’s register'}</button>
+          <button className="btn-primary" disabled={!canEditSelectedDate || isSaving} onClick={saveDay} title="Save all present, late, and absent marks for the selected school date">{isSaving ? 'Saving register…' : 'Save attendance marks'}</button>
         </div>
       </section>
-      <p className="role-muted attendance-save-hint">This saves the marks for the selected school date. You can edit today’s register only.</p>
+      <p className="role-muted attendance-save-hint">Save records every student’s present, late, or absent mark for the selected school date. “All present” and “All absent” only fill the register; click Save attendance marks to store them. Today’s register can be edited.</p>
       <p className={`form-feedback attendance-save-state ${saveState.tone}`} role="status" aria-live="polite">{saveState.message}</p>
 
       {/* Stat cards */}

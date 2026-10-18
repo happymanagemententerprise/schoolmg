@@ -10,7 +10,7 @@
           "index.html"
         ],
         "createdAt": "2026-10-17T11:18:28.563Z",
-        "reason": "Agent review: false positive; src/styles.css sets body to 14px and page headings to 30-40px (login title 28-36px), so the hierarchy exceeds 1.25x. Detector misses stylesheet context."
+        "reason": "False positive: index.html links src/styles.css, where body text is 14px, panel h2 is 19px, and dashboard h1 scales from 30px to 40px, providing clear typographic steps; the HTML-only finding misses the external stylesheet."
       }
     ]
   }

@@ -1,4 +1,4 @@
-const VERSION = 'hma-shell-v1';
+const VERSION = 'hma-shell-v4';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/hma.svg'];
 
 self.addEventListener('install', event => {

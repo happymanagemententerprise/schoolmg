@@ -660,7 +660,17 @@ export function renderAdminClasses() {
       const list = btn.nextElementSibling;
       const open = list.hidden;
       closeMenus();
-      if (open) list.hidden = false;
+      if (open) {
+        list.hidden = false;
+        list.classList.add('row-menu-floating');
+        const anchor = btn.getBoundingClientRect();
+        const menu = list.getBoundingClientRect();
+        const left = Math.max(8, Math.min(anchor.right - menu.width, window.innerWidth - menu.width - 8));
+        const below = anchor.bottom + menu.height + 8 <= window.innerHeight;
+        const top = below ? anchor.bottom + 4 : Math.max(8, anchor.top - menu.height - 4);
+        list.style.left = left + 'px';
+        list.style.top = top + 'px';
+      }
     }));
     $all('[data-class-students]').forEach(btn => btn.addEventListener('click', () => {
       closeMenus(); openClassStudentsModal(btn.dataset.classStudents);
@@ -1053,7 +1063,7 @@ export function renderAdminAnalytics() {
     const blockCount = monthRows.reduce((max, m) => Math.max(max, m.length), 0);
     const labels = blockCount ? (monthRows.find(m => m.length === blockCount) || []).map(b => b.label) : [];
     $('analytics-attendance-month-head').innerHTML =
-      `<tr><th>Student</th>${labels.map(l => `<th>${esc(l)}</th>`).join('')}<th>Term %</th></tr>`;
+      `<tr><th>Student</th>${labels.map(l => `<th>${esc(l)}</th>`).join('')}<th>${esc(termNameOf(term))} %</th></tr>`;
     $('analytics-attendance-month').innerHTML = blockCount
       ? students.map((s, si) => {
           const pct = +Academic.attendancePct(s.id, term);
@@ -1090,10 +1100,10 @@ export function renderAdminAnalytics() {
       <td><strong>${r.avg === '' ? '—' : r.avg + ' / 20'}</strong></td>
     </tr>`).join('');
     $('midterm-download-btn').onclick = () => {
-      const rows = [[`Happy Man Academy — ${cl?.name || ''} mid-term report · Term ${term}`],
+      const rows = [[`Happy Man Academy — ${cl?.name || ''} mid-term report · ${termNameOf(term)}`],
                     ['Student ID', 'Student', ...subs.map(x => x.name), 'Avg (mid-term only)']];
       mrows.forEach(r => rows.push([r.s.id, r.s.name, ...r.cas, r.avg]));
-      downloadXlsx(`midterm_${cl?.name.replace(/\s+/g, '_') || 'class'}_term${term}.xlsx`, rows, `Mid-term · Term ${term}`);
+      downloadXlsx(`midterm_${cl?.name.replace(/\s+/g, '_') || 'class'}_term${term}.xlsx`, rows, `Mid-term · ${termNameOf(term)}`);
       toast('Mid-term report downloaded.');
     };
   }
@@ -1122,7 +1132,7 @@ export function renderAdminLeaderboard() {
 
   $('leaderboard-overall').innerHTML = topOverall.length
     ? `<table>
-        <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Session Avg</th><th>Term ${term} Avg</th><th>Class Pos.</th></tr></thead>
+        <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Session Avg</th><th>${esc(termNameOf(term))} Avg</th><th>Class Pos.</th></tr></thead>
         <tbody>` +
         topOverall.map((s, i) => `<tr>
           <td><strong class="leaderboard-rank ${i < 3 ? 'top-' + (i + 1) : ''}">${i + 1}</strong></td>
@@ -1136,16 +1146,26 @@ export function renderAdminLeaderboard() {
 
   const gradeOf = cl => cl.name.match(/^(Grade\s+\d+)/i)?.[1] || cl.level || 'Other classes';
   const grades = [...new Set(classes.map(gradeOf))];
-  const gradeSel = $('leaderboard-grade');
-  const classSel = $('leaderboard-class');
-  gradeSel.innerHTML = grades.map(grade => `<option value="${esc(grade)}">${esc(grade)}</option>`).join('');
+  const gradeToggles = $('leaderboard-grade-toggles');
+  const gradeOverallToggles = $('leaderboard-grade-overall-toggles');
+  const classToggles = $('leaderboard-class-toggles');
+  let selectedGrade = grades[0] || '';
+  let selectedOverallGrade = grades[0] || '';
+  let selectedClassId = classes.find(cl => gradeOf(cl) === selectedGrade)?.id || '';
+  const classLabel = cl => cl.name.replace(new RegExp(`^${gradeOf(cl).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'), '').trim() || cl.name;
 
   const renderClassOptions = () => {
-    const gradeClasses = classes.filter(cl => gradeOf(cl) === gradeSel.value);
-    classSel.innerHTML = gradeClasses.map(cl => `<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+    const gradeClasses = classes.filter(cl => gradeOf(cl) === selectedGrade);
+    if (!gradeClasses.some(cl => String(cl.id) === String(selectedClassId))) selectedClassId = gradeClasses[0]?.id || '';
+    classToggles.innerHTML = gradeClasses.map(cl => `<button type="button" class="leaderboard-toggle${String(cl.id) === String(selectedClassId) ? ' active' : ''}" aria-pressed="${String(cl.id) === String(selectedClassId)}" data-leaderboard-class="${esc(cl.id)}">${esc(classLabel(cl))}</button>`).join('');
+    classToggles.querySelectorAll('[data-leaderboard-class]').forEach(button => button.onclick = () => {
+      selectedClassId = button.dataset.leaderboardClass;
+      renderClassOptions();
+      renderSelectedClass();
+    });
   };
   const renderSelectedClass = () => {
-    const cl = Data.cls(classSel.value);
+    const cl = Data.cls(selectedClassId);
     const ranked = allStudents.filter(student => String(student.classId) === String(cl?.id)).slice(0, topN);
     $('leaderboard-classes').innerHTML = ranked.length
       ? `<table><thead><tr><th>#</th><th>Student</th><th>Session Avg</th><th>${esc(termNameOf(term))} Avg</th></tr></thead><tbody>${ranked.map((s, i) => `
@@ -1154,15 +1174,51 @@ export function renderAdminLeaderboard() {
           <td><span class="score">${Math.round(s.avg)}%</span></td><td><span class="score">${s.termAvg}%</span></td></tr>`).join('')}</tbody></table>`
       : '<p class="muted-cell p16">No students with scores in this class yet.</p>';
   };
+  const renderSelectedGrade = () => {
+    const ranked = allStudents.filter(student => {
+      const cl = Data.cls(student.classId);
+      return cl && gradeOf(cl) === selectedOverallGrade;
+    }).slice(0, topN);
+    $('leaderboard-grade-title').textContent = 'Top 10 · ' + selectedOverallGrade;
+    $('leaderboard-by-grade').innerHTML = ranked.length
+      ? '<table><thead><tr><th>#</th><th>Student</th><th>Class</th><th>Session Avg</th><th>' + esc(termNameOf(term)) + ' Avg</th></tr></thead><tbody>' + ranked.map((s, i) =>
+          '<tr><td><strong class="leaderboard-rank ' + (i < 3 ? 'top-' + (i + 1) : '') + '">' + (i + 1) + '</strong></td>' +
+          '<td><div class="student"><span class="student-avatar ' + toneClass(s.tone) + '">' + s.initials + '</span>' + esc(s.name) + '</div></td>' +
+          '<td>' + esc(s.className) + '</td><td><span class="score">' + Math.round(s.avg) + '%</span></td>' +
+          '<td><span class="score">' + s.termAvg + '%</span></td></tr>'
+        ).join('') + '</tbody></table>'
+      : '<p class="muted-cell p16">No students with scores in this grade yet.</p>';
+  };
+  gradeToggles.innerHTML = grades.map(grade => `<button type="button" class="leaderboard-toggle${grade === selectedGrade ? ' active' : ''}" aria-pressed="${grade === selectedGrade}" data-leaderboard-grade="${esc(grade)}">${esc(grade)}</button>`).join('');
+  gradeToggles.querySelectorAll('[data-leaderboard-grade]').forEach(button => button.onclick = () => {
+    selectedGrade = button.dataset.leaderboardGrade;
+    gradeToggles.querySelectorAll('[data-leaderboard-grade]').forEach(item => {
+      const active = item === button;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-pressed', String(active));
+    });
+    renderClassOptions();
+    renderSelectedClass();
+  });
+  gradeOverallToggles.innerHTML = grades.map(grade => '<button type="button" class="leaderboard-toggle' + (grade === selectedOverallGrade ? ' active' : '') + '" aria-pressed="' + (grade === selectedOverallGrade) + '" data-leaderboard-overall-grade="' + esc(grade) + '">' + esc(grade) + '</button>').join('');
+  gradeOverallToggles.querySelectorAll('[data-leaderboard-overall-grade]').forEach(button => button.onclick = () => {
+    selectedOverallGrade = button.dataset.leaderboardOverallGrade;
+    gradeOverallToggles.querySelectorAll('[data-leaderboard-overall-grade]').forEach(item => {
+      const active = item === button;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-pressed', String(active));
+    });
+    renderSelectedGrade();
+  });
   renderClassOptions();
   renderSelectedClass();
-  gradeSel.onchange = () => { renderClassOptions(); renderSelectedClass(); };
-  classSel.onchange = renderSelectedClass;
+  renderSelectedGrade();
   $all('#leaderboard-mode button').forEach(button => {
     button.onclick = () => {
-      const schoolMode = button.dataset.mode === 'school';
-      $('leaderboard-overall-panel').hidden = !schoolMode;
-      $('leaderboard-class-panel').hidden = schoolMode;
+      const mode = button.dataset.mode;
+      $('leaderboard-overall-panel').hidden = mode !== 'school';
+      $('leaderboard-grade-panel').hidden = mode !== 'grade';
+      $('leaderboard-class-panel').hidden = mode !== 'class';
       $all('#leaderboard-mode button').forEach(item => item.classList.toggle('active', item === button));
     };
   });
@@ -1180,7 +1236,7 @@ export function renderAdminLeaderboard() {
       return `<article class="panel">
         <div class="panel-heading"><h3>${esc(subject.name)}</h3><span class="read-only-badge">Top ${ranked.length}</span></div>
         <div class="table-wrap mt16"><table>
-          <thead><tr><th>#</th><th>Student</th><th>Term ${term}</th></tr></thead>
+          <thead><tr><th>#</th><th>Student</th><th>${esc(termNameOf(term))}</th></tr></thead>
           <tbody>${ranked.map((row, i) => `<tr>
             <td><strong class="leaderboard-rank ${i < 3 ? 'top-' + (i + 1) : ''}">${i + 1}</strong></td>
             <td><div class="student"><span class="student-avatar ${toneClass(row.student.tone)}">${row.student.initials}</span>${esc(row.student.name)}</div></td>
@@ -1675,10 +1731,21 @@ export function renderProgressionApprovals() {
 }
 
 export function renderAdminProgression() {
-  import('../react/mount.js').then(({ mount }) => {
+  const root = $('react-admin-progression');
+  if (!root) return;
+  root.innerHTML = '<div class="panel mt16" role="status">Loading progression workspace…</div>';
+  import('../react/mount.js').then(({ mount }) =>
     import('../react/components/AdminProgression.jsx').then(({ default: AdminProgression }) => {
       mount('react-admin-progression', AdminProgression, {});
-    });
+    })
+  ).catch(error => {
+    console.error('[HMA] Progression workspace failed to load:', error);
+    root.innerHTML = `<div class="panel mt16 section-load-error" role="alert">
+      <h2>Progression could not load</h2>
+      <p class="role-muted">The app could not load the current progression module. Reload to fetch the latest app files, then try again.</p>
+      <button type="button" class="outline-button section-reload">Reload app</button>
+    </div>`;
+    root.querySelector('.section-reload')?.addEventListener('click', () => window.location.reload());
   });
 }
 

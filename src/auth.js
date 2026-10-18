@@ -114,10 +114,16 @@ export function navForUser(user) {
 export function initLogin() {
   const emailI = $('login-email'), pwI = $('login-password');
 
-  $all('.demo-btn').forEach(btn => btn.addEventListener('click', () => {
+  $all('.demo-btn').forEach(btn => btn.addEventListener('click', async () => {
     emailI.value = btn.dataset.email;
-    pwI.value    = btn.dataset.pw;
+    pwI.value    = '';
     Alpine.store('loginError', '');
+    const user = await Data.startDemoMode(btn.dataset.email);
+    if (!user) {
+      Alpine.store('loginError', 'This demo role is not available in the bundled school data.');
+      return;
+    }
+    login(user);
   }));
 
   $('login-form').addEventListener('submit', async e => {
@@ -148,6 +154,8 @@ export function initLogin() {
 export function login(user) {
   setCurrentUser(user);
   Data.startRealtime();
+  const demoBanner = $('demo-mode-banner');
+  if (demoBanner) demoBanner.hidden = !Data.isDemoMode();
   import('./pwa.js').then(({ showPWAActions }) => showPWAActions());
   $('login-screen').hidden = true;
   $('app-shell').hidden    = false;
@@ -159,6 +167,8 @@ export function login(user) {
 export async function logout() {
   window.dispatchEvent(new Event('hma:logout'));
   await Data.signOut();
+  const demoBanner = $('demo-mode-banner');
+  if (demoBanner) demoBanner.hidden = true;
   setCurrentUser(null);
   clearPrevSessionCache();
   $('app-shell').hidden    = true;

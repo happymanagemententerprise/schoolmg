@@ -23,6 +23,27 @@ const _sb = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVybGh5cnN3Y3FwcXBxemJnbWdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzczNzQsImV4cCI6MjEwNjAxMzM3NH0.64Swd6hsUE0h3jzpmJFbq1z4aTTey4YoTxuxlJV0pUc'
 );
 
+// Local demo sessions use the bundled fixture school only. This PostgREST
+// shim deliberately resolves queries without sending them to Supabase while
+// demo mode is active, so demo edits cannot reach the live database.
+let _demoMode = false;
+const DEMO_SESSION_KEY = 'hma_local_demo_email';
+const _supabaseFrom = _sb.from.bind(_sb);
+const _supabaseRpc = _sb.rpc.bind(_sb);
+function demoQuery() {
+  const result = { data: null, error: null };
+  let builder;
+  builder = new Proxy({}, {
+    get(_target, prop) {
+      if (prop === 'then') return (resolve, reject) => Promise.resolve(result).then(resolve, reject);
+      return () => builder;
+    }
+  });
+  return builder;
+}
+_sb.from = (...args) => _demoMode ? demoQuery() : _supabaseFrom(...args);
+_sb.rpc = (...args) => _demoMode ? Promise.resolve({ data: null, error: null }) : _supabaseRpc(...args);
+
 // ── In-memory store ──────────────────────────────────────────
 const _cache = {
   session:        null,   // { id, name, currentTerm, uploadOpen, terms[] }
@@ -128,7 +149,7 @@ function installAttendanceSync() {
   });
 }
 async function flushAttendanceQueue() {
-  if (_attendanceFlushRunning || typeof navigator !== 'undefined' && !navigator.onLine) return;
+  if (_demoMode || _attendanceFlushRunning || typeof navigator !== 'undefined' && !navigator.onLine) return;
   _attendanceFlushRunning = true;
   try {
     const records = await attendanceQueueGet();
@@ -222,6 +243,16 @@ const _sources = {
 // Shared by the live Supabase read and the bundled demo school so both
 // paths always produce the same cache shape.
 function _hydrate(raw) {
+  // PostgREST select queries return arrays. If an edge/cache returns a single
+  // object or malformed payload, normalize it here instead of letting a
+  // downstream .map() crash the entire dashboard (notably Progression).
+  for (const key of Object.keys(_sources)) {
+    if (!Array.isArray(raw[key])) {
+      if (raw[key] != null) console.warn(`[HMA] ${key} response was not a row list; using an empty list.`);
+      raw[key] = [];
+    }
+  }
+
   // ── session + terms
   _cache.session = _mapSession(raw.session, raw.terms);
 
@@ -570,6 +601,7 @@ function _hydrate(raw) {
     subjectId: String(l.subject_id),
     classId:   String(l.class_id),
     teacherId: l.teacher_id ? String(l.teacher_id) : null,
+    week:      Number.isInteger(Number(l.week_number)) && Number(l.week_number) >= 1 ? Number(l.week_number) : null,
     title:     l.title,
     content:   l.content,
     createdAt: l.created_at || null
@@ -697,6 +729,15 @@ function _hydrate(raw) {
 
 // ── Bootstrap — called once from DOMContentLoaded ────────────
 async function loadFromSupabase() {
+  const demoEmail = localStorage.getItem(DEMO_SESSION_KEY);
+  if (demoEmail) {
+    _demoMode = true;
+    _usingSeedFallback = true;
+    _cache.failed = [];
+    _loadDemoSchool();
+    console.info('[HMA] Local demo session restored; Supabase reads and writes are disabled.');
+    return;
+  }
   const keys = Object.keys(_sources);
   const settled = await Promise.allSettled(keys.map(k => _sources[k]()));
   const raw = {};
@@ -992,7 +1033,9 @@ function _loadDemoSchool() {
     ['Clement Anane','commerce2@happyman.edu','happyman123','teacher','08031234584','blue','Subject Teacher',false,null,null],
     // arts
     ['Emeka Obi','arts@happyman.edu','happyman123','teacher','08031234572','blue','HOD',false,null,null],
-    ['Ruth Opoku','arts2@happyman.edu','happyman123','teacher','08031234585','coral','Subject Teacher',false,null,null]
+    ['Ruth Opoku','arts2@happyman.edu','happyman123','teacher','08031234585','coral','Subject Teacher',false,null,null],
+    ['Demo Security Guard','security@happyman.edu','HMA_Demo_2026!','security_guard','08031234588','blue',null,false,null,null],
+    ['Demo Hostel Supervisor','hostel@happyman.edu','HMA_Demo_2026!','hostel_staff','08031234589','green',null,false,null,null]
   ];
   // name, email, phone, tone
   const STUDENT_USERS = [
@@ -1013,31 +1056,26 @@ function _loadDemoSchool() {
 
   const users = [];
   USERS.forEach((u, i) => {
-    const salt = newSalt();
-    const hash = hashPassword(u[2], salt);
     users.push({
       id: i + 1, name: u[0], email: u[1],
-      password_hash: hash, password_salt: salt,
+      password_hash: null, password_salt: null,
       role: u[3], phone: u[4],
       tone: u[5], staff_role: u[6], is_mentor: u[7], mentor_subject: u[8], mentor_bio: u[9]
     });
   });
   const staffCount = USERS.length;
   STUDENT_USERS.forEach((u, i) => {
-    const salt = newSalt();
-    const hash = hashPassword('student123', salt);
     users.push({
       id: staffCount + i + 1, name: u[0], email: u[1],
-      password_hash: hash, password_salt: salt,
+      password_hash: null, password_salt: null,
       role: 'student', phone: u[2], tone: u[3],
       staff_role: null, is_mentor: false, mentor_subject: null, mentor_bio: null
     });
   });
   const parentId = users.length + 1;
-  const _pSalt = newSalt();
   users.push({
     id: parentId, name: 'Mrs. Comfort Osei', email: 'parent@happyman.edu',
-    password_hash: hashPassword('parent123', _pSalt), password_salt: _pSalt,
+    password_hash: null, password_salt: null,
     role: 'parent', phone: '08099887766', tone: 'coral',
     staff_role: null, is_mentor: false, mentor_subject: null, mentor_bio: null
   });
@@ -1876,7 +1914,7 @@ const Data = {
   },
 
   startRealtime() {
-    if (typeof window === 'undefined' || window._hmaRealtime) return;
+    if (_demoMode || typeof window === 'undefined' || window._hmaRealtime) return;
     window._hmaRealtime = _sb.channel('hma-campus-live')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'students' }, payload => {
         const row = this.student(payload.new?.id);
@@ -1892,7 +1930,7 @@ const Data = {
     flushAttendanceQueue();
   },
 
-  getAccessToken: async () => (await _sb.auth.getSession()).data?.session?.access_token || null,
+  getAccessToken: async () => _demoMode ? null : (await _sb.auth.getSession()).data?.session?.access_token || null,
   lastDailySaveQueued: () => _attendanceSaveQueued,
 
   async addStudent({ name, classId, gender = 'M', admissionNo, email, password = 'student123', phone = null, mentorId = null }) {
@@ -2938,14 +2976,52 @@ const Data = {
     return record;
   },
 
+  async startDemoMode(email) {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    try { await _sb.auth.signOut(); } catch {}
+    if (typeof window !== 'undefined' && window._hmaRealtime) {
+      try { await _sb.removeChannel(window._hmaRealtime); } catch {}
+      window._hmaRealtime = null;
+    }
+    _demoMode = true;
+    _usingSeedFallback = true;
+    _cache.failed = [];
+    _loadDemoSchool();
+    const user = this.userByEmail(cleanEmail);
+    if (!user) {
+      _demoMode = false;
+      _usingSeedFallback = false;
+      return null;
+    }
+    localStorage.setItem(DEMO_SESSION_KEY, cleanEmail);
+    return user;
+  },
+  isDemoMode() { return _demoMode; },
   async signIn({ email, password }) {
+    _demoMode = false;
+    localStorage.removeItem(DEMO_SESSION_KEY);
     const { data, error } = await _sb.auth.signInWithPassword({ email, password });
     return { session: data?.session || null, error: error?.message || null };
   },
   async signOut() {
+    if (_demoMode || localStorage.getItem(DEMO_SESSION_KEY)) {
+      _demoMode = false;
+      _usingSeedFallback = false;
+      localStorage.removeItem(DEMO_SESSION_KEY);
+      return;
+    }
     await _sb.auth.signOut();
   },
   async getSession() {
+    const demoEmail = localStorage.getItem(DEMO_SESSION_KEY);
+    if (demoEmail) {
+      if (!_demoMode) {
+        _demoMode = true;
+        _usingSeedFallback = true;
+        _loadDemoSchool();
+      }
+      return { user: { email: demoEmail }, localDemo: true };
+    }
     const { data } = await _sb.auth.getSession();
     return data?.session || null;
   }
@@ -2996,6 +3072,8 @@ const Academic = {
     const sc      = Data.studentScores(studentId);
     return subs.map(sub => {
       const entry = sc[sub.id]?.[term];
+      const hasCompleteTermScore = entry && Number.isFinite(Number(entry.test)) && Number.isFinite(Number(entry.exam)) &&
+        (entry.midterm == null || Number.isFinite(Number(entry.midterm)));
       return {
         subjectId: sub.id,
         name:      sub.name,
@@ -3006,7 +3084,7 @@ const Academic = {
         midterm:   entry ? entry.midterm : null,
         ca:        entry ? entry.test : null,
         exam:      entry ? entry.exam : null,
-        score:     entry ? (entry.midterm == null ? entry.test : entry.midterm + entry.test) + entry.exam : null
+        score:     hasCompleteTermScore ? (entry.midterm == null ? Number(entry.test) : Number(entry.midterm) + Number(entry.test)) + Number(entry.exam) : null
       };
     });
   },
@@ -3465,7 +3543,9 @@ const Progression = {
         p_term_id:    Number(_termIdFromNum(termId))
       });
       if (error) throw error;
-      this._pos = { key, rows: (data || []).map(r => ({
+      const positionRows = Array.isArray(data) ? data : [];
+      if (data != null && !Array.isArray(data)) console.warn('[HMA] student_positions returned a non-list response; showing no rankings.');
+      this._pos = { key, rows: positionRows.map(r => ({
         studentId:  String(r.student_id),
         classId:    String(r.class_id),
         year:       r.year,

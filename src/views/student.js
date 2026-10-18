@@ -7,7 +7,7 @@ import { getCurrentUser } from '../state.js';
 import { _csState, set_csState } from '../state.js';
 import {
   $, $q, $all, esc, toast, formatDate,
-  gradeLabel, toneClass, subjectChip, statusClass, currentTerm, passMark
+  gradeLabel, toneClass, subjectChip, statusClass, currentTerm, passMark, downloadXlsx
 } from '../utils.js';
 import { openModal, closeModal } from '../modals.js';
 import { openStudentReport } from './reports.js';
@@ -37,21 +37,35 @@ export function renderStudentDashboard() {
   $('std-class').textContent        = `${cl?.name || '—'} · ${Data.session().name}${cl?.stream ? ' · ' + cl.stream : ''}`;
   $('std-avatar').textContent       = s.initials;
   $('std-avatar').className         = `avatar ${toneClass(s.tone)}`;
-  $('std-stat-avg').textContent     = avg + '%';
-  $('std-stat-avg-note').textContent = `Grade ${gradeLabel(avg)} · ${[check.enPass, check.maPass, check.avgPass].filter(Boolean).length} of 3 met`;
+  $('std-stat-avg').textContent     = Data.published(term) ? avg + '%' : '—';
+  $('std-stat-avg-note').textContent = Data.published(term)
+    ? `Grade ${gradeLabel(avg)} · ${[check.enPass, check.maPass, check.avgPass].filter(Boolean).length} of 3 met`
+    : 'Full average appears after results are published';
   $('std-stat-att').textContent     = att;
   $('std-stat-assigns').textContent = assigns.length;
   const _allPub = [1, 2, 3].every(t => Data.published(t));
   $('std-stat-status').textContent  = _allPub ? status : '—';
 
-  $('std-subject-results').innerHTML = Academic.termScores(sid, term).map(sc => {
-    const pct = sc.score ?? 0, pass = pct >= passMark();
+  const reportScores = Academic.termScores(sid, term);
+  const termPublished = Data.published(term);
+  const releasedScores = reportScores.filter(sc => termPublished ? sc.score !== null : sc.midterm !== null);
+  const highestReleased = releasedScores.slice().sort((a, b) =>
+    (termPublished ? b.score - a.score : b.midterm - a.midterm))[0];
+  $('std-report-context').textContent = termPublished
+    ? `${termNameOf(term)} results are published. Your current average is ${avg}%.${highestReleased ? ` Strongest subject: ${highestReleased.name} (${highestReleased.score}%).` : ''}`
+    : releasedScores.length
+      ? `Mid-term scores are available in ${releasedScores.length} of ${reportScores.length} subjects.${highestReleased ? ` Highest so far: ${highestReleased.name} (${highestReleased.midterm}/20).` : ''} Full term grades appear after publication.`
+      : `No mid-term marks have been released for ${termNameOf(term)} yet.`;
+  $('std-subject-results').innerHTML = releasedScores.map(sc => {
+    const score = termPublished ? sc.score : sc.midterm;
+    const max = termPublished ? 100 : 20;
+    const pct = score ?? 0, pass = termPublished && pct >= passMark();
     return `<div>
       <span>${esc(sc.name)}</span>
-      <b class="${pass ? '' : 'text-danger'}">${pct}%</b>
-      <i><em style="width:${pct}%;background:${pass ? 'var(--green)' : 'var(--coral)'}"></em></i>
+      <b class="${pass ? '' : ''}">${pct}/${max}${termPublished ? '%' : ''}</b>
+      <i><em style="width:${Math.min(100, pct / max * 100)}%;background:${pass ? 'var(--green)' : 'var(--blue)'}"></em></i>
     </div>`;
-  }).join('');
+  }).join('') || '<p class="muted-cell">Subject progress will appear here when marks are released.</p>';
 
   const reqs = [
     { label: `At least ${passMark()}% in English`,     met: check.enPass, value: check.english + '%' },
@@ -90,7 +104,16 @@ export function renderStudentDashboard() {
 
   $('std-mentor-card').innerHTML = mentorCard(mentor);
   $('std-view-report-btn').onclick = () => openStudentReport(sid);
-  $('std-download-btn').onclick    = () => toast('Report prepared. ✓');
+  $('std-download-btn').onclick = () => {
+    const columns = termPublished
+      ? ['Subject', 'Mid-term / 20', 'Second-half CA / 20', 'Exam / 60', 'Total / 100', 'Grade']
+      : ['Subject', 'Mid-term / 20'];
+    const rows = [[s.name, cl?.name || '', termNameOf(term), Data.session().name], columns];
+    releasedScores.forEach(sc => rows.push(termPublished
+      ? [sc.name, sc.midterm ?? '', sc.ca ?? '', sc.exam ?? '', sc.score ?? '', sc.score === null ? '' : gradeLabel(sc.score)]
+      : [sc.name, sc.midterm ?? '']));
+    downloadXlsx(`report_${s.name.replace(/\s+/g, '_')}_${termNameOf(term).replace(/\s+/g, '_')}.xlsx`, rows, termNameOf(term));
+  };
 
   renderStudentSubjectsPanel();
   renderStudentGrowth();
@@ -339,11 +362,22 @@ export function renderStudentLessons() {
   const s = Data.student(currentUser.studentId);
   const list = $('stu-less-list');
   if (!s || !list) return;
-  const lessons = Data.lessonsFor(s.classId) || [];
+  const termForLesson = lesson => Data.session().terms.find(t => String(t._id) === String(lesson.termId))?.term || currentTerm();
+  const weekForLesson = lesson => {
+    if (Number.isInteger(lesson.week) && lesson.week >= 1) return lesson.week;
+    const dates = Data.attendanceDates(termForLesson(lesson));
+    const posted = String(lesson.createdAt || '').slice(0, 10);
+    if (!posted || !dates.length) return null;
+    const elapsed = dates.filter(date => date <= posted).length;
+    return Math.max(1, Math.min(16, Math.ceil(elapsed / 5)));
+  };
+  const lessons = (Data.lessonsFor(s.classId) || []).map(l => ({ ...l, schoolWeek: weekForLesson(l) }))
+    .sort((a, b) => (a.schoolWeek || Number.MAX_SAFE_INTEGER) - (b.schoolWeek || Number.MAX_SAFE_INTEGER) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   list.innerHTML = lessons.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Title</th><th class="muted-cell">Teacher</th><th class="muted-cell">Posted</th><th></th></tr></thead>` +
-      `<tbody>${lessons.map(l => `
+    ? `<div class="table-wrap"><table><thead><tr><th>Week</th><th>Subject</th><th>Lesson topic</th><th class="muted-cell">Teacher</th><th class="muted-cell">Posted</th><th></th></tr></thead>` +
+      `<tbody>${lessons.map((l, index) => `${index === 0 || l.schoolWeek !== lessons[index - 1].schoolWeek ? `<tr class="lesson-week-heading"><th colspan="6">${l.schoolWeek ? `Week ${l.schoolWeek}` : 'Week not set'}</th></tr>` : ''}
         <tr>
+          <td>${l.schoolWeek ? `Week ${l.schoolWeek}` : '—'}</td>
           <td>${esc(Data.subject(l.subjectId)?.name || '—')}</td>
           <td>${esc(l.title)}</td>
           <td class="muted-cell">${esc(Data.user(l.teacherId)?.name || '—')}</td>
@@ -500,20 +534,18 @@ export function renderStudentDiscussions() {
 export function renderStudentAttendance() {
   const currentUser = getCurrentUser();
   const s = Data.student(currentUser.studentId);
-  const sel = $('stu-att-term');
-  if (!s || !sel) return;
-  sel.innerHTML = Data.session().terms.map(t =>
-    `<option value="${t.term}" ${t.term === currentTerm() ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+  const termLabel = $('stu-att-term-label');
+  if (!s || !termLabel) return;
+  const term = currentTerm();
+  termLabel.textContent = termNameOf(term);
   const mode = () => ($('stu-att-mode')?.querySelector('button.active')?.dataset.mode) || 'weekly';
   const draw = () => {
-    const term = +sel.value;
     $('stu-att-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.name || '')} · ${termNameOf(term)}`;
     $('stu-att-grid').innerHTML = mode() === 'monthly'
       ? monthlyAttendanceHTML(s.id, term)
-      : attendanceGridHTML(s.id, term);
+      : attendanceGridHTML(s.id, term, { fullTerm: true, showFutureWeeks: true });
   };
   draw();
-  sel.onchange = draw;
   $all('#stu-att-mode button').forEach(b => b.onclick = () => {
     $all('#stu-att-mode button').forEach(x => x.classList.toggle('active', x === b));
     draw();

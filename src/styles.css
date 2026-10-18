@@ -268,6 +268,7 @@ hidden, [hidden] { display: none !important; }
 
 .demo-section { margin-top: 32px; }
 .demo-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); margin-bottom: 10px; }
+.demo-note { margin: -4px 0 12px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .demo-btn {
   background: var(--paper); border: 1px solid var(--line);
@@ -276,6 +277,7 @@ hidden, [hidden] { display: none !important; }
   text-align: center; transition: .15s;
 }
 .demo-btn:hover { background: var(--blue-soft); border-color: var(--blue); color: var(--blue); }
+.demo-mode-banner { padding: 9px 14px; background: var(--yellow-soft); color: #765b13; border-bottom: 1px solid #eadba4; font-size: 12px; font-weight: 600; }
 
 .login-visual {
   flex: 1;
@@ -364,8 +366,15 @@ hidden, [hidden] { display: none !important; }
 }
 .user-row strong { display: block; font-size: 11px; }
 .user-row small  { color: #8f98aa; font-size: 10px; margin-top: 2px; display: block; }
-.more, .logout-btn { margin-left: auto; color: #8f98aa; font-size: 14px; }
-.logout-btn:hover { color: var(--coral); }
+.more { margin-left: auto; color: #8f98aa; font-size: 14px; }
+.logout-btn {
+  margin-left: auto; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 9px; border: 1px solid #485265; border-radius: 7px;
+  color: #c0c7d3; font-size: 10px; font-weight: 650; white-space: nowrap;
+}
+.logout-btn svg { width: 15px; height: 15px; }
+.logout-btn:hover { border-color: #d59a91; color: #f2b2a8; background: rgba(255,255,255,.05); }
+.logout-btn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 
 /* ── Topbar ─────────────────────────────────────────────────── */
 .main-content { flex: 1; min-width: 0; margin-left: 240px; display: flex; flex-direction: column; }
@@ -696,10 +705,16 @@ tr:last-child td { border-bottom: 0; }
 
 /* ── Timetable ─────────────────────────────────────────────── */
 .timetable-gen-panel .form-row { align-items: flex-end; }
+.timetable-gen-panel .form-group-action { flex: 1 1 190px; min-width: 190px; }
+.timetable-generate-btn { min-height: 44px; display: flex; align-items: center; justify-content: center; line-height: 1.25; }
 .timetable-wrap { overflow-x: auto; }
-.timetable-table { width: 100%; }
+.timetable-table { width: 100%; min-width: 720px; }
 .timetable-table th { background: var(--paper); padding: 10px 14px; }
-.timetable-table td { padding: 10px 14px; }
+.timetable-table td { padding: 10px 14px; min-width: 112px; }
+.timetable-table .tt-day { min-width: 98px; text-align: left; color: var(--ink); }
+.timetable-table thead th:not(:first-child) { min-width: 118px; }
+.tt-period { display: block; }
+.tt-time { display: block; margin-top: 3px; }
 .tt-period { font-weight: 700; font-size: 11px; color: var(--muted); }
 .tt-time   { font-size: 10px; white-space: nowrap; }
 
@@ -1215,10 +1230,44 @@ tr.att-focused { background: var(--blue-soft); }
 }
 .att-week strong { display: block; font-size: 12px; }
 .att-week span  { font-size: 11px; color: var(--muted); }
-.att-week-future { background: #f3f3ef; border-style: dashed; color: #727873; }
-.att-week-future > span, .att-week-future .att-day { opacity: .48; }
+.att-week-future { background: #f1f2ef; border-style: dashed; border-color: #d6dad5; color: #777e79; filter: grayscale(1); }
+.att-week-future > span, .att-week-future .att-day, .att-week-future .att-future-placeholder { opacity: .48; }
 .att-week-status { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: 600; color: var(--muted); }
+.att-future-note { margin: 0 0 8px; }
+.att-future-placeholder { display: block; margin-top: 7px; font-size: 10px; }
 .attendance-save-hint { margin: 8px 0 0; }
+.lesson-week-heading th { padding: 10px 12px 7px 0; color: var(--blue); background: var(--blue-soft); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.learning-snapshot-context { margin: 12px 0 0; max-width: 62ch; line-height: 1.55; }
+.results-locked-notice {
+  display: flex; align-items: flex-start; gap: 12px; padding: 16px;
+  border: 1px solid var(--line); border-radius: 10px; background: #fff;
+}
+.results-locked-notice p { min-width: 0; margin: 0; line-height: 1.55; overflow-wrap: anywhere; white-space: normal; }
+.student-results-panel { min-width: 0; }
+.results-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.results-panel-heading h2 { margin: 0; }
+.results-panel-heading p { margin-top: 6px; }
+.student-results-table { white-space: normal; }
+.section-load-error { max-width: 720px; }
+.section-load-error h2 { margin: 0; }
+.section-load-error p { overflow-wrap: anywhere; }
+.leaderboard-picker { display: grid; gap: 9px; min-width: min(320px, 100%); }
+.leaderboard-picker-label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.leaderboard-toggle-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.leaderboard-toggle {
+  min-height: 36px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--white); color: var(--ink); font: inherit; font-size: 11px; font-weight: 600; line-height: 1.2; cursor: pointer;
+}
+.leaderboard-toggle:hover { border-color: var(--blue); color: var(--blue); }
+.leaderboard-toggle.active { border-color: var(--blue); background: var(--blue); color: #fff; }
+.leaderboard-toggle:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+@media (max-width: 640px) {
+  .results-panel-heading { flex-direction: column; }
+  .results-panel-heading .select-inline { width: 100%; }
+  .leaderboard-picker { min-width: 0; width: 100%; }
+  .leaderboard-toggle-list { max-width: 100%; }
+  .logout-btn { gap: 4px; padding: 7px 6px; font-size: 9px; }
+}
 .leaderboard-selectors { align-items: center; }
 .leaderboard-selectors select { min-width: 132px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
@@ -1508,11 +1557,25 @@ tr.att-focused { background: var(--blue-soft); }
 }
 .att-week-group {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 2px;
   padding: 3px 5px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--paper);
+}
+.att-week-number {
+  flex: 0 0 100%;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1.2;
+  text-align: center;
+}
+.att-week-group-future {
+  border-style: dashed;
+  background: #f1f2ef;
+  filter: grayscale(1);
+  opacity: .55;
 }
 /* att-day chips already defined above; extend sizes for the heatmap */
 .att-week-group .att-day {

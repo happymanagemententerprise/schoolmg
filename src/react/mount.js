@@ -3,9 +3,30 @@
 // ============================================================
 import { createRoot } from 'react-dom/client';
 import { AppProvider } from '../context/AppContext.jsx';
-import { createElement } from 'react';
+import { Component, createElement } from 'react';
 
 const roots = new Map();
+
+class ViewErrorBoundary extends Component {
+  state = { failed: false };
+
+  static getDerivedStateFromError() { return { failed: true }; }
+
+  componentDidCatch(error, info) {
+    console.error('[HMA] A view failed to render:', error, info?.componentStack || '');
+  }
+
+  render() {
+    if (this.state.failed) {
+      return createElement('section', { className: 'panel mt16 section-load-error', role: 'alert' },
+        createElement('h2', null, 'This section could not load'),
+        createElement('p', { className: 'role-muted' }, 'A page-data or app-loading error interrupted this section. Reload the app to recover the latest data and files.'),
+        createElement('button', { className: 'outline-button', type: 'button', onClick: () => window.location.reload() }, 'Reload app')
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /**
  * Mount a React component into a DOM element by container ID.
@@ -26,8 +47,10 @@ export function mount(containerId, Component, props = {}) {
     roots.set(containerId, createRoot(container));
   }
   roots.get(containerId).render(
-    createElement(AppProvider, null,
-      createElement(Component, props)
+    createElement(ViewErrorBoundary, null,
+      createElement(AppProvider, null,
+        createElement(Component, props)
+      )
     )
   );
 }

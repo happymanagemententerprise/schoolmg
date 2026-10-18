@@ -15,7 +15,7 @@ import {
 } from '../../utils.js';
 import SessionSelector from './SessionSelector.jsx';
 import PreviousSessionPanel from './PreviousSessionPanel.jsx';
-import { resultsLockedNote } from '../../views/shared.js';
+import { termNameOf } from '../../views/shared.js';
 
 // ── Main component ───────────────────────────────────────────
 
@@ -131,15 +131,20 @@ export default function StudentResults() {
   }
 
   // ── Current session branch ───────────────────────────────
-  const visibleTerms = session.terms.filter(
-    t => t.term <= currentTerm() && Data.published(t.term)
-  );
+  const visibleTerms = session.terms.filter(t => {
+    if (t.term > currentTerm()) return false;
+    if (Data.published(t.term)) return true;
+    return Academic.termScores(sid, t.term).some(score => score.midterm !== null);
+  });
+  const displayTerm = visibleTerms.some(t => t.term === activeTerm)
+    ? activeTerm
+    : (visibleTerms[visibleTerms.length - 1]?.term ?? currentTerm());
+  const isPublished = Data.published(displayTerm);
+  const scores   = Academic.termScores(sid, displayTerm);
+  const isTerm3  = displayTerm === 3;
 
-  const scores   = Academic.termScores(sid, activeTerm);
-  const isTerm3  = activeTerm === 3;
-
-  const t2Scores = isTerm3 ? Academic.termScores(sid, 2) : [];
-  const t1Scores = isTerm3 ? Academic.termScores(sid, 1) : [];
+  const t2Scores = isTerm3 && isPublished ? Academic.termScores(sid, 2) : [];
+  const t1Scores = isTerm3 && isPublished ? Academic.termScores(sid, 1) : [];
   const t2ById   = Object.fromEntries(t2Scores.map(s => [s.subjectId, s.score]));
   const t1ById   = Object.fromEntries(t1Scores.map(s => [s.subjectId, s.score]));
 
@@ -158,39 +163,45 @@ export default function StudentResults() {
         }}
       />
 
-      {/* No published terms yet */}
+      {/* Nothing has been released yet */}
       {visibleTerms.length === 0 ? (
-        <div className="panel mt16">
-          <table>
-            <tbody>
-              <tr>
-                <td
-                  dangerouslySetInnerHTML={{ __html: resultsLockedNote(currentTerm()) }}
-                  colSpan={8}
-                  className="muted-cell"
-                />
+        <div className="results-locked-notice mt16" role="status">
+          <span className="status review">Locked</span>
+          <p>No results have been released for {termNameOf(currentTerm())} yet. Check back when the school publishes mid-term marks or term results.</p>
+        </div>
+      ) : !isPublished ? (
+        <div className="panel mt16 student-results-panel">
+          <div className="results-panel-heading">
+            <div><h2>{session.terms.find(t => t.term === displayTerm)?.name || 'Term'} · mid-term results</h2>
+              <p className="role-muted">Your school has released mid-term marks. Second-half CA, exam scores, totals, and grades stay hidden until the full term results are published.</p>
+            </div>
+            <select className="select-inline" value={displayTerm} aria-label="Results term" onChange={e => setActiveTerm(Number(e.target.value))}>
+              {visibleTerms.map(t => <option key={t.term} value={t.term}>{esc(t.name)}</option>)}
+            </select>
+          </div>
+          <div className="table-wrap mt16"><table className="student-results-table">
+            <thead><tr><th>Subject</th><th>Type</th><th>Mid-term / 20</th><th>Release</th></tr></thead>
+            <tbody>{scores.filter(sub => sub.midterm !== null).map(sub => (
+              <tr key={sub.subjectId}>
+                <td><div className="student"><span dangerouslySetInnerHTML={{ __html: subjectChip(sub) }} />{esc(sub.name)}</div></td>
+                <td className="muted-cell">{sub.type === 'core' ? 'Core' : 'Elective'}</td>
+                <td><strong>{sub.midterm}</strong></td>
+                <td><span className="status promoted">Released</span></td>
               </tr>
-            </tbody>
-          </table>
+            ))}</tbody>
+          </table></div>
         </div>
       ) : (
-        <div className="panel mt16">
+        <div className="panel mt16 student-results-panel">
           {/* Meta + term selector row */}
-          <p className="role-muted" style={{ marginBottom: '12px' }}>
-            {session.name} &middot; {scores.length} subjects &middot; average{' '}
-            {Academic.termAverage(sid, activeTerm)}%
-          </p>
-
-          <select
-            className="select-inline"
-            value={activeTerm}
-            onChange={e => setActiveTerm(Number(e.target.value))}
-            style={{ marginBottom: '12px' }}
-          >
-            {visibleTerms.map(t => (
-              <option key={t.term} value={t.term}>{esc(t.name)}</option>
-            ))}
-          </select>
+          <div className="results-panel-heading">
+            <div><p className="role-muted" style={{ marginBottom: '4px' }}>{session.name} &middot; {scores.filter(score => score.score !== null).length} subjects scored</p>
+              <p className="role-muted">Published term results · average {Academic.termAverage(sid, displayTerm)}%</p>
+            </div>
+            <select className="select-inline" value={displayTerm} aria-label="Results term" onChange={e => setActiveTerm(Number(e.target.value))}>
+              {visibleTerms.map(t => <option key={t.term} value={t.term}>{esc(t.name)}</option>)}
+            </select>
+          </div>
 
           <div className="table-wrap">
             <table>
@@ -230,7 +241,7 @@ export default function StudentResults() {
                 {scores.length === 0 ? (
                   <tr>
                     <td
-                      dangerouslySetInnerHTML={{ __html: resultsLockedNote(activeTerm) }}
+                      dangerouslySetInnerHTML={{ __html: 'No subject marks were recorded for this published term.' }}
                       colSpan={isTerm3 ? 11 : 8}
                       className="muted-cell"
                     />

@@ -1223,12 +1223,12 @@ export function renderLessonsTable() {
   };
   const mine = (Data.lmsLessons() || []).filter(l => l.teacherId === currentUser.id)
     .map(lesson => ({ ...lesson, schoolWeek: weekOf(lesson) }))
-    .sort((a, b) => a.schoolWeek - b.schoolWeek || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    .sort((a, b) => (a.schoolWeek || Number.MAX_SAFE_INTEGER) - (b.schoolWeek || Number.MAX_SAFE_INTEGER) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   $('ls-count').textContent = mine.length;
   const list = $('ls-list');
   list.innerHTML = mine.length
     ? `<div class="table-wrap"><table><thead><tr><th>Week</th><th>Subject</th><th>Class</th><th>Title</th><th class="muted-cell">Posted</th><th></th></tr></thead>` +
-      `<tbody>${mine.map(l => `
+      `<tbody>${mine.map((l, index) => `${index === 0 || l.schoolWeek !== mine[index - 1].schoolWeek ? `<tr class="lesson-week-heading"><th colspan="6">${l.schoolWeek ? `Week ${l.schoolWeek}` : 'Unscheduled lessons'}</th></tr>` : ''}
         <tr>
           <td>${l.schoolWeek ? `Week ${l.schoolWeek}` : '—'}</td>
           <td>${esc(Data.subject(l.subjectId)?.name || '—')}</td>
