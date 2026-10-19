@@ -13,7 +13,9 @@ Serve the app over HTTP rather than opening it as a `file://` URL. Run `npm inst
 
 The database must be set up before the app can show school data. For a **new Supabase project**,
 run every migration below in the Supabase SQL Editor, in this exact filename order. Run
-`supabase/seed.sql` only after all migrations succeed.
+`supabase/seed.sql` only after all migrations succeed. Enable the Data API, but keep automatic
+table exposure disabled; the final migration grants authenticated roles only the operations
+backed by RLS policies.
 
 1. `supabase/migrations/20260926_initial_schema.sql` — core school tables and initial policies.
 2. `supabase/migrations/20260927_school_upgrade.sql` — staff roles, departments, mentors,
@@ -45,15 +47,20 @@ run every migration below in the Supabase SQL Editor, in this exact filename ord
     class teacher's own class), and administrators; grade writes require an explicit subject
     assignment or administrator access. It also closes anonymous access to the school-wide ranking
     RPC and limits that report to administrators.
+19. `supabase/migrations/20261019120000_authenticated_api_grants.sql` — grants authenticated users
+    only the table operations covered by their RLS policies, grants sequences only for insertable
+    tables, and keeps quiz answer keys and profile updates restricted.
 
 Then run `supabase/seed.sql` to create the demo school (34 subjects, 12 classes, 20 teachers, an
 administrator, 11 students, a parent, sample grades, attendance and LMS content).
 
 For an **existing database**, do not blindly replay the full list. Compare the deployed schema with
 the migrations and apply only the missing changes in order. The two 20261019 security migrations
-have not been verified against the hosted project from this workspace; reconcile the project's
-current migration history and test them in staging before deploying. Applying migrations through
-the SQL Editor does not automatically record Supabase CLI migration history.
+and the authenticated-grants migration have been applied to the empty
+`happyman-academy-staging` project and verified with 22 role-scope assertions. The existing
+`happyman-academy` project was not changed; reconcile its migration history and review its schema
+before planning a production rollout. Applying migrations through the SQL Editor does not
+automatically record Supabase CLI migration history.
 
 For local development, `supabase start` and `supabase db reset` apply the migrations and configured
 seed to the local Supabase database. Then run `supabase test db` to execute the pgTAP checks under
@@ -298,12 +305,12 @@ The browser app is deployed as a Vite/Cloudflare Pages site. The campus safety A
 
 ## Apply the Supabase changes
 
-Follow the complete 18-file migration order in [Setup](#setup), including vehicle check-in and both
-security migrations. The attendance migration adds the `students.residence_status`
+Follow the complete 19-file migration order in [Setup](#setup), including vehicle check-in and the
+security and explicit-grants migrations. The attendance migration adds the `students.residence_status`
 classification (`BOARDER` / `DAY_STUDENT`), optional hostel assignment, scoped presence/event tables,
 approved timetable cover records, period attendance, push subscription storage and an end-of-day
-summary. The security migrations are present in source but have not been run against the hosted
-project from this workspace.
+summary. The security migrations have been applied and role-scope checks have passed on the empty
+staging project; production deployment remains pending.
 
 Create one or more hostels from **Campus safety → Hostel setup**, then add users with the **Hostel Supervisor** or **Security Guard** role from People. Assign supervisors to hostels in Campus safety, then classify each student and assign boarders to a hostel from People → Students. Parent SMS requires parent phone numbers and Twilio credentials.
 

@@ -69,8 +69,8 @@ VALUES
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid = 'public.grades'::regclass), 'grades has row-level security enabled');
 
 SET LOCAL ROLE anon;
-SELECT is((SELECT count(*)::integer FROM public.grades), 0, 'anonymous users cannot read grades');
-SELECT is((SELECT count(*)::integer FROM public.students), 0, 'anonymous users cannot read students');
+SELECT ok(NOT has_table_privilege('anon', 'public.grades', 'SELECT'), 'anonymous users have no SELECT privilege on grades');
+SELECT ok(NOT has_table_privilege('anon', 'public.students', 'SELECT'), 'anonymous users have no SELECT privilege on students');
 SELECT throws_ok(
   format('INSERT INTO public.grades (student_id, subject_id, term_id, class_id) VALUES (%s, %s, %s, %s)',
     current_setting('test.rls_student_one_id'), current_setting('test.rls_english_id'),
@@ -81,9 +81,9 @@ SELECT throws_ok(
   format('SELECT * FROM public.student_positions(%s, %s)', current_setting('test.rls_session_id'), current_setting('test.rls_term_id')),
   '42501', NULL, 'anonymous users cannot call the school-wide ranking function'
 );
-SELECT is_empty(
+SELECT throws_ok(
   format('UPDATE public.grades SET ca_score = 0 WHERE student_id = %s RETURNING id', current_setting('test.rls_student_one_id')),
-  'anonymous users cannot change grades'
+  '42501', NULL, 'anonymous users cannot change grades'
 );
 RESET ROLE;
 

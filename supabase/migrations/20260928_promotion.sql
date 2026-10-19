@@ -226,7 +226,7 @@ create table if not exists subject_selection_rules (
   updated_at    timestamptz not null default now()
 );
 
-insert into subject_selection_rules overriding system value (id) values (1) on conflict (id) do nothing;
+insert into subject_selection_rules (id) overriding system value values (1) on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------
 -- users — administrator tiers
@@ -324,7 +324,7 @@ create table if not exists timetable_settings (
   updated_at      timestamptz not null default now()
 );
 
-insert into timetable_settings overriding system value (id) values (1) on conflict (id) do nothing;
+insert into timetable_settings (id) overriding system value values (1) on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------
 -- score_uploads — what was uploaded, by whom, and when
@@ -499,11 +499,11 @@ alter table users alter column password drop not null;
 -- every row gets one stable salt, since SET clauses read old column values),
 -- then drop the plaintext so nothing sits in the clear.
 update users
-   set password_salt = encode(gen_random_bytes(16), 'hex')
+   set password_salt = encode(extensions.gen_random_bytes(16), 'hex')
  where password is not null and password_hash is null and password_salt is null;
 
 update users
-   set password_hash = encode(digest(password_salt || password, 'sha256'), 'hex')
+   set password_hash = encode(extensions.digest(password_salt || password, 'sha256'), 'hex')
  where password is not null and password_hash is null;
 
 update users set password = null where password_hash is not null;

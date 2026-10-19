@@ -220,7 +220,7 @@ For issues or questions:
 
 **Last Updated**: Today  
 **Version**: 1.0 with Position Columns, Leaderboard & Repeated Student Demo  
-**Status**: ⚠️ Not production ready — security migration deployment and verification are pending
+**Status**: ⚠️ Not production ready — staging migrations and role-scope checks are complete; production rollout is pending
 
 ---
 
@@ -232,7 +232,7 @@ The security hardening migrations also restrict role changes to an admin-only RP
 
 ### Deployment required
 
-The repository changes do not alter a hosted project until deployed. Reconcile migration history, apply both new security migrations in staging, and run the database policy checks before production rollout. Also deploy the retired `login` and `verify-password` Edge Function handlers so any existing endpoints return 410, and deploy the updated application/server. Hosted policy state, Auth links and function deployment status have not been verified from this workspace.
+The complete 19-migration sequence is applied to the empty `happyman-academy-staging` Supabase project. The grade-scope suite passed all 22 assertions there, covering anonymous denial, student self-access, linked-parent access, teacher assignments and administrator access. Automatic Data API table exposure is disabled; `20261019120000_authenticated_api_grants.sql` supplies only policy-backed authenticated privileges. The existing `happyman-academy` project was not modified. Before production rollout, reconcile its migration history and schema, then deploy the reviewed migration sequence, retired `login` and `verify-password` Edge Function handlers (410 responses), and the updated app/server. Production policy state, Auth links and function deployment status remain unverified.
 
 ## Supabase Auth
 ✅ Integrated — run `scripts/provision-auth-users.js` with the service role key to provision auth accounts for existing users.

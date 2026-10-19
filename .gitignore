@@ -3,3 +3,5 @@ dist/
 test-results/
 playwright-report/
 server/.env
+.env.*
+!.env.example
