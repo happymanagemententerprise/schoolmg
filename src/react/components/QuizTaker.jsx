@@ -219,26 +219,20 @@ export default function QuizTaker() {
           <div className="table-wrap mt16">
             <table>
               <thead>
-                <tr><th>Question</th><th>Your answer</th><th>Correct</th><th></th></tr>
+                <tr><th>Question</th><th>Your answer</th><th>Status</th></tr>
               </thead>
               <tbody>
                 {questions.length ? questions.map(qq => {
                   const got   = String(attempt.answers?.[qq.id] ?? '').trim();
-                  const right = got.toLowerCase() === String(qq.correctAnswer).toLowerCase();
                   return (
                     <tr key={qq.id}>
                       <td>{qq.questionText}</td>
                       <td className="muted-cell">{got || '—'}</td>
-                      <td className="muted-cell">{qq.correctAnswer}</td>
-                      <td>
-                        <span className={`status ${right ? 'promoted' : 'repeat'}`}>
-                          {right ? 'Correct' : 'Incorrect'}
-                        </span>
-                      </td>
+                      <td className="muted-cell">Submitted</td>
                     </tr>
                   );
                 }) : (
-                  <tr><td colSpan={4} className="muted-cell">No questions saved for this quiz.</td></tr>
+                  <tr><td colSpan={3} className="muted-cell">No questions saved for this quiz.</td></tr>
                 )}
               </tbody>
             </table>

@@ -191,6 +191,54 @@ hidden, [hidden] { display: none !important; }
 .form-feedback.success { color: var(--green); }
 .form-feedback.pending { color: #596675; }
 
+/* Gate vehicle log and family PIN controls */
+.gate-checkin-form .form-row > label,
+.pickup-pin-panel .form-row > label {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: min(100%, 210px);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+.gate-checkin-form .gate-actor-toggle {
+  display: flex;
+  flex: 1 1 320px;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: min(100%, 300px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.gate-actor-toggle legend { width: 100%; margin-bottom: 6px; font-size: 12px; font-weight: 700; }
+.gate-actor-toggle label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+}
+.gate-actor-toggle label:has(input:checked) { border-color: var(--blue); background: var(--blue-soft); }
+.gate-actor-toggle input { width: auto; margin: 0; accent-color: var(--blue); }
+.gate-checkin-form h3 { color: var(--ink); font-size: 15px; }
+.gate-checkin-form .gate-submit { min-height: 52px; font-size: 15px; }
+.gate-checkin-form button:disabled,
+.pickup-pin-panel button:disabled { cursor: wait; opacity: .65; }
+.gate-checkin-form #gate-selected-student { min-height: 18px; font-size: 11px; font-weight: 400; }
+.gate-checkin-form #gate-caregiver-fields { padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+.pickup-pin-panel { border-left: 3px solid var(--brass); }
+.pickup-pin-panel .form-row { align-items: flex-end; }
+.pickup-pin-panel .form-row > button { flex: 1 1 200px; min-height: 42px; }
+.gate-checkin-form .form-feedback { min-height: 17px; }
+
 /* ── Toast ─────────────────────────────────────────────────── */
 .toast {
   position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);

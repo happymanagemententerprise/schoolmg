@@ -11,45 +11,55 @@ Serve the app over HTTP rather than opening it as a `file://` URL. Run `npm inst
 
 ## Setup
 
-The database has to exist before the app shows real data. In the Supabase dashboard, run these files
-**in order** in the SQL editor:
+The database must be set up before the app can show school data. For a **new Supabase project**,
+run every migration below in the Supabase SQL Editor, in this exact filename order. Run
+`supabase/seed.sql` only after all migrations succeed.
 
-1. `supabase/migrations/20260926_initial_schema.sql` — base tables and open RLS policies.
-2. `supabase/migrations/20260927_school_upgrade.sql` — staff roles, class levels and tracks,
-   departments, mentors, weekly attendance, events and the timetable.
-3. `supabase/migrations/20260928_promotion.sql` — the promotion decision engine: standing rules,
-   student status, class `selection_mode`, position views/functions, `subject_selections`,
-   `weekly_topics`, and `path_requests` (students choose Science / Commercial / Arts at the
-   Grade 9 checkpoint and in the Grade 10 placement pool).
-4. `supabase/migrations/20260929_lms.sql` — learning management: lessons, quizzes, questions,
-   attempts, discussions and posts.
-5. `supabase/migrations/20260930_attendance_daily.sql` — per-student, per-school-day attendance
-   (`present` / `late` / `absent`) as the class teacher marks it.
-6. `supabase/migrations/20261001_midterm_report.sql` — the session's mid-term break dates
-   (`sessions.midterm_break`), the admin-editable setting behind the mid-term report.
-7. `supabase/migrations/20261002_end_of_session.sql` — student status and status reason
-   constraints now admit `archived` (an archived student is kept in the school's records but can
-   no longer sign in) and `pool_unplaced` (already written by the placement pool but previously
-   missing from the constraint).
-8. `supabase/migrations/20261003_growth.sql` — the growth and honours records behind the
-   promotion override, the student Growth & Mastery system, the parent Engaged Guardian tier
-   and the teacher Educator Recognition engine: `promotion_overrides`, `portfolio_artifacts`,
-   `commendations`, `parent_engagements` and `teacher_recognitions`.
+1. `supabase/migrations/20260926_initial_schema.sql` — core school tables and initial policies.
+2. `supabase/migrations/20260927_school_upgrade.sql` — staff roles, departments, mentors,
+   attendance, events and timetable.
+3. `supabase/migrations/20260928_promotion.sql` — promotion rules, student status, class streams,
+   positions, subject selections and path requests.
+4. `supabase/migrations/20260929_lms.sql` — lessons, quizzes, questions, attempts and discussions.
+5. `supabase/migrations/20260930_attendance_daily.sql` — per-student daily attendance.
+6. `supabase/migrations/20261001_midterm_report.sql` — mid-term break dates.
+7. `supabase/migrations/20261002_end_of_session.sql` — archived and unplaced student statuses.
+8. `supabase/migrations/20261003_growth.sql` — promotion overrides, portfolios, commendations,
+   parent engagements and teacher recognition.
+9. `supabase/migrations/20261004_rls_policies.sql` — transitional policies. **Do not stop here:**
+   this migration includes broad anonymous policies that are removed by the later lockdown.
+10. `supabase/migrations/20261005_supabase_auth.sql` — Supabase Auth identity mapping and policies.
+11. `supabase/migrations/20261006_rls_lockdown.sql` — authenticated, role-scoped policies across
+    the school and LMS tables.
+12. `supabase/migrations/20261007_remarks_approval.sql` — approval workflow for remarks.
+13. `supabase/migrations/20261008_threaded_discussions.sql` — threaded discussion support.
+14. `supabase/migrations/20261009_three_part_grading.sql` — mid-term, CA and exam grading.
+15. `supabase/migrations/20261017104739_attendance_safety_pwa.sql` — residence status, hostel and
+    gate events, cover scheduling, period attendance and PWA support.
+16. `supabase/migrations/20261018090000_vehicle_gate_checkin.sql` — vehicle details, guardian
+    authorization and private pickup PIN storage.
+17. `supabase/migrations/20261019091035_security_hardening.sql` — restricts user privilege edits,
+    protects quiz answer keys, and scopes LMS and workflow reads.
+18. `supabase/migrations/20261019094328_grade_subject_access.sql` — restricts grade reads to each
+    student's own records, a parent's linked children, a teacher's assigned subject/class (or a
+    class teacher's own class), and administrators; grade writes require an explicit subject
+    assignment or administrator access. It also closes anonymous access to the school-wide ranking
+    RPC and limits that report to administrators.
 
-Then seed the demo school:
+Then run `supabase/seed.sql` to create the demo school (34 subjects, 12 classes, 20 teachers, an
+administrator, 11 students, a parent, sample grades, attendance and LMS content).
 
-8. `supabase/seed.sql` — 34 curriculum subjects, 12 classes, 20 teachers plus an administrator,
-   11 students, 1 parent, 174 teacher allocations, two terms of grades, attendance, assignments,
-   events, remarks, plus Grade 7 English learning content (lessons, a quiz, an attempt and a
-   discussion) and daily attendance rows for every week. It also seeds the growth records:
-   Ama Osei's verified portfolio artifacts, a commendation and a master-register recognition for
-   the class teacher, plus the same parent's engagements (logins, result acknowledgement, PTA,
-   early payment).
+For an **existing database**, do not blindly replay the full list. Compare the deployed schema with
+the migrations and apply only the missing changes in order. The two 20261019 security migrations
+have not been verified against the hosted project from this workspace; reconcile the project's
+current migration history and test them in staging before deploying. Applying migrations through
+the SQL Editor does not automatically record Supabase CLI migration history.
 
-Also apply `supabase/migrations/20261017104739_attendance_safety_pwa.sql` after the existing
-migrations for student residence, hostel presence, gate events, period attendance and PWA support.
-Every statement in the upgrade and the seed is idempotent, so both are safe to re-run. The app
-reports any table it could not read in the browser console (`[HMA] unreachable tables: …`).
+For local development, `supabase start` and `supabase db reset` apply the migrations and configured
+seed to the local Supabase database. Then run `supabase test db` to execute the pgTAP checks under
+`supabase/tests/`. **`supabase db reset` deletes and rebuilds local database data.** Do not use it
+against a hosted project. The app reports unreadable tables in the browser console
+(`[HMA] unreachable tables: …`).
 
 ## Running without a database
 
@@ -288,7 +298,12 @@ The browser app is deployed as a Vite/Cloudflare Pages site. The campus safety A
 
 ## Apply the Supabase changes
 
-Apply migrations in order, including `supabase/migrations/20261017104739_attendance_safety_pwa.sql`. It adds the `students.residence_status` classification (`BOARDER` / `DAY_STUDENT`), optional hostel assignment, scoped presence/event tables, approved timetable cover records, period attendance, push subscription storage and an end-of-day summary. Realtime publication membership is added for student status and campus-event tables. The migration has not been run against the hosted project from this workspace.
+Follow the complete 18-file migration order in [Setup](#setup), including vehicle check-in and both
+security migrations. The attendance migration adds the `students.residence_status`
+classification (`BOARDER` / `DAY_STUDENT`), optional hostel assignment, scoped presence/event tables,
+approved timetable cover records, period attendance, push subscription storage and an end-of-day
+summary. The security migrations are present in source but have not been run against the hosted
+project from this workspace.
 
 Create one or more hostels from **Campus safety → Hostel setup**, then add users with the **Hostel Supervisor** or **Security Guard** role from People. Assign supervisors to hostels in Campus safety, then classify each student and assign boarders to a hostel from People → Students. Parent SMS requires parent phone numbers and Twilio credentials.
 

@@ -5,7 +5,7 @@
 //  static circular imports through router.js.
 // ============================================================
 
-import { Data, Academic, Growth } from '../data/index.js';
+import { Data, Academic, Growth, Timetable } from '../data/index.js';
 import { getCurrentUser } from '../state.js';
 import { set_sensitiveRun, set_resetUserId } from '../state.js';
 import {
@@ -42,6 +42,25 @@ export function timetableTable(schedule) {
     html += '</tr>';
   });
   return html + '</tbody></table></div>';
+}
+
+// ── Student / parent timetable panel ──────────────────────────
+export function renderTimetableFor(classId, containerId) {
+  const box = $(containerId);
+  if (!box) return;
+  const all = Timetable.generateAll();
+  const schedule = all.schedules.find(item => String(item.classId) === String(classId));
+  if (!schedule) {
+    box.innerHTML = `<div class="panel"><p class="muted-cell">No weekly timetable generated for ${esc(Data.classNameOf(classId))} yet.</p></div>`;
+    return;
+  }
+  box.innerHTML = `<div class="panel">
+    <div class="panel-heading"><div>
+      <p class="eyebrow">Term ${currentTerm()} · ${esc(Data.session().name)}</p>
+      <h2>${esc(schedule.name)} · Weekly schedule</h2>
+    </div><span class="read-only-badge">View only</span></div>
+    ${timetableTable(schedule)}
+  </div>`;
 }
 
 // ── Sensitive-action confirmation modal ───────────────────────

@@ -58,34 +58,34 @@ on conflict (session_id, name) do update
 --   Subjects offered to every class are split across separate teachers
 --   so the generator always has a free teacher to pick.
 -- ---------------------------------------------------------------------
-insert into users (name, email, password, role, phone, tone, initials, staff_role, is_mentor, mentor_subject, mentor_bio)
+insert into users (name, email, role, phone, tone, initials, staff_role, is_mentor, mentor_subject, mentor_bio)
 values
-  ('Amara Mensah',    'admin@happyman.edu',      'admin123',   'admin',   '08031234567', 'coral',  hma_initials('Amara Mensah'),    null,                 false, null, null),
+  ('Amara Mensah',    'admin@happyman.edu',         'admin',   '08031234567', 'coral',  hma_initials('Amara Mensah'),    null,                 false, null, null),
   -- general studies
-  ('Adwoa Addo',      'subject@happyman.edu',    'subject123', 'teacher', '08031234569', 'green',  hma_initials('Adwoa Addo'),      'Subject Teacher',   false, null, null),
-  ('Samuel Ofori',    'english2@happyman.edu',   'happyman123','teacher', '08031234577', 'blue',   hma_initials('Samuel Ofori'),    'Subject Teacher',   false, null, null),
-  ('Daniel Quaye',    'maths2@happyman.edu',     'happyman123','teacher', '08031234578', 'coral',  hma_initials('Daniel Quaye'),    'Subject Teacher',   false, null, null),
-  ('Sandra Kumi',     'maths3@happyman.edu',     'happyman123','teacher', '08031234579', 'yellow', hma_initials('Sandra Kumi'),     'Subject Teacher',   false, null, null),
-  ('Ibrahim Musa',    'history@happyman.edu',    'happyman123','teacher', '08031234580', 'green',  hma_initials('Ibrahim Musa'),    'Subject Teacher',   false, null, null),
-  ('Akosua Frimpong', 'yoruba@happyman.edu',     'happyman123','teacher', '08031234582', 'blue',   hma_initials('Akosua Frimpong'), 'Subject Teacher',   false, null, null),
-  ('Kofi Mensah',     'languages@happyman.edu',  'happyman123','teacher', '08031234575', 'blue',   hma_initials('Kofi Mensah'),     'HOD',               true,  'Nigerian History',    'Head of General Studies. Nigerian history and social studies.'),
-  ('Vida Nyarko',     'crs@happyman.edu',        'happyman123','teacher', '08031234581', 'coral',  hma_initials('Vida Nyarko'),     'Subject Teacher',   false, null, null),
-  ('Joseph Aidoo',    'jss2@happyman.edu',       'happyman123','teacher', '08031234576', 'green',  hma_initials('Joseph Aidoo'),    'Subject Teacher',   false, null, null),
-  ('Zainab Haruna',   'islamic@happyman.edu',    'happyman123','teacher', '08031234586', 'yellow', hma_initials('Zainab Haruna'),   'Subject Teacher',   false, null, null),
+  ('Adwoa Addo',      'subject@happyman.edu',     'teacher', '08031234569', 'green',  hma_initials('Adwoa Addo'),      'Subject Teacher',   false, null, null),
+  ('Samuel Ofori',    'english2@happyman.edu',   'teacher', '08031234577', 'blue',   hma_initials('Samuel Ofori'),    'Subject Teacher',   false, null, null),
+  ('Daniel Quaye',    'maths2@happyman.edu',     'teacher', '08031234578', 'coral',  hma_initials('Daniel Quaye'),    'Subject Teacher',   false, null, null),
+  ('Sandra Kumi',     'maths3@happyman.edu',     'teacher', '08031234579', 'yellow', hma_initials('Sandra Kumi'),     'Subject Teacher',   false, null, null),
+  ('Ibrahim Musa',    'history@happyman.edu',    'teacher', '08031234580', 'green',  hma_initials('Ibrahim Musa'),    'Subject Teacher',   false, null, null),
+  ('Akosua Frimpong', 'yoruba@happyman.edu',     'teacher', '08031234582', 'blue',   hma_initials('Akosua Frimpong'), 'Subject Teacher',   false, null, null),
+  ('Kofi Mensah',     'languages@happyman.edu',  'teacher', '08031234575', 'blue',   hma_initials('Kofi Mensah'),     'HOD',               true,  'Nigerian History',    'Head of General Studies. Nigerian history and social studies.'),
+  ('Vida Nyarko',     'crs@happyman.edu',        'teacher', '08031234581', 'coral',  hma_initials('Vida Nyarko'),     'Subject Teacher',   false, null, null),
+  ('Joseph Aidoo',    'jss2@happyman.edu',       'teacher', '08031234576', 'green',  hma_initials('Joseph Aidoo'),    'Subject Teacher',   false, null, null),
+  ('Zainab Haruna',   'islamic@happyman.edu',    'teacher', '08031234586', 'yellow', hma_initials('Zainab Haruna'),   'Subject Teacher',   false, null, null),
   -- junior secondary
-  ('Kwame Owusu',     'class@happyman.edu',      'class123',   'teacher', '08031234568', 'blue',   hma_initials('Kwame Owusu'),     'Class Teacher',     true,  'Digital Technologies', 'Class teacher of Grade 7. Focused on practical computing and study habits.'),
-  ('Abena Sarpong',   'jss@happyman.edu',        'happyman123','teacher', '08031234574', 'yellow', hma_initials('Abena Sarpong'),   'HOD',               true,  'Intermediate Science',  'Head of Junior Secondary. Loves practical experiments with the JSS learners.'),
-  ('Michael Tetteh',  'jss3@happyman.edu',       'happyman123','teacher', '08031234587', 'coral',  hma_initials('Michael Tetteh'),  'Subject Teacher',   false, null, null),
+  ('Kwame Owusu',     'class@happyman.edu',         'teacher', '08031234568', 'blue',   hma_initials('Kwame Owusu'),     'Class Teacher',     true,  'Digital Technologies', 'Class teacher of Grade 7. Focused on practical computing and study habits.'),
+  ('Abena Sarpong',   'jss@happyman.edu',        'teacher', '08031234574', 'yellow', hma_initials('Abena Sarpong'),   'HOD',               true,  'Intermediate Science',  'Head of Junior Secondary. Loves practical experiments with the JSS learners.'),
+  ('Michael Tetteh',  'jss3@happyman.edu',       'teacher', '08031234587', 'coral',  hma_initials('Michael Tetteh'),  'Subject Teacher',   false, null, null),
   -- science
-  ('Dr. Yaw Asante',  'hod@happyman.edu',        'hod123',     'teacher', '08031234570', 'yellow', hma_initials('Dr. Yaw Asante'),  'HOD',               false, null, null),
-  ('Peter Asare',     'physics2@happyman.edu',   'happyman123','teacher', '08031234583', 'green',  hma_initials('Peter Asare'),     'Subject Teacher',   false, null, null),
-  ('Nii Tetteh',      'science2@happyman.edu',   'happyman123','teacher', '08031234573', 'green',  hma_initials('Nii Tetteh'),      'Class Teacher',     true,  'Health Education',      'Class teacher of Grade 10 Science and mentor to senior students.'),
+  ('Dr. Yaw Asante',  'hod@happyman.edu',             'teacher', '08031234570', 'yellow', hma_initials('Dr. Yaw Asante'),  'HOD',               false, null, null),
+  ('Peter Asare',     'physics2@happyman.edu',   'teacher', '08031234583', 'green',  hma_initials('Peter Asare'),     'Subject Teacher',   false, null, null),
+  ('Nii Tetteh',      'science2@happyman.edu',   'teacher', '08031234573', 'green',  hma_initials('Nii Tetteh'),      'Class Teacher',     true,  'Health Education',      'Class teacher of Grade 10 Science and mentor to senior students.'),
   -- commercial
-  ('Fatima Bello',    'commercial@happyman.edu', 'happyman123','teacher', '08031234571', 'coral',  hma_initials('Fatima Bello'),    'HOD',               false, null, null),
-  ('Clement Anane',   'commerce2@happyman.edu',  'happyman123','teacher', '08031234584', 'blue',   hma_initials('Clement Anane'),   'Subject Teacher',   false, null, null),
+  ('Fatima Bello',    'commercial@happyman.edu', 'teacher', '08031234571', 'coral',  hma_initials('Fatima Bello'),    'HOD',               false, null, null),
+  ('Clement Anane',   'commerce2@happyman.edu',  'teacher', '08031234584', 'blue',   hma_initials('Clement Anane'),   'Subject Teacher',   false, null, null),
   -- arts
-  ('Emeka Obi',       'arts@happyman.edu',       'happyman123','teacher', '08031234572', 'blue',   hma_initials('Emeka Obi'),       'HOD',               false, null, null),
-  ('Ruth Opoku',      'arts2@happyman.edu',      'happyman123','teacher', '08031234585', 'coral',  hma_initials('Ruth Opoku'),      'Subject Teacher',   false, null, null)
+  ('Emeka Obi',       'arts@happyman.edu',       'teacher', '08031234572', 'blue',   hma_initials('Emeka Obi'),       'HOD',               false, null, null),
+  ('Ruth Opoku',      'arts2@happyman.edu',      'teacher', '08031234585', 'coral',  hma_initials('Ruth Opoku'),      'Subject Teacher',   false, null, null)
 on conflict (email) do update
   set name           = excluded.name,
       role           = excluded.role,
@@ -424,8 +424,8 @@ on conflict (name) do update
 -- ---------------------------------------------------------------------
 -- Students
 -- ---------------------------------------------------------------------
-insert into users (name, email, password, role, phone, tone, initials)
-select v.name, v.email, 'student123', 'student', v.phone, v.tone, hma_initials(v.name)
+insert into users (name, email, role, phone, tone, initials)
+select v.name, v.email, 'student', v.phone, v.tone, hma_initials(v.name)
   from (values
     ('Ama Osei',        'ama.osei@happyman.edu',        '08040000001', 'coral'),
     ('Yaw Boateng',     'yaw.boateng@happyman.edu',     '08040000002', 'blue'),
@@ -471,8 +471,8 @@ on conflict (user_id) do update
 -- ---------------------------------------------------------------------
 -- Parent — phone number is required, children are linked here
 -- ---------------------------------------------------------------------
-insert into users (name, email, password, role, phone, tone, initials)
-values ('Mrs. Comfort Osei', 'parent@happyman.edu', 'parent123', 'parent', '08099887766', 'coral', hma_initials('Mrs. Comfort Osei'))
+insert into users (name, email, role, phone, tone, initials)
+values ('Mrs. Comfort Osei', 'parent@happyman.edu', 'parent', '08099887766', 'coral', hma_initials('Mrs. Comfort Osei'))
 on conflict (email) do update
   set name = excluded.name, phone = excluded.phone, role = 'parent';
 
@@ -824,33 +824,3 @@ select t.id, 'master_register', s.id, 'All three terms kept within 48 hours of t
    and not exists (
      select 1 from teacher_recognitions tr
       where tr.teacher_id = t.id and tr.kind = 'master_register');
-
--- ---------------------------------------------------------------------
--- Passwords — seed accounts are demo accounts, but the database still
--- stores nothing in the clear. The migration creates password_hash /
--- password_salt, so hash every plaintext row this seed inserted and
--- drop the plaintext, mirroring the migration's backfill.
--- (Deterministic salt from email keeps `db reset` reproducible and
---  ensures re-running seed always produces a consistent, correct hash.)
--- ---------------------------------------------------------------------
-
--- Step 1: restore the plaintext password for all known demo accounts
--- so the hash can be (re-)computed even on rows whose password was
--- previously cleared by an earlier seed run.
-update users set password = 'admin123'     where email = 'admin@happyman.edu';
-update users set password = 'class123'     where email = 'class@happyman.edu';
-update users set password = 'subject123'   where email = 'subject@happyman.edu';
-update users set password = 'hod123'       where email = 'hod@happyman.edu';
-update users set password = 'happyman123'  where email in ('arts@happyman.edu','arts2@happyman.edu');
-update users set password = 'student123'   where email like '%@happyman.edu' and role = 'student';
-update users set password = 'parent123'    where email = 'parent@happyman.edu';
-
--- Step 2: (re-)hash every account that now has a plaintext password,
--- using a deterministic salt derived from the email so this is idempotent.
-update users
-   set password_salt = encode(digest(email, 'md5'), 'hex'),
-       password_hash = encode(digest(encode(digest(email, 'md5'), 'hex') || password, 'sha256'), 'hex')
- where password is not null;
-
--- Step 3: clear the plaintext column.
-update users set password = null where password_hash is not null;

@@ -2,13 +2,14 @@
 //  Happy Man Academy — Parent views
 // ============================================================
 
-import { Data, Academic, Timetable } from '../data/index.js';
+import { Data, Academic } from '../data/index.js';
 import { getCurrentUser } from '../state.js';
 import {
   $, $all, esc, toast, currentTerm, passMark, gradeLabel, toneClass, subjectChip, statusClass
 } from '../utils.js';
 import { openStudentReport } from './reports.js';
-import { timetableTable, renderParentGuardian, recordParentLoginIfNew, resultsLockedNote, termNameOf, renderEventsList, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
+import { renderTimetableFor, renderParentGuardian, recordParentLoginIfNew, resultsLockedNote, termNameOf, renderEventsList, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
+import { campusApi } from '../campus-api.js';
 
 // ── Parent dashboard ──────────────────────────────────────────
 export function renderParentDashboard() {
@@ -74,6 +75,43 @@ export function renderParentDashboard() {
   renderEventsList('par-events-list', 5);
   recordParentLoginIfNew();
   renderParentGuardian();
+  bindPickupPinForm();
+}
+
+function bindPickupPinForm() {
+  const form = $('parent-pickup-pin-form');
+  if (!form || form.dataset.bound === 'true') return;
+  form.dataset.bound = 'true';
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const pin = $('parent-pickup-pin').value;
+    const confirmPin = $('parent-pickup-pin-confirm').value;
+    const feedback = $('parent-pickup-pin-feedback');
+    if (!/^\d{6}$/.test(pin)) return showFeedback('Enter a six-digit PIN.', true);
+    if (pin !== confirmPin) return showFeedback('The PIN entries do not match.', true);
+    const submit = $('parent-pickup-pin-save');
+    submit.disabled = true;
+    submit.textContent = 'Saving…';
+    try {
+      if (Data.isDemoMode()) {
+        localStorage.setItem('hma_demo_pickup_pin', pin);
+      } else {
+        await campusApi('/api/gate/pickup-pin', { method: 'POST', body: JSON.stringify({ pin }) });
+      }
+      form.reset();
+      showFeedback(Data.isDemoMode() ? 'Demo PIN saved in this browser only.' : 'Pickup PIN saved securely. Share it only with authorized caregivers.');
+    } catch (error) {
+      showFeedback(error.message || 'Could not save the pickup PIN.', true);
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Save pickup PIN';
+    }
+    function showFeedback(message, isError = false) {
+      feedback.textContent = message;
+      feedback.className = `form-feedback mt8${isError ? ' error' : ''}`;
+      feedback.hidden = false;
+    }
+  });
 }
 
 export function showChildResults(studentId) {
@@ -148,23 +186,6 @@ export function renderParentTimetable() {
   parentChildSelect('par-tt-child', childId => {
     const s = Data.student(childId); if (!s) return;
     $('par-tt-meta').textContent = `${s.name} · ${esc(Data.cls(s.classId)?.name || '')} · Term ${currentTerm()}`;
-    _renderTimetableFor(s.classId, 'par-tt-grid');
+    renderTimetableFor(s.classId, 'par-tt-grid');
   });
-}
-
-function _renderTimetableFor(classId, containerId) {
-  const box = $(containerId); if (!box) return;
-  const all = Timetable.generateAll();
-  const schedule = all.schedules.find(x => String(x.classId) === String(classId));
-  if (!schedule) {
-    box.innerHTML = `<div class="panel"><p class="muted-cell">No weekly timetable generated for ${esc(Data.classNameOf(classId))} yet.</p></div>`;
-    return;
-  }
-  box.innerHTML = `<div class="panel">
-    <div class="panel-heading"><div>
-      <p class="eyebrow">Term ${currentTerm()} · ${esc(Data.session().name)}</p>
-      <h2>${esc(schedule.name)} · Weekly schedule</h2>
-    </div><span class="read-only-badge">View only</span></div>
-    ${timetableTable(schedule)}
-  </div>`;
 }

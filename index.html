@@ -867,6 +867,16 @@
           </div>
         </article>
       </section>
+      <section class="panel mt16 pickup-pin-panel">
+        <div class="panel-heading"><div><p class="eyebrow">Campus safety</p><h2>Authorized drop-off PIN</h2></div><span class="read-only-badge">Private to your account</span></div>
+        <p class="muted-cell mt8">Set a six-digit PIN to authorize a caregiver who is not a parent to bring your linked children to school. Share it only with adults you trust.</p>
+        <form id="parent-pickup-pin-form" class="form-row mt16">
+          <label>New six-digit PIN<input id="parent-pickup-pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="••••••"></label>
+          <label>Confirm PIN<input id="parent-pickup-pin-confirm" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="Repeat PIN"></label>
+          <button class="btn-primary" id="parent-pickup-pin-save" type="submit">Save pickup PIN</button>
+        </form>
+        <div id="parent-pickup-pin-feedback" class="form-feedback mt8" role="status" hidden></div>
+      </section>
       <div class="panel mt16">
         <div class="panel-heading">
           <div><p class="eyebrow">Department scope</p><h2>Subjects in your department</h2></div>

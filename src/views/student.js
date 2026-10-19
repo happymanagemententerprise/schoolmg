@@ -2,16 +2,16 @@
 //  Happy Man Academy — Student views
 // ============================================================
 
-import { Data, Academic, Progression, Growth, Timetable } from '../data/index.js';
+import { Data, Academic, Progression, Growth } from '../data/index.js';
 import { getCurrentUser } from '../state.js';
 import { _csState, set_csState } from '../state.js';
 import {
   $, $q, $all, esc, toast, formatDate,
-  gradeLabel, toneClass, subjectChip, statusClass, currentTerm, passMark, downloadXlsx
+  gradeLabel, toneClass, subjectChip, statusClass, currentTerm, passMark, downloadXlsx, showFormMessage
 } from '../utils.js';
 import { openModal, closeModal } from '../modals.js';
 import { openStudentReport } from './reports.js';
-import { timetableTable, renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf, renderStudentGrowth, dayChipsHTML, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
+import { renderTimetableFor, renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf, renderStudentGrowth, dayChipsHTML, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
 import { mount as _reactMount } from '../react/mount.js';
 import QuizTaker from '../react/components/QuizTaker.jsx';
 import StudentResults from '../react/components/StudentResults.jsx';
@@ -349,9 +349,9 @@ export function renderStudentPathway() {
     const msg = $('stu-path-msg');
     const alpineData = window.Alpine ? Alpine.$data(box) : null;
     const picked = alpineData?.chosen || $q('input[name="stu-path"]:checked')?.value;
-    if (!picked) { _message(msg, 'Choose a path first.', 'error'); return; }
+    if (!picked) { showFormMessage(msg, 'Choose a path first.', 'error'); return; }
     await Progression.requestPathway(s.id, picked, $('stu-path-note').value.trim(), currentUser.id);
-    _message(msg, 'Your choice is saved — the school will confirm it.', 'success');
+    showFormMessage(msg, 'Your choice is saved — the school will confirm it.', 'success');
     renderStudentPathway();
   };
 }
@@ -472,8 +472,8 @@ export function openQuizTaker(quizId) {
       if (picked) answers[qq.id] = picked.value;
     });
     const result = await Data.submitQuizAttempt(quiz.id, currentUser.studentId, answers);
-    if (!result) { _message(msg, 'This quiz has no questions yet.', 'error'); return; }
-    _message(msg, `You scored ${result.score} / ${result.total} — well done.`, 'success');
+    if (!result) { showFormMessage(msg, 'This quiz has no questions yet.', 'error'); return; }
+    showFormMessage(msg, `You scored ${result.score} / ${result.total} — well done.`, 'success');
     openStudentQuizResult(quiz.id);
   };
 }
@@ -486,12 +486,10 @@ export function openStudentQuizResult(quizId) {
   if (!attempt) { box.innerHTML = '<div class="panel"><p class="muted-cell">No attempt recorded.</p></div>'; return; }
   const detail = (Data.questionsForQuiz(quizId) || []).map(qq => {
     const got   = String(attempt.answers?.[qq.id] ?? '').trim();
-    const right = got.toLowerCase() === String(qq.correctAnswer).toLowerCase();
     return `<tr>
       <td>${esc(qq.questionText)}</td>
       <td class="muted-cell">${esc(got) || '—'}</td>
-      <td class="muted-cell">${esc(qq.correctAnswer)}</td>
-      <td><span class="status ${right ? 'promoted' : 'repeat'}">${right ? 'Correct' : 'Incorrect'}</span></td>
+      <td class="muted-cell">Submitted</td>
     </tr>`;
   }).join('');
   box.innerHTML = `<div class="panel">
@@ -499,8 +497,8 @@ export function openStudentQuizResult(quizId) {
       <p class="eyebrow">${quiz ? esc(quiz.title) : ''}</p>
       <h2>Your result</h2>
     </div><span class="check-badge">${attempt.score} / ${attempt.total}</span></div>
-    <div class="table-wrap mt16"><table><thead><tr><th>Question</th><th>Your answer</th><th>Correct</th><th></th></tr></thead>
-      <tbody>${detail || '<tr><td colspan="4" class="muted-cell">No questions saved for this quiz.</td></tr>'}</tbody></table></div>
+    <div class="table-wrap mt16"><table><thead><tr><th>Question</th><th>Your answer</th><th>Status</th></tr></thead>
+      <tbody>${detail || '<tr><td colspan="3" class="muted-cell">No questions saved for this quiz.</td></tr>'}</tbody></table></div>
   </div>`;
   box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -568,30 +566,5 @@ export function renderStudentTimetable() {
   const meta = $('stu-tt-meta');
   if (!s || !meta) return;
   meta.textContent = `${s.name} · ${esc(Data.cls(s.classId)?.name || '')}`;
-  _renderTimetableFor(s.classId, 'stu-tt-grid');
-}
-
-function _renderTimetableFor(classId, containerId) {
-  const box = $(containerId); if (!box) return;
-  const all     = Timetable.generateAll();
-  const schedule = all.schedules.find(x => String(x.classId) === String(classId));
-  if (!schedule) {
-    box.innerHTML = `<div class="panel"><p class="muted-cell">No weekly timetable generated for ${esc(Data.classNameOf(classId))} yet.</p></div>`;
-    return;
-  }
-  box.innerHTML = `<div class="panel">
-    <div class="panel-heading"><div>
-      <p class="eyebrow">Term ${currentTerm()} · ${esc(Data.session().name)}</p>
-      <h2>${esc(schedule.name)} · Weekly schedule</h2>
-    </div><span class="read-only-badge">View only</span></div>
-    ${timetableTable(schedule)}
-  </div>`;
-}
-
-// ── Internal helpers ──────────────────────────────────────────
-function _message(el, text, kind) {
-  if (!el) return;
-  el.textContent = text;
-  el.hidden = false;
-  el.className = kind === 'error' ? 'form-feedback mt8 text-danger' : 'form-feedback mt8 success';
+  renderTimetableFor(s.classId, 'stu-tt-grid');
 }

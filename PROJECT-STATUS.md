@@ -155,7 +155,7 @@ schoolmg/
 | Leaderboard Page | ✅ Working |
 | Position Columns | ✅ Showing |
 | Repeated Student Demo | ✅ Available |
-| Security (RLS) | ⚠️ Migration pending |
+| Security (RLS) | ⚠️ Hardening migration added; hosted database not verified |
 
 ---
 
@@ -220,26 +220,19 @@ For issues or questions:
 
 **Last Updated**: Today  
 **Version**: 1.0 with Position Columns, Leaderboard & Repeated Student Demo  
-**Status**: 🟢 Production Ready
+**Status**: ⚠️ Not production ready — security migration deployment and verification are pending
 
 ---
 
-## Security (Updated: 2026-10-04)
+## Security (Updated: 2026-10-19)
 
-### Completed (Pilot Baseline)
-- **Password hashes not sent to browser**: `data.js` users SELECT excludes `password_hash` and `password_salt`. These columns are revoked from the anon role at DB level in the RLS migration.
-- **Server-side login**: `Data.loginWithPassword()` fetches hash/salt for one account only (targeted query), performs hash comparison in the browser call — the hash is never cached or broadcast to all sessions. `src/auth.js` uses this method.
-- **RLS hardening migration** (`supabase/migrations/20261004_rls_policies.sql`): Enables RLS on `grades`, `students`, `users`, `promotions`. Removes broad `anon_all` policies. Adds targeted SELECT/INSERT/UPDATE policies (no DELETE for anon on any of these tables).
-- `Data.passwordMatches()` deprecated — always returns false with a console warning.
+Supabase Auth sessions and row-level policies are the authentication boundary. Passwords are provisioned and changed through authenticated server endpoints that call Supabase Auth Admin; the legacy SHA-256 password columns and login/verifier Edge Functions are retired by `supabase/migrations/20261019091035_security_hardening.sql` and the 410 handlers under `supabase/functions/`.
 
-### Remaining (Post-Pilot)
-- Full Supabase Auth (JWT) migration — replace anon key with per-user sessions so RLS can gate rows by `auth.uid()`.
-- Row-level isolation: students can only read their own grades, parents their linked children's data.
-- Edge Functions for login and verify-password (already scaffolded; not yet deployed).
+The security hardening migrations also restrict role changes to an admin-only RPC, scope LMS/workflow reads, restrict grade access to teacher assignments, remove direct quiz answer-key reads, limit rankings to administrators, and grade quiz attempts server-side. Production source maps are disabled in `vite.config.js`.
 
-### To Apply the Migration to the Live Database
-Run: `npx supabase db push` (requires `supabase` CLI to be installed and the project to be linked via `npx supabase link`).
-Or paste the contents of `supabase/migrations/20261004_rls_policies.sql` into the Supabase dashboard SQL editor and execute.
+### Deployment required
+
+The repository changes do not alter a hosted project until deployed. Reconcile migration history, apply both new security migrations in staging, and run the database policy checks before production rollout. Also deploy the retired `login` and `verify-password` Edge Function handlers so any existing endpoints return 410, and deploy the updated application/server. Hosted policy state, Auth links and function deployment status have not been verified from this workspace.
 
 ## Supabase Auth
 ✅ Integrated — run `scripts/provision-auth-users.js` with the service role key to provision auth accounts for existing users.

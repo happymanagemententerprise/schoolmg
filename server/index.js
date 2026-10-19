@@ -2,6 +2,8 @@ import dotenv from 'dotenv';
 import express from 'express';
 import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 dotenv.config({ path: fileURLToPath(new URL('./.env', import.meta.url)) });
@@ -27,7 +29,9 @@ const publicUrl = process.env.SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!publicUrl || !serviceKey) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required by the private API.');
 const db = createClient(publicUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+const scryptAsync = promisify(scrypt);
 const campusEventClients = new Set();
+const pickupPinAttempts = new Map();
 const vapidReady = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY && process.env.VAPID_SUBJECT);
 if (vapidReady) webpush.setVapidDetails(process.env.VAPID_SUBJECT, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
 
@@ -68,15 +72,80 @@ async function linkedParents(studentId) {
   return parents || [];
 }
 
+async function makePickupPinHash(pin) {
+  const salt = randomBytes(16).toString('hex');
+  const hash = await scryptAsync(pin, salt, 64);
+  return `${salt}:${Buffer.from(hash).toString('hex')}`;
+}
+
+async function verifyPickupPin(parentId, pin, ip) {
+  const key = `${parentId}:${ip || 'unknown'}`;
+  const now = Date.now();
+  let attempt = pickupPinAttempts.get(key);
+  if (attempt?.lockedUntil > now) return { ok: false, locked: true };
+  if (!attempt || now - attempt.windowStarted > 10 * 60_000 || attempt.lockedUntil) {
+    attempt = { count: 0, windowStarted: now, lockedUntil: 0 };
+    pickupPinAttempts.set(key, attempt);
+  }
+  const { data: parent, error } = await db.from('users').select('id,role').eq('id', parentId).maybeSingle();
+  if (error) throw error;
+  const { data: pinRecord, error: pinError } = parent?.role === 'parent'
+    ? await db.from('parent_pickup_pins').select('pin_hash,failed_attempts,locked_until').eq('parent_id', parentId).maybeSingle()
+    : { data: null, error: null };
+  if (pinError) throw pinError;
+  if (pinRecord?.locked_until && Date.parse(pinRecord.locked_until) > now) return { ok: false, locked: true };
+  if (pinRecord?.locked_until && Date.parse(pinRecord.locked_until) <= now) {
+    const { error: unlockError } = await db.from('parent_pickup_pins').update({ failed_attempts: 0, locked_until: null }).eq('parent_id', parentId);
+    if (unlockError) throw unlockError;
+    pinRecord.failed_attempts = 0;
+    pinRecord.locked_until = null;
+  }
+  let valid = false;
+  if (parent?.role === 'parent' && pinRecord?.pin_hash) {
+    const [salt, storedHex] = String(pinRecord.pin_hash).split(':');
+    if (/^[a-f0-9]{32}$/.test(salt || '') && /^[a-f0-9]{128}$/.test(storedHex || '')) {
+      const calculated = Buffer.from(await scryptAsync(pin, salt, 64));
+      valid = timingSafeEqual(calculated, Buffer.from(storedHex, 'hex'));
+    }
+  }
+  if (valid) {
+    pickupPinAttempts.delete(key);
+    const { error: resetError } = await db.from('parent_pickup_pins').update({ failed_attempts: 0, locked_until: null }).eq('parent_id', parentId);
+    if (resetError) throw resetError;
+    return { ok: true };
+  }
+  attempt.count += 1;
+  const failures = Math.max(attempt.count, Number(pinRecord?.failed_attempts || 0) + 1);
+  if (failures >= 5) attempt.lockedUntil = now + 15 * 60_000;
+  if (pinRecord) {
+    const { error: failureError } = await db.from('parent_pickup_pins').update({
+      failed_attempts: failures,
+      locked_until: failures >= 5 ? new Date(now + 15 * 60_000).toISOString() : null
+    }).eq('parent_id', parentId);
+    if (failureError) throw failureError;
+  }
+  return { ok: false, locked: failures >= 5 };
+}
+
+function gateEventForClient(event) {
+  if (!event) return event;
+  const { id, student_id, event_type, event_at, parent_sms_status, dropoff_by_type,
+    dropoff_person_name, vehicle_color, vehicle_model, vehicle_plate, notification_message } = event;
+  return { id, student_id, event_type, event_at, parent_sms_status, dropoff_by_type,
+    dropoff_person_name, vehicle_color, vehicle_model, vehicle_plate, notification_message };
+}
+
 async function sendSms(to, message) {
   const sid = process.env.TWILIO_ACCOUNT_SID, secret = process.env.TWILIO_AUTH_TOKEN, from = process.env.TWILIO_FROM_NUMBER;
   if (!sid || !secret || !from || !to) return { status: 'not_configured' };
   const form = new URLSearchParams({ To: to, From: from, Body: message });
-  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-    method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${sid}:${secret}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form
-  });
-  if (!response.ok) return { status: 'failed', error: `SMS provider returned ${response.status}` };
-  return { status: 'sent' };
+  try {
+    const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${sid}:${secret}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form
+    });
+    if (!response.ok) return { status: 'failed', error: `SMS provider returned ${response.status}` };
+    return { status: 'sent' };
+  } catch (error) { return { status: 'failed', error: error?.message || 'SMS delivery failed.' }; }
 }
 
 async function deliverPush(userId, payload) {
@@ -175,16 +244,34 @@ app.delete('/api/push/subscribe', ...auth, asyncRoute(async (req, res) => {
 
 app.get('/api/campus/roster', ...auth, requireRoles('admin', 'security_guard'), asyncRoute(async (_req, res) => {
   const { data, error } = await db.from('students').select('id,admission_no,class_id,residence_status,status,users!students_user_id_fkey(name),classes(class_name)')
-    .neq('status', 'archived').order('admission_no');
+    .eq('residence_status', 'DAY_STUDENT').neq('status', 'archived').order('admission_no');
   if (error) throw error;
   const ids = (data || []).map(row => row.id);
+  const { data: links, error: linksError } = ids.length
+    ? await db.from('parent_students').select('student_id,parent_id').in('student_id', ids)
+    : { data: [], error: null };
+  if (linksError) throw linksError;
+  const parentIds = [...new Set((links || []).map(row => row.parent_id))];
+  const { data: guardians, error: guardiansError } = parentIds.length
+    ? await db.from('users').select('id,name,role').in('id', parentIds).eq('role', 'parent')
+    : { data: [], error: null };
+  if (guardiansError) throw guardiansError;
+  const guardianById = new Map((guardians || []).map(parent => [String(parent.id), { id: parent.id, name: parent.name }]));
+  const guardiansByStudent = new Map();
+  for (const link of links || []) {
+    const guardian = guardianById.get(String(link.parent_id));
+    if (!guardian) continue;
+    const list = guardiansByStudent.get(String(link.student_id)) || [];
+    list.push(guardian);
+    guardiansByStudent.set(String(link.student_id), list);
+  }
   const { data: events, error: eventError } = ids.length
-    ? await db.from('gate_events').select('student_id,event_type,event_at,parent_sms_status').in('student_id', ids).order('event_at', { ascending: false })
+    ? await db.from('gate_events').select('student_id,event_type,event_at,parent_sms_status,vehicle_color,vehicle_model,vehicle_plate,dropoff_person_name,notification_message').in('student_id', ids).order('event_at', { ascending: false })
     : { data: [], error: null };
   if (eventError) throw eventError;
   const latest = new Map();
   for (const event of events || []) if (!latest.has(String(event.student_id))) latest.set(String(event.student_id), event);
-  res.json((data || []).map(student => ({ ...student, last_gate_event: latest.get(String(student.id)) || null })));
+  res.json((data || []).map(student => ({ ...student, guardians: guardiansByStudent.get(String(student.id)) || [], last_gate_event: latest.get(String(student.id)) || null })));
 }));
 
 app.get('/api/hostels', ...auth, requireRoles('admin', 'hostel_staff'), asyncRoute(async (req, res) => {
@@ -221,8 +308,8 @@ app.post('/api/users/campus-staff', ...auth, requireRoles('admin'), asyncRoute(a
   const name = String(req.body?.name || '').trim(), email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || ''), phone = String(req.body?.phone || '').trim() || null;
   const role = req.body?.role, initials = String(req.body?.initials || '').slice(0, 4);
-  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 6 || !['security_guard', 'hostel_staff'].includes(role)) {
-    return res.status(400).json({ error: 'Enter a name, valid email, six-character password and a campus staff role.' });
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || !['security_guard', 'hostel_staff'].includes(role)) {
+    return res.status(400).json({ error: 'Enter a name, valid email, password of at least eight characters and a campus staff role.' });
   }
   const { data: created, error: authError } = await db.auth.admin.createUser({
     email, password, email_confirm: true, user_metadata: { full_name: name }
@@ -230,7 +317,7 @@ app.post('/api/users/campus-staff', ...auth, requireRoles('admin'), asyncRoute(a
   if (authError) return res.status(409).json({ error: authError.message || 'Could not create the account.' });
   const { data, error } = await db.from('users').insert({
     auth_user_id: created.user.id, name, email, role, staff_role: null, phone,
-    initials, tone: 'blue', is_mentor: false, password: null, password_hash: null, password_salt: null
+    initials, tone: 'blue', is_mentor: false
   }).select('id,name,email,role,phone,initials,tone').single();
   if (error) {
     await db.auth.admin.deleteUser(created.user.id).catch(() => {});
@@ -240,12 +327,46 @@ app.post('/api/users/campus-staff', ...auth, requireRoles('admin'), asyncRoute(a
   res.status(201).json(data);
 }));
 
-app.post('/api/users/:id/password', ...auth, requireRoles('admin'), asyncRoute(async (req, res) => {
+app.post('/api/users', ...auth, requireRoles('admin'), asyncRoute(async (req, res) => {
+  const name = String(req.body?.name || '').trim(), email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || ''), role = req.body?.role;
+  const allowedRoles = ['admin', 'teacher', 'student', 'parent'];
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || !allowedRoles.includes(role)) {
+    return res.status(400).json({ error: 'Enter a name, valid email, password of at least eight characters and a supported role.' });
+  }
+  const { data: created, error: authError } = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: name } });
+  if (authError) return res.status(409).json({ error: authError.message || 'Could not create the account.' });
+  const { data, error } = await db.from('users').insert({
+    auth_user_id: created.user.id, name, email, role, staff_role: req.body?.staff_role || null,
+    phone: req.body?.phone || null, tone: req.body?.tone || 'blue', initials: req.body?.initials || name.slice(0, 2).toUpperCase(),
+    is_mentor: !!req.body?.is_mentor, mentor_subject: req.body?.mentor_subject || null, mentor_bio: req.body?.mentor_bio || null
+  }).select('id,name,email,role,staff_role,phone,initials,tone,is_mentor,mentor_subject,mentor_bio').single();
+  if (error) {
+    await db.auth.admin.deleteUser(created.user.id).catch(() => {});
+    if (error.code === '23505') return res.status(409).json({ error: 'A school account with this email already exists.' });
+    throw error;
+  }
+  res.status(201).json(data);
+}));
+
+app.post('/api/users/:id/password', ...auth, requireRoles('admin', 'teacher'), asyncRoute(async (req, res) => {
   const userId = Number(req.params.id), password = String(req.body?.password || '');
-  if (!Number.isInteger(userId) || password.length < 6) return res.status(400).json({ error: 'Use a password with at least six characters.' });
-  const { data: user, error } = await db.from('users').select('auth_user_id,role').eq('id', userId).maybeSingle();
+  if (!Number.isInteger(userId) || password.length < 8) return res.status(400).json({ error: 'Use a password with at least eight characters.' });
+  const { data: user, error } = await db.from('users').select('id,auth_user_id,role').eq('id', userId).maybeSingle();
   if (error) throw error;
-  if (!user || !['security_guard', 'hostel_staff'].includes(user.role) || !user.auth_user_id) return res.status(404).json({ error: 'Campus staff account is not linked to Supabase Auth.' });
+  if (!user || !user.auth_user_id) return res.status(404).json({ error: 'Account is not linked to Supabase Auth.' });
+  if (req.schoolUser.role !== 'admin') {
+    if (req.schoolUser.role !== 'teacher' || req.schoolUser.staff_role !== 'Class Teacher') {
+      return res.status(403).json({ error: 'Only an administrator or the student’s class teacher may reset this password.' });
+    }
+    if (user.role !== 'student') return res.status(403).json({ error: 'Teachers may reset passwords only for students in their classes.' });
+    const { data: student, error: studentError } = await db.from('students').select('class_id').eq('user_id', user.id).maybeSingle();
+    if (studentError) throw studentError;
+    if (!student) return res.status(403).json({ error: 'This account is not a student in a class.' });
+    const { data: assignment, error: assignmentError } = await db.from('teacher_classes').select('class_id').eq('teacher_id', req.schoolUser.id).eq('class_id', student?.class_id).maybeSingle();
+    if (assignmentError) throw assignmentError;
+    if (!assignment) return res.status(403).json({ error: 'This student is not in one of your classes.' });
+  }
   const { error: updateError } = await db.auth.admin.updateUserById(user.auth_user_id, { password });
   if (updateError) return res.status(400).json({ error: updateError.message || 'Password update failed.' });
   res.status(204).end();
@@ -294,23 +415,78 @@ app.get('/api/teacher/periods', ...auth, requireRoles('admin', 'teacher'), async
   res.json(results);
 }));
 
-app.post('/api/gate/events', ...auth, requireRoles('admin', 'security_guard'), asyncRoute(async (req, res) => {
-  const studentId = Number(req.body?.studentId), eventType = req.body?.eventType, method = req.body?.method || 'manual';
-  if (!Number.isInteger(studentId) || !['arrival', 'pickup'].includes(eventType) || !['manual', 'qr', 'rfid'].includes(method)) return res.status(400).json({ error: 'Student, event type and capture method are required.' });
-  const { data: student, error: studentError } = await db.from('students').select('id,residence_status,users!students_user_id_fkey(name)').eq('id', studentId).maybeSingle();
-  if (studentError) throw studentError;
-  if (!student) return res.status(404).json({ error: 'Student not found.' });
-  if (student.residence_status !== 'DAY_STUDENT') return res.status(409).json({ error: 'Gate arrival and pickup are only for day students.' });
-  const { data: event, error } = await db.from('gate_events').insert({ student_id: studentId, event_type: eventType, method, recorded_by: req.schoolUser.id }).select().single();
+app.post('/api/gate/pickup-pin', ...auth, requireRoles('admin', 'parent'), asyncRoute(async (req, res) => {
+  const userId = req.schoolUser.role === 'parent' ? Number(req.schoolUser.id) : Number(req.body?.userId);
+  const pin = String(req.body?.pin || '');
+  if (!Number.isInteger(userId) || !/^\d{6}$/.test(pin)) return res.status(400).json({ error: 'Enter a six-digit pickup PIN.' });
+  const { data: parent, error: parentError } = await db.from('users').select('id,role').eq('id', userId).maybeSingle();
+  if (parentError) throw parentError;
+  if (!parent || parent.role !== 'parent') return res.status(404).json({ error: 'Parent account not found.' });
+  const pinHash = await makePickupPinHash(pin);
+  const { error } = await db.from('parent_pickup_pins').upsert({ parent_id: userId, pin_hash: pinHash, failed_attempts: 0, locked_until: null, updated_at: new Date().toISOString() }, { onConflict: 'parent_id' });
   if (error) throw error;
+  for (const key of pickupPinAttempts.keys()) if (key.startsWith(`${userId}:`)) pickupPinAttempts.delete(key);
+  res.status(204).end();
+}));
+
+app.post('/api/gate/events', ...auth, requireRoles('admin', 'security_guard'), asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const studentId = Number(body.studentId), eventType = body.eventType, method = body.method || 'manual';
+  const actorType = body.dropoffByType, parentId = Number(body.parentId);
+  const caregiverName = String(body.caregiverName || '').trim().slice(0, 100);
+  const vehicleColor = String(body.vehicleColor || '').trim().slice(0, 40);
+  const vehicleModel = String(body.vehicleModel || '').trim().slice(0, 80);
+  const vehiclePlate = String(body.vehiclePlate || '').trim().toUpperCase().replace(/\s+/g, ' ').slice(0, 20);
+  const pin = String(body.pickupPin || '');
+  const idempotencyKey = String(body.idempotencyKey || '');
+  if (!Number.isInteger(studentId) || !['arrival', 'pickup'].includes(eventType) || !['manual', 'qr', 'rfid'].includes(method)) return res.status(400).json({ error: 'Student, gate action and capture method are required.' });
+  if (!['parent', 'non_parent'].includes(actorType) || !Number.isInteger(parentId)) return res.status(400).json({ error: 'Choose who brought the student and the linked parent.' });
+  if (!vehicleColor || !vehicleModel || vehiclePlate.length < 2 || !/^[A-Z0-9][A-Z0-9 -]{1,19}$/.test(vehiclePlate)) return res.status(400).json({ error: 'Enter the vehicle color, model and a valid plate number.' });
+  if (actorType === 'non_parent' && (!caregiverName || !/^\d{6}$/.test(pin))) return res.status(400).json({ error: 'Enter the authorized adult’s name and the parent’s six-digit pickup PIN.' });
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) return res.status(400).json({ error: 'Refresh the form and try again.' });
+  const { data: duplicate, error: duplicateError } = await db.from('gate_events').select('*').eq('idempotency_key', idempotencyKey).maybeSingle();
+  if (duplicateError) throw duplicateError;
+  if (duplicate) return res.status(200).json(gateEventForClient(duplicate));
+  const { data: student, error: studentError } = await db.from('students').select('id,residence_status,status,users!students_user_id_fkey(name)').eq('id', studentId).maybeSingle();
+  if (studentError) throw studentError;
+  if (!student || student.status === 'archived') return res.status(404).json({ error: 'Active student not found.' });
+  if (student.residence_status !== 'DAY_STUDENT') return res.status(409).json({ error: 'Vehicle gate check-in is only for day students.' });
   const parents = await linkedParents(studentId);
-  const message = `${student.users?.name || 'Your child'} ${eventType === 'arrival' ? 'arrived at school' : 'was picked up from school'} at ${new Date(event.event_at).toLocaleTimeString('en-NG', { timeZone: timezone, hour: '2-digit', minute: '2-digit' })}.`;
-  const sends = await Promise.all(parents.filter(p => p.phone).map(p => sendSms(p.phone, message)));
-  const statuses = sends.map(r => r.status);
-  const smsStatus = !statuses.length ? 'not_configured' : statuses.includes('failed') ? 'failed' : statuses.includes('sent') ? 'sent' : 'not_configured';
-  await db.from('gate_events').update({ parent_sms_status: smsStatus, parent_sms_error: sends.find(r => r.error)?.error || null }).eq('id', event.id);
-  await Promise.all(parents.map(p => deliverPush(p.id, { title: 'School gate update', body: message, url: '/' }).catch(() => {})));
-  res.status(201).json({ ...event, parent_sms_status: smsStatus });
+  const selectedParent = parents.find(parent => Number(parent.id) === parentId);
+  if (!selectedParent) return res.status(403).json({ error: 'That parent is not linked to this student.' });
+  if (actorType === 'non_parent') {
+    const verification = await verifyPickupPin(parentId, pin, req.ip);
+    if (verification.locked) return res.status(429).json({ error: 'Too many incorrect PIN attempts. Try again in 15 minutes.' });
+    if (!verification.ok) return res.status(403).json({ error: 'The pickup PIN is incorrect or has not been set by this parent.' });
+  }
+  const recordedPerson = actorType === 'parent' ? selectedParent.name : caregiverName;
+  const { data: event, error } = await db.from('gate_events').insert({
+    student_id: studentId, event_type: eventType, method, recorded_by: req.schoolUser.id,
+    dropoff_by_type: actorType, dropoff_parent_id: parentId, dropoff_person_name: recordedPerson,
+    vehicle_color: vehicleColor, vehicle_model: vehicleModel, vehicle_plate: vehiclePlate,
+    idempotency_key: idempotencyKey
+  }).select().single();
+  if (error?.code === '23505') {
+    const { data: existing } = await db.from('gate_events').select('*').eq('idempotency_key', idempotencyKey).maybeSingle();
+    if (existing) return res.status(200).json(gateEventForClient(existing));
+  }
+  if (error) throw error;
+  const time = new Intl.DateTimeFormat('en-NG', { timeZone: timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(event.event_at));
+  const studentName = student.users?.name || 'Student';
+  const parentSuffix = actorType === 'non_parent' ? ` on behalf of ${selectedParent.name}` : '';
+  const message = eventType === 'arrival'
+    ? `${studentName} dropped off by ${recordedPerson}${parentSuffix} in ${vehicleColor} ${vehicleModel} with number plate ${vehiclePlate} at ${time}.`
+    : `${studentName} picked up by ${recordedPerson}${parentSuffix} in ${vehicleColor} ${vehicleModel} with number plate ${vehiclePlate} at ${time}.`;
+  const sends = await Promise.all(parents.filter(parent => parent.phone).map(parent => sendSms(parent.phone, message)));
+  const statuses = sends.map(result => result.status);
+  const smsStatus = !statuses.length ? 'not_configured' : statuses.includes('failed') ? 'failed' : 'sent';
+  const smsError = sends.find(result => result.error)?.error || null;
+  const { data: updated, error: updateError } = await db.from('gate_events').update({
+    notification_message: message, parent_sms_status: smsStatus, parent_sms_error: smsError
+  }).eq('id', event.id).select().single();
+  if (updateError) throw updateError;
+  await Promise.all(parents.map(parent => deliverPush(parent.id, { title: 'School gate update', body: message, url: '/' }).catch(() => {})));
+  res.status(201).json(gateEventForClient(updated));
 }));
 
 app.get('/api/hostel/dashboard', ...auth, requireRoles('admin', 'hostel_staff'), asyncRoute(async (req, res) => {

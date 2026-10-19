@@ -11,6 +11,8 @@ let stopCampusEvents = null;
 // Demo-only campus events live in memory. They are never submitted to Supabase.
 const demoGateEvents = new Map();
 const demoHostelPresence = new Map();
+let activeGateRoster = [];
+let gateSubmitting = false;
 const feedback = (message, isError = false) => {
   const el = $('campus-feedback');
   if (!el) return;
@@ -56,7 +58,11 @@ function renderLocalCampusDemo() {
   const content = $('campus-content');
   const students = Data.students();
   if (isGuard()) {
-    const dayStudents = students.filter(s => Number(s.id) % 2 === 1);
+    const parents = Data.users().filter(user => user.role === 'Parent');
+    const dayStudents = students.filter(s => s.residenceStatus === 'DAY_STUDENT' && s.status !== 'archived').map(s => ({
+      id: s.id, admission_no: s.admissionNo, users: { name: s.name }, classes: { class_name: s.className || Data.cls(s.classId)?.name || '—' },
+      guardians: parents.filter(parent => (parent.childIds || []).map(String).includes(String(s.id))).map(parent => ({ id: parent.id, name: parent.name }))
+    }));
     content.innerHTML = `${renderGateSection()}<p class="muted-cell mt8">Local demo register · sample day students only. Events stay in this browser.</p>`;
     renderLocalGateRoster(dayStudents);
   } else {
@@ -68,28 +74,86 @@ function renderLocalCampusDemo() {
 }
 
 function renderLocalGateRoster(roster) {
+  activeGateRoster = roster;
+  wireGateStudentPicker();
+  drawGateRoster(roster.map(student => ({ ...student, last_gate_event: demoGateEvents.get(String(student.id)) || null })));
+  wireGateForm(async payload => {
+    const student = activeGateRoster.find(row => String(row.id) === String(payload.studentId));
+    if (!student) throw new Error('Choose a day student from the list.');
+    const guardian = (student.guardians || []).find(parent => String(parent.id) === String(payload.parentId));
+    if (!guardian) throw new Error('Choose a parent linked to this student.');
+    const demoPin = localStorage.getItem('hma_demo_pickup_pin') || '123456';
+    if (payload.dropoffByType === 'non_parent' && payload.pickupPin !== demoPin) throw new Error('The local demo pickup PIN is incorrect. A parent can set it in the parent dashboard (default: 123456).');
+    const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const who = payload.dropoffByType === 'parent' ? guardian.name : `${payload.caregiverName} on behalf of ${guardian.name}`;
+    const message = `${student.users?.name || 'Student'} ${payload.eventType === 'arrival' ? 'dropped off' : 'picked up'} by ${who} in ${payload.vehicleColor} ${payload.vehicleModel} with number plate ${payload.vehiclePlate} at ${time}.`;
+    const event = { type: payload.eventType, time, vehicle_color: payload.vehicleColor, vehicle_model: payload.vehicleModel, vehicle_plate: payload.vehiclePlate, dropoff_by_name: payload.dropoffByType === 'parent' ? guardian.name : payload.caregiverName, notification_message: message, parent_sms_status: 'demo' };
+    demoGateEvents.set(String(student.id), event);
+    drawGateRoster(activeGateRoster.map(row => ({ ...row, last_gate_event: demoGateEvents.get(String(row.id)) || null })));
+    toast('Local demo event recorded. No SMS was sent.');
+  });
+}
+
+function drawGateRoster(roster) {
   const root = $('gate-roster');
   if (!root) return;
-  const find = value => roster.find(s => String(s.id) === value || String(s.admission_no).toLowerCase() === value.toLowerCase());
-  const eventLabel = student => {
-    const event = demoGateEvents.get(String(student.id));
-    return event ? `${event.type === 'arrival' ? 'Arrived' : 'Picked up'} · ${event.time} · Local demo` : '—';
+  root.innerHTML = roster.length ? `<div class="table-wrap"><table><thead><tr><th>Student</th><th>Class</th><th>Admission no.</th><th>Last gate event</th></tr></thead><tbody>${roster.map(student => {
+    const event = student.last_gate_event;
+    const details = event ? `${event.event_type === 'arrival' || event.type === 'arrival' ? 'Dropped off' : 'Picked up'} · ${event.dropoff_person_name || event.dropoff_by_name || '—'} · ${[event.vehicle_color, event.vehicle_model, event.vehicle_plate].filter(Boolean).join(' ')} · ${event.event_at ? new Date(event.event_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : event.time || ''} · ${event.parent_sms_status || ''}` : '—';
+    return `<tr><td>${esc(student.users?.name || 'Student')}</td><td>${esc(student.classes?.class_name || '—')}</td><td>${esc(student.admission_no)}</td><td>${esc(details)}</td></tr>`;
+  }).join('')}</tbody></table></div>` : '<p class="muted-cell">No day students are available in the roster.</p>';
+}
+
+function wireGateStudentPicker() {
+  const list = $('gate-student-list');
+  const options = activeGateRoster.map(student => `<option value="${esc(student.admission_no)}" label="${esc(student.users?.name || 'Student')} · ${esc(student.classes?.class_name || '—')} · ID ${esc(student.id)}"></option>`).join('');
+  if (list) list.innerHTML = options;
+  const parentSelect = $('gate-parent-id');
+  const syncGuardians = () => {
+    const value = $('gate-student-query')?.value.trim().toLowerCase();
+    const student = activeGateRoster.find(row => [String(row.id), String(row.admission_no || '').toLowerCase()].includes(value));
+    if (parentSelect) parentSelect.innerHTML = '<option value="">Choose linked parent</option>' + (student?.guardians || []).map(parent => `<option value="${esc(parent.id)}">${esc(parent.name)}</option>`).join('');
+    if ($('gate-selected-student')) $('gate-selected-student').textContent = student ? `${student.users?.name || 'Student'} · ${student.classes?.class_name || 'Class'}` : '';
   };
-  const draw = () => {
-    root.innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Admission no.</th><th>Last gate event</th><th>Record</th></tr></thead><tbody>${roster.map(s => `<tr data-gate-student="${esc(s.id)}"><td>${esc(s.users?.name || 'Student')}</td><td>${esc(s.classes?.class_name || '—')}</td><td>${esc(s.admission_no)}</td><td data-last-event>${esc(eventLabel(s))}</td><td><button class="btn-sm-save" data-local-gate="arrival" data-student="${esc(s.id)}">Arrived</button> <button class="btn-sm-save" data-local-gate="pickup" data-student="${esc(s.id)}">Picked up</button></td></tr>`).join('')}</tbody></table>`;
-    root.querySelectorAll('[data-local-gate]').forEach(button => button.addEventListener('click', () => save(button.dataset.student, button.dataset.localGate)));
-  };
-  const save = (id, type) => {
-    demoGateEvents.set(String(id), { type, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
-    draw();
-    toast(`Demo gate ${type === 'arrival' ? 'arrival' : 'pick-up'} recorded locally.`);
-  };
-  $('gate-record-btn').onclick = () => {
-    const student = find($('gate-student-query').value.trim());
-    if (!student) return feedback('No sample day student matches that admission number or ID.', true);
-    save(student.id, $('gate-event-type').value);
-  };
-  draw();
+  $('gate-student-query')?.addEventListener('input', syncGuardians);
+  $('gate-dropoff-type')?.addEventListener('change', () => {
+    const nonParent = $('gate-dropoff-type').querySelector('input:checked')?.value === 'non_parent';
+    $('gate-caregiver-fields').hidden = !nonParent;
+    $('gate-caregiver-name').required = nonParent;
+    $('gate-pickup-pin').required = nonParent;
+    $('gate-actor-label').textContent = nonParent ? 'Parent authorizing this adult' : 'Parent dropping off';
+  });
+  syncGuardians();
+}
+
+function wireGateForm(onSave) {
+  const form = $('gate-checkin-form');
+  if (!form) return;
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (gateSubmitting) return;
+    const submit = $('gate-record-btn');
+    const payload = {
+      studentId: activeGateRoster.find(row => String(row.admission_no).toLowerCase() === $('gate-student-query').value.trim().toLowerCase() || String(row.id) === $('gate-student-query').value.trim())?.id,
+      eventType: $('gate-event-type').value,
+      method: $('gate-method').value,
+      dropoffByType: $('gate-dropoff-type').querySelector('input:checked')?.value || 'parent',
+      parentId: $('gate-parent-id').value,
+      caregiverName: $('gate-caregiver-name').value.trim(),
+      pickupPin: $('gate-pickup-pin').value,
+      vehicleColor: $('gate-vehicle-color').value,
+      vehicleModel: $('gate-vehicle-model').value.trim(),
+      vehiclePlate: $('gate-vehicle-plate').value.trim().toUpperCase(),
+      idempotencyKey: crypto.randomUUID()
+    };
+    if (!payload.studentId) return feedback('Choose a listed student by admission number.', true);
+    if (!payload.parentId) return feedback('Choose the linked parent.', true);
+    gateSubmitting = true;
+    if (submit) { submit.disabled = true; submit.textContent = 'Saving check-in…'; }
+    try { await onSave(payload); form.reset(); $('gate-caregiver-fields').hidden = true; $('gate-caregiver-name').required = false; $('gate-pickup-pin').required = false; $('gate-dropoff-type').dispatchEvent(new Event('change')); $('gate-student-query').dispatchEvent(new Event('input')); feedback(''); }
+    catch (error) { feedback(error.message || 'Could not save the gate event.', true); }
+    finally { gateSubmitting = false; if (submit) { submit.disabled = false; submit.textContent = 'Check in and notify parent'; } }
+  });
 }
 
 function renderLocalHostelRoster(roster) {
@@ -112,9 +176,15 @@ function renderLocalHostelRoster(roster) {
 
 function renderGateSection() {
   return `<section class="panel mt16">
-    <div class="panel-heading"><div><h2>Day student gate register</h2><p class="muted-cell">Record arrival and pick-up. Linked guardians receive an SMS when messaging is configured.</p></div><span class="read-only-badge">Gate staff</span></div>
-    <div class="form-row mt16"><label>Admission number / student ID<input id="gate-student-query" type="search" autocomplete="off" placeholder="Scan QR/RFID or enter admission number"></label><label>Gate event<select id="gate-event-type"><option value="arrival">Arrival</option><option value="pickup">Pick-up</option></select></label><label>Capture method<select id="gate-method"><option value="manual">Manual</option><option value="qr">QR code</option><option value="rfid">RFID</option></select></label><button class="btn-primary" id="gate-record-btn" type="button">Record event</button></div>
-    <div class="table-wrap mt16" id="gate-roster"><p class="muted-cell">Loading student roster…</p></div>
+    <div class="panel-heading"><div><h2>Vehicle check-in</h2><p class="muted-cell">Confirm the student and vehicle. Linked guardians receive the event details by SMS when messaging is configured.</p></div><span class="read-only-badge">Gate staff</span></div>
+    <form id="gate-checkin-form" class="gate-checkin-form mt16">
+      <div class="form-row"><label>Student ID / admission number<input id="gate-student-query" type="search" list="gate-student-list" autocomplete="off" required placeholder="Scan or enter admission number"><datalist id="gate-student-list"></datalist><small id="gate-selected-student" class="muted-cell"></small></label><label>Gate action<select id="gate-event-type"><option value="arrival">Check-in (drop-off)</option><option value="pickup">Check-out (pick-up)</option></select></label><label>Capture method<select id="gate-method"><option value="manual">Manual</option><option value="qr">QR code</option><option value="rfid">RFID</option></select></label></div>
+      <div class="form-row mt16"><fieldset id="gate-dropoff-type" class="gate-actor-toggle"><legend>Drop-off by</legend><label><input type="radio" name="gate-dropoff-type" value="parent" checked> Parent</label><label><input type="radio" name="gate-dropoff-type" value="non_parent"> Non-parent / authorized adult</label></fieldset><label id="gate-actor-label">Parent dropping off<select id="gate-parent-id" required><option value="">Choose linked parent</option></select></label></div>
+      <div id="gate-caregiver-fields" class="form-row mt16" hidden><label>Adult's full name<input id="gate-caregiver-name" maxlength="100" autocomplete="name" placeholder="Name of person bringing student"></label><label>Parent pickup PIN<input id="gate-pickup-pin" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="6-digit PIN"></label></div>
+      <h3 class="mt16">Vehicle entry</h3><div class="form-row mt8"><label>Vehicle color<select id="gate-vehicle-color" required><option value="">Choose color</option>${['Black','White','Silver','Grey','Blue','Red','Green','Brown','Other'].map(color => `<option>${color}</option>`).join('')}</select></label><label>Vehicle make / model<input id="gate-vehicle-model" maxlength="80" required placeholder="e.g. Toyota Corolla"></label><label>Number plate<input id="gate-vehicle-plate" maxlength="20" required autocomplete="off" placeholder="e.g. ABC-123-DE"></label></div>
+      <div class="mt16"><button class="btn-primary gate-submit" id="gate-record-btn" type="submit">Check in and notify parent</button></div><div class="form-feedback mt8" id="campus-feedback" role="status" hidden></div>
+    </form>
+    <div class="mt24"><h3>Recent day-student gate events</h3><div class="mt8" id="gate-roster"><p class="muted-cell">Loading student roster…</p></div></div>
   </section>`;
 }
 
@@ -176,25 +246,22 @@ async function bindHostelSetup() {
 async function loadGateRoster() {
   try {
     const roster = await campusApi('/api/campus/roster');
-    $('gate-roster').innerHTML = `<table><thead><tr><th>Student</th><th>Class</th><th>Admission no.</th><th>Last gate event</th><th>Record</th></tr></thead><tbody>${roster.map(s => `<tr data-gate-student="${s.id}" data-admission="${esc(s.admission_no)}"><td>${esc(s.users?.name || 'Student')}</td><td>${esc(s.classes?.class_name || '—')}</td><td>${esc(s.admission_no)}</td><td data-last-event>${s.last_gate_event ? `${esc(s.last_gate_event.event_type === 'arrival' ? 'Arrived' : 'Picked up')} · ${esc(new Date(s.last_gate_event.event_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))} · SMS ${esc(s.last_gate_event.parent_sms_status)}` : '—'}</td><td><button class="btn-sm-save" data-gate-action="arrival" data-student="${s.id}">Arrived</button> <button class="btn-sm-save" data-gate-action="pickup" data-student="${s.id}">Picked up</button></td></tr>`).join('')}</tbody></table>`;
-    $('gate-record-btn').onclick = async () => {
-      const query = $('gate-student-query').value.trim();
-      const student = roster.find(s => String(s.id) === query || String(s.admission_no).toLowerCase() === query.toLowerCase());
-      if (!student) return feedback('No day student matches that admission number or ID.', true);
-      await recordGate(student.id, $('gate-event-type').value, $('gate-method').value);
-    };
-    $all('[data-gate-action]').forEach(button => button.addEventListener('click', () => recordGate(button.dataset.student, button.dataset.gateAction, 'manual')));
+    activeGateRoster = roster;
+    wireGateStudentPicker();
+    drawGateRoster(roster);
+    wireGateForm(recordGate);
   } catch (err) { $('gate-roster').innerHTML = `<p class="form-feedback error">${esc(err.message)}</p>`; }
 }
 
-async function recordGate(studentId, eventType, method) {
+async function recordGate(payload) {
   try {
-    const event = await campusApi('/api/gate/events', { method: 'POST', body: JSON.stringify({ studentId, eventType, method }) });
-    const row = $q(`[data-gate-student="${studentId}"]`);
-    if (row) row.querySelector('[data-last-event]').textContent = `${eventType === 'arrival' ? 'Arrived' : 'Picked up'} · ${new Date(event.event_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · SMS ${event.parent_sms_status}`;
-    toast(`Gate ${eventType} recorded · guardian SMS ${event.parent_sms_status}.`);
+    const event = await campusApi('/api/gate/events', { method: 'POST', body: JSON.stringify(payload) });
+    const student = activeGateRoster.find(row => String(row.id) === String(payload.studentId));
+    if (student) student.last_gate_event = event;
+    drawGateRoster(activeGateRoster);
+    toast(`Gate event saved · guardian SMS ${event.parent_sms_status}.`);
     window.dispatchEvent(new CustomEvent('hma:gate-event', { detail: event }));
-  } catch (err) { feedback(err.message, true); }
+  } catch (err) { throw err; }
 }
 
 async function loadHostelDashboard() {

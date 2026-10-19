@@ -407,8 +407,8 @@ export async function saveUserFromForm() {
     feedback.className = 'form-feedback error mt8';
     return;
   }
-  if (pw && pw.length < 6) {
-    feedback.textContent = 'Use at least 6 characters for the password.';
+  if (pw && pw.length < 8) {
+    feedback.textContent = 'Use at least 8 characters for the password.';
     feedback.className = 'form-feedback error mt8';
     return;
   }
@@ -465,18 +465,20 @@ export async function saveUserFromForm() {
         initials: avatarInitials(name), tone: 'blue',
         isMentor: ['Class Teacher', 'Subject Teacher', 'HOD'].includes(role) && !!$('nu-mentor-flag')?.checked
       });
-  closeModal('add-user-modal');
-  toast(`${name} added as ${role}.`);
-  renderPeopleTab($q('#people-tabs .tab-btn.active')?.dataset.tab || 'staff');
-
-  pending.then(() => {
-    // Student creation finishes asynchronously after both user and student rows
-    // are reconciled. Refresh the visible directory after that completes; the
-    // modal's visibility is controlled by Alpine and does not update `.hidden`.
-    if (!$('view-admin-people').hidden) {
-      renderPeopleTab($q('#people-tabs .tab-btn.active')?.dataset.tab || 'staff');
-    }
-  });
+  const saveButton = $('save-user-btn');
+  saveButton.disabled = true;
+  try {
+    await pending;
+    await window.loadFromSupabase?.();
+    closeModal('add-user-modal');
+    toast(`${name} added as ${role}.`);
+    renderPeopleTab($q('#people-tabs .tab-btn.active')?.dataset.tab || 'staff');
+  } catch (err) {
+    feedback.textContent = err.message || 'Could not create this account.';
+    feedback.className = 'form-feedback error mt8';
+  } finally {
+    saveButton.disabled = false;
+  }
 }
 
 export function bindPeopleTabs() {
@@ -613,7 +615,7 @@ export function bindResetPasswordModal() {
     const fb   = $('rp-feedback');
     fb.textContent = '';
     if (!pw1) { fb.textContent = 'Enter a new password.';                 fb.className = 'form-feedback error mt8'; return; }
-    if (pw1.length < 6) { fb.textContent = 'Use at least 6 characters.'; fb.className = 'form-feedback error mt8'; return; }
+    if (pw1.length < 8) { fb.textContent = 'Use at least 8 characters.'; fb.className = 'form-feedback error mt8'; return; }
     if (pw1 !== pw2) { fb.textContent = 'The passwords do not match.';    fb.className = 'form-feedback error mt8'; return; }
     const target = Data.user(_resetUserId);
     const result = await Data.resetPassword(_resetUserId, pw1, currentUser);

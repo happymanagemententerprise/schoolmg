@@ -7,7 +7,7 @@ import { getCurrentUser } from '../state.js';
 import {
   $, $q, $all, esc, toast, formatDate,
   gradeLabel, toneClass, subjectChip, statusClass, currentTerm, passMark,
-  downloadCsv, downloadXlsx, downloadXlsxMulti,
+  downloadCsv, downloadXlsx, downloadXlsxMulti, showFormMessage,
   classRank, ordinal
 } from '../utils.js';
 import { openModal, closeModal } from '../modals.js';
@@ -28,7 +28,6 @@ export function myTeacherSubjects() {
   const currentUser = getCurrentUser();
   return Data.teacherSubjects().filter(ts => ts.teacherId === currentUser.id);
 }
-
 export function myTeachingPairs() {
   return myTeacherSubjects().map(ts => ({
     subjectId: ts.subjectId,
@@ -1198,15 +1197,15 @@ export function renderTeacherLessons() {
     const title   = $('ls-title').value.trim();
     const content = $('ls-content').value.trim();
     if (!title || !content) {
-      _message(msg, 'Title and lesson content are required.', 'error'); return;
+      showFormMessage(msg, 'Title and lesson content are required.', 'error'); return;
     }
     const { subjectId, classId } = comboSplit($('ls-pick')?.value);
     if (!subjectId || !classId) {
-      _message(msg, 'Pick the subject and class first.', 'error'); return;
+      showFormMessage(msg, 'Pick the subject and class first.', 'error'); return;
     }
     await Data.addLesson({ subjectId, classId, title, content }, user.id);
     $('ls-title').value = ''; $('ls-content').value = '';
-    _message(msg, 'Lesson published.', 'success');
+    showFormMessage(msg, 'Lesson published.', 'success');
     renderTeacherLessons();
   };
   renderLessonsTable();
@@ -1280,14 +1279,14 @@ function _legacyRenderTeacherQuizzes() {
 
   $('qz-create').onclick = async () => {
     const title = $('qz-title').value.trim();
-    if (!title) { _message(msg, 'A title is required.', 'error'); return; }
+    if (!title) { showFormMessage(msg, 'A title is required.', 'error'); return; }
     const { subjectId, classId } = comboSplit($('qz-pick')?.value);
     if (!subjectId || !classId) {
-      _message(msg, 'Pick the subject and class first.', 'error'); return;
+      showFormMessage(msg, 'Pick the subject and class first.', 'error'); return;
     }
     await Data.createQuiz({ subjectId, classId, title, description: $('qz-desc').value.trim() }, user.id);
     $('qz-title').value = ''; $('qz-desc').value = '';
-    _message(msg, 'Quiz created. Add questions below.', 'success');
+    showFormMessage(msg, 'Quiz created. Add questions below.', 'success');
     renderTeacherQuizzes();
   };
   renderQuizList();
@@ -1414,9 +1413,9 @@ export function openQuizEditor(quiz) {
       points:        Number(ed.querySelector('.q-points').value) || 1
     })).filter(qd => qd.questionText);
     const msg = $('q-msg');
-    if (!questions.length) { _message(msg, 'Add at least one question with text.', 'error'); return; }
+    if (!questions.length) { showFormMessage(msg, 'Add at least one question with text.', 'error'); return; }
     await Data.saveQuizQuestions(quiz.id, questions);
-    _message(msg, 'Questions saved.', 'success');
+    showFormMessage(msg, 'Questions saved.', 'success');
     renderQuizList();
     openQuizEditor(quiz);
   };
@@ -1454,14 +1453,14 @@ export function renderTeacherDiscussions() {
 
   $('td-open').onclick = async () => {
     const title = $('td-title').value.trim();
-    if (!title) { _message(msg, 'A topic is required.', 'error'); return; }
+    if (!title) { showFormMessage(msg, 'A topic is required.', 'error'); return; }
     const { subjectId, classId } = comboSplit($('td-pick')?.value);
     if (!subjectId || !classId) {
-      _message(msg, 'Pick the subject and class first.', 'error'); return;
+      showFormMessage(msg, 'Pick the subject and class first.', 'error'); return;
     }
     await Data.openDiscussion({ subjectId, classId, title, body: $('td-body').value.trim() }, user.id);
     $('td-title').value = ''; $('td-body').value = '';
-    _message(msg, 'Discussion opened.', 'success');
+    showFormMessage(msg, 'Discussion opened.', 'success');
     renderTeacherDiscussions();
   };
   renderDiscussionsTable();
@@ -1551,12 +1550,4 @@ export function renderThread(discussionId, containerId) {
     await Data.addDiscussionPost(discussion.id, currentUser.id, body, pid);
     renderThread(discussionId, containerId);
   });
-}
-
-// ── Internal helper ───────────────────────────────────────────
-function _message(el, text, kind) {
-  if (!el) return;
-  el.textContent = text;
-  el.hidden = false;
-  el.className = kind === 'error' ? 'form-feedback mt8 text-danger' : 'form-feedback mt8 success';
 }

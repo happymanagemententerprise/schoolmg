@@ -193,9 +193,7 @@ const _sources = {
   session:      () => _sb.from('sessions').select('*').eq('is_current', true).limit(1),
   sessionsAll:  () => _sb.from('sessions').select('*').order('id', { ascending: false }),
   terms:        () => _sb.from('terms').select('*'),
-  // password_hash and password_salt are intentionally excluded — they are
-  // verified server-side by the /functions/login Edge Function.  The browser
-  // never needs to see them.
+  // Password credentials are managed by Supabase Auth and are never selected here.
   users:        () => _sb.from('users').select(
     'id, name, initials, email, role, staff_role, tone, phone, ' +
     'is_mentor, mentor_subject, mentor_bio, admin_tier'
@@ -227,7 +225,7 @@ const _sources = {
   weeklyTopics:() => _sb.from('weekly_topics').select('*'),
   lmsLessons:    () => _sb.from('lms_lessons').select('*').order('created_at', { ascending: false }),
   lmsQuizzes:    () => _sb.from('lms_quizzes').select('*'),
-  lmsQuestions:  () => _sb.from('lms_questions').select('*').order('position'),
+  lmsQuestions:  () => _sb.rpc('lms_questions_for_current_user'),
   lmsAttempts:   () => _sb.from('lms_attempts').select('*'),
   lmsDiscussions:() => _sb.from('lms_discussions').select('*'),
   lmsPosts:      () => _sb.from('lms_posts').select('*'),
@@ -332,7 +330,7 @@ function _hydrate(raw) {
     tone:         u.tone || 'blue',
     email:        u.email,
     phone:        u.phone || null,
-    // password_hash / password_salt are NOT fetched — verified server-side only
+    // Authentication secrets remain exclusively in Supabase Auth.
     isMentor:     !!u.is_mentor,
     mentorSubject: u.mentor_subject || '',
     mentorBio:    u.mentor_bio || 'Experienced educator and mentor.',
@@ -631,7 +629,7 @@ function _hydrate(raw) {
     },
     correctAnswer: q.correct_answer || '',
     points:        Number(q.points) || 1,
-    position:      Number(q.position) || 0
+    position:      Number(q.position ?? q.question_position) || 0
   }));
 
   _cache.lmsAttempts = (raw.lmsAttempts || []).map(a => ({
@@ -1058,7 +1056,6 @@ function _loadDemoSchool() {
   USERS.forEach((u, i) => {
     users.push({
       id: i + 1, name: u[0], email: u[1],
-      password_hash: null, password_salt: null,
       role: u[3], phone: u[4],
       tone: u[5], staff_role: u[6], is_mentor: u[7], mentor_subject: u[8], mentor_bio: u[9]
     });
@@ -1067,7 +1064,6 @@ function _loadDemoSchool() {
   STUDENT_USERS.forEach((u, i) => {
     users.push({
       id: staffCount + i + 1, name: u[0], email: u[1],
-      password_hash: null, password_salt: null,
       role: 'student', phone: u[2], tone: u[3],
       staff_role: null, is_mentor: false, mentor_subject: null, mentor_bio: null
     });
@@ -1075,7 +1071,6 @@ function _loadDemoSchool() {
   const parentId = users.length + 1;
   users.push({
     id: parentId, name: 'Mrs. Comfort Osei', email: 'parent@happyman.edu',
-    password_hash: null, password_salt: null,
     role: 'parent', phone: '08099887766', tone: 'coral',
     staff_role: null, is_mentor: false, mentor_subject: null, mentor_bio: null
   });
@@ -1725,51 +1720,21 @@ const Data = {
 
   generateTempPassword: () => generateTempPassword(),
 
-  // ── Edge-Function-backed auth helpers ───────────────────────
-  //
-  // loginWithEdgeFunction({ email, password })
-  //   Calls the /functions/login Edge Function.  Returns the user
-  //   record on success (no hash/salt included), or null on failure.
-  //   `errorMessage` is set on the returned object when login fails.
-  async loginWithEdgeFunction({ email, password }) {
-    const url = _sb.supabaseUrl.replace(/\/$/, '') +
-                '/functions/v1/login';
-    try {
-      const res = await fetch(url, {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': _sb.supabaseKey,
-        },
-        body: JSON.stringify({ email, password }),
-      });
-      const json = await res.json();
-      if (!res.ok) return { error: json.error || 'Invalid email or password' };
-      return { user: json.user };
-    } catch (e) {
-      return { error: 'Could not reach the server. Check your connection.' };
-    }
-  },
-
   // verifyPassword({ userId, password })
   //   Re-authenticates a logged-in user for sensitive actions.
   //   Returns { ok: true } or { error: string }.
   async verifyPassword({ userId, password }) {
-    const url = _sb.supabaseUrl.replace(/\/$/, '') +
-                '/functions/v1/verify-password';
     try {
-      const res = await fetch(url, {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': _sb.supabaseKey,
-        },
-        body: JSON.stringify({ userId, password }),
-      });
-      const json = await res.json();
-      if (!res.ok) return { ok: false, error: json.error || 'Invalid credentials' };
+      const { data: current, error: currentError } = await _sb.auth.getUser();
+      if (currentError || !current?.user?.email) return { ok: false, error: 'Sign in again to continue.' };
+      const profile = _cache.users.find(u => String(u.id) === String(userId));
+      if (!profile || profile.email?.toLowerCase() !== current.user.email.toLowerCase()) {
+        return { ok: false, error: 'You can only verify your own account.' };
+      }
+      const { data: reauth, error } = await _sb.auth.signInWithPassword({ email: current.user.email, password });
+      if (error || reauth?.user?.id !== current.user.id) return { ok: false, error: 'Invalid credentials' };
       return { ok: true };
-    } catch (e) {
+    } catch {
       return { ok: false, error: 'Could not reach the server.' };
     }
   },
@@ -1781,7 +1746,10 @@ const Data = {
   // as the rest of the app).
   async resetPassword(userId, newPassword, actor) {
     const user = this.user(userId);
-    const actorRec = actor ? this.user(actor.id) : null;
+    const { data: authData } = await _sb.auth.getUser();
+    const actorRec = authData?.user?.email
+      ? _cache.users.find(candidate => candidate.email?.toLowerCase() === authData.user.email.toLowerCase())
+      : (actor ? this.user(actor.id) : null);
     if (!user || !actorRec) return null;
     const targetIsStaff = STAFF_ROLES.includes(user.role) || user.role === 'Administrator';
     if (actorRec.role !== 'Administrator') {
@@ -1803,19 +1771,22 @@ const Data = {
       }
       return { ok: true };
     }
-    const salt = newSalt();
-    const hash = hashPassword(newPassword, salt);
-    user.passwordHash = hash; user.passwordSalt = salt;
-    DB.set('users', _cache.users);
-    await _sb.from('users')
-      .update({ password: null, password_hash: hash, password_salt: salt })
-      .eq('id', Number(userId));
+    const token = await this.getAccessToken();
+    const base = String(import.meta.env.VITE_CAMPUS_API_URL || '').replace(/\/$/, '');
+    const response = await fetch(`${base}/api/users/${encodeURIComponent(userId)}/password`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPassword })
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || 'Could not update this account password.');
+    }
     return { ok: true };
   },
 
   async addUser(u) {
-    const salt = newSalt();
-    const hash = u.password != null && u.password !== '' ? hashPassword(u.password, salt) : null;
+    const token = await this.getAccessToken();
+    const base = String(import.meta.env.VITE_CAMPUS_API_URL || '').replace(/\/$/, '');
     const payload = {
       name: u.name, email: u.email,
       role: _unmapRole(u.role), staff_role: ['Class Teacher','Subject Teacher','HOD'].includes(u.role) ? u.role : null,
@@ -1825,29 +1796,21 @@ const Data = {
     };
     // Add locally first so the caller can redraw without waiting on the
     // network, then reconcile with the row the database returns.
-    const record = { ...u, id: u.id || uid('U'), studentId: null, childIds: [],
-      passwordHash: hash, passwordSalt: hash ? salt : null };
+    const { password: _discardedPassword, ...safeUser } = u;
+    const record = { ...safeUser, id: u.id || uid('U'), studentId: null, childIds: [],
+      passwordHash: null, passwordSalt: null };
     _cache.users.push(record);
     DB.set('users', _cache.users);
-    try {
-      const { data, error } = await _sb.from('users')
-        .insert({ ...payload, password: null, password_hash: hash, password_salt: salt })
-        .select().single();
-      if (error) throw error;
-      if (data) {
-        Object.assign(record, {
-          id: String(data.id), role: _mapRole(data.role, data.staff_role),
-          name: data.name, initials: data.initials || record.initials,
-          tone: data.tone || record.tone, email: data.email, phone: data.phone,
-          passwordHash: hash, passwordSalt: hash ? salt : null,
-          isMentor: !!data.is_mentor,
-          mentorSubject: data.mentor_subject || '', mentorBio: data.mentor_bio || ''
-        });
-        DB.set('users', _cache.users);
-      }
-    } catch (err) {
-      console.warn('[HMA] user not saved remotely:', err?.message || err);
-    }
+    const response = await fetch(`${base}/api/users`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, password: u.password })
+    });
+    const saved = await response.json().catch(() => ({}));
+    if (!response.ok) { _cache.users = _cache.users.filter(x => x !== record); DB.set('users', _cache.users); throw new Error(saved.error || 'Could not create this account.'); }
+    Object.assign(record, { id: String(saved.id), role: _mapRole(saved.role, saved.staff_role), name: saved.name,
+      initials: saved.initials || record.initials, tone: saved.tone || record.tone, email: saved.email, phone: saved.phone,
+      isMentor: !!saved.is_mentor, mentorSubject: saved.mentor_subject || '', mentorBio: saved.mentor_bio || '' });
+    DB.set('users', _cache.users);
     return record;
   },
 
@@ -1873,18 +1836,11 @@ const Data = {
     }
     if (patch.mentorSubject !== undefined) payload.mentor_subject = patch.mentorSubject;
     if (patch.mentorBio  !== undefined) payload.mentor_bio = patch.mentorBio;
-    // Setting a password (always a fresh hash, never stored in the clear)
-    if (patch.password !== undefined && patch.password !== null && patch.password !== '') {
-      const salt = newSalt();
-      const hash = hashPassword(patch.password, salt);
-      user.passwordHash = hash; user.passwordSalt = salt;
-      payload.password = null; payload.password_hash = hash; payload.password_salt = salt;
-    }
     if (Object.keys(payload).length) {
-      _sb.from('users').update(payload).eq('id', Number(id)).then(r => {
-        if (r?.error) console.warn('[HMA] updateUser not saved:', r.error?.message || r.error);
-      });
+      const { error } = await _sb.rpc('admin_update_user', { p_user_id: Number(id), p_patch: payload });
+      if (error) throw new Error(error.message || 'Could not update this user.');
     }
+    if (patch.password) await this.resetPassword(id, patch.password);
     return user;
   },
 
@@ -2886,44 +2842,15 @@ const Data = {
     catch (err) { console.warn('[HMA] quiz not deleted remotely:', err?.message || err); }
   },
   async submitQuizAttempt(quizId, studentId, answers) {
-    const questions = this.questionsForQuiz(quizId);
-    if (!questions.length) return null;
     const map = answers || {};
-    let score = 0, total = 0;
-    const detail = questions.map(q => {
-      const got = String(map[q.id] ?? '').trim();
-      const right = got.toLowerCase() === String(q.correctAnswer).toLowerCase();
-      if (right) score += q.points;
-      total += q.points;
-      return {
-        questionId: q.id, questionText: q.questionText,
-        studentAnswer: got, correctAnswer: q.correctAnswer,
-        points: q.points, isCorrect: right
-      };
-    });
-    if (!total) return null;
-    const existing = this.attemptFor(quizId, studentId);
-    const record = {
-      id: existing?.id || uid('att_'), quizId: String(quizId), studentId: String(studentId),
-      score, total, answers: map, submittedAt: new Date().toISOString()
-    };
-    _cache.lmsAttempts = [
-      ...(_cache.lmsAttempts || []).filter(a =>
-        !(a.quizId === record.quizId && a.studentId === record.studentId)),
-      record
-    ];
+    const { data, error } = await _sb.rpc('submit_lms_quiz', { p_quiz_id: Number(quizId), p_answers: map });
+    if (error) throw new Error(error.message || 'Quiz submission failed.');
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result) return null;
+    const record = { id: uid('att_'), quizId: String(quizId), studentId: String(studentId), score: Number(result.score), total: Number(result.total), answers: map, submittedAt: result.submitted_at };
+    _cache.lmsAttempts = [...(_cache.lmsAttempts || []).filter(a => !(a.quizId === record.quizId && a.studentId === record.studentId)), record];
     DB.set('lmsAttempts', _cache.lmsAttempts);
-    try {
-      const { data, error } = await _sb.from('lms_attempts').upsert({
-        quiz_id: Number(quizId), student_id: Number(studentId),
-        score, total, answers: map, submitted_at: new Date().toISOString()
-      }, { onConflict: 'quiz_id,student_id' }).select().single();
-      if (error) throw error;
-      record.id = String(data.id);
-    } catch (err) {
-      console.warn('[HMA] attempt not saved remotely:', err?.message || err);
-    }
-    return { score, total, detail };
+    return { score: record.score, total: record.total };
   },
   async openDiscussion({ subjectId, classId, title, body }, userId) {
     const sessionId = Data.session()._id;
@@ -4065,67 +3992,12 @@ function uid(prefix) {
   return prefix + Date.now().toString(36).toUpperCase();
 }
 
-// ── Password hashing ─────────────────────────────────────────
-// SHA-256 hex, byte-for-byte identical to the SQL scheme
-// (hex(digest(salt || password, 'sha256'))) used by the migration
-// backfill, so hashes written here and hashes written in SQL
-// verify against each other. Pure JS so it works in any browser
-// context, not just secure ones.
-const _sha256Hex = (() => {
-  const K = [
-    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
-    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
-    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
-    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
-    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
-    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
-    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
-    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
-  ];
-  const rot  = (x, c) => (x >>> c) | (x << (32 - c));
-  const H0 = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
-  return (str) => {
-    const bytes = [...new TextEncoder().encode(str)];
-    const bitLen = bytes.length * 8;
-    bytes.push(0x80);
-    while (bytes.length % 64 !== 56) bytes.push(0);
-    for (let i = 7; i >= 0; i--) bytes.push((bitLen / Math.pow(2, 8 * i)) & 0xff);
-    const h = H0.slice();
-    for (let i = 0; i < bytes.length; i += 64) {
-      const w = new Array(64);
-      for (let j = 0; j < 16; j++) {
-        w[j] = ((bytes[i + j*4]     & 0xff) << 24) |
-               ((bytes[i + j*4 + 1] & 0xff) << 16) |
-               ((bytes[i + j*4 + 2] & 0xff) << 8)  |
-               ( bytes[i + j*4 + 3] & 0xff);
-      }
-      for (let j = 16; j < 64; j++) {
-        w[j] = (w[j-16] + (rot(w[j-15], 7) ^ rot(w[j-15], 18) ^ (w[j-15] >>> 3))
-                       + w[j-7] + (rot(w[j-2], 17) ^ rot(w[j-2], 19) ^ (w[j-2] >>> 10))) | 0;
-      }
-      let a=h[0], b=h[1], c=h[2], d=h[3], e=h[4], f=h[5], g=h[6], hh=h[7];
-      for (let j = 0; j < 64; j++) {
-        const t1 = (hh + (rot(e,6) ^ rot(e,11) ^ rot(e,25)) + ((e & f) ^ (~e & g)) + K[j] + w[j]) | 0;
-        const t2 = ((rot(a,2) ^ rot(a,13) ^ rot(a,22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
-        hh=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
-      }
-      h[0]=(h[0]+a)|0; h[1]=(h[1]+b)|0; h[2]=(h[2]+c)|0; h[3]=(h[3]+d)|0;
-      h[4]=(h[4]+e)|0; h[5]=(h[5]+f)|0; h[6]=(h[6]+g)|0; h[7]=(h[7]+hh)|0;
-    }
-    return h.map(x => (x >>> 0).toString(16).padStart(8, '0')).join('');
-  };
-})();
-
-function newSalt() {
-  let s = '';
-  for (let i = 0; i < 16; i++) s += '0123456789abcdef'[(Math.random() * 16) | 0];
-  return s;
-}
-function hashPassword(plain, salt) { return _sha256Hex((salt || '') + (plain || '')); }
 function generateTempPassword(len = 8) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
   let s = '';
-  for (let i = 0; i < len; i++) s += chars[(Math.random() * chars.length) | 0];
+  const random = new Uint32Array(len);
+  crypto.getRandomValues(random);
+  for (let i = 0; i < len; i++) s += chars[random[i] % chars.length];
   return s;
 }
 

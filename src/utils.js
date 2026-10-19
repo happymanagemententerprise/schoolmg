@@ -20,6 +20,15 @@ export function toast(msg, type = 'success') {
   }, 3200);
 }
 
+export function showFormMessage(element, text, kind = 'success') {
+  if (!element) return;
+  element.textContent = text;
+  element.hidden = false;
+  element.className = kind === 'error'
+    ? 'form-feedback mt8 text-danger'
+    : 'form-feedback mt8 success';
+}
+
 // ── Date and number helpers ──────────────────────────────────
 export function formatDate(iso) {
   if (!iso) return '';
@@ -60,7 +69,9 @@ export function streamTag(stream) {
 }
 
 export function subjectChip(sub) {
-  return `<span class="subject-chip chip-${sub?.color || 'blue'}">${esc(sub?.code || '?')}</span>`;
+  const colors = new Set(['blue', 'green', 'coral', 'yellow', 'purple', 'teal']);
+  const color = colors.has(sub?.color) ? sub.color : 'blue';
+  return `<span class="subject-chip chip-${color}">${esc(sub?.code || '?')}</span>`;
 }
 
 export function statusClass(s) {
