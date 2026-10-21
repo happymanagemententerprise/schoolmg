@@ -4,6 +4,11 @@
 # working directory name when running `supabase init`.
 project_id = "schoolmg"
 
+# The campus API validates user JWTs itself to preserve its public /api/* route paths.
+# The scheduled endpoint uses a separate server-side secret and is never exposed to browsers.
+[functions.campus-api]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

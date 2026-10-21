@@ -3,8 +3,8 @@
 Happy Man Academy is a Vite single-page school management app using Supabase for authentication
 and PostgreSQL data. The browser experience lives in `src/`, its design system is in
 `src/styles.css`, and the shared data layer is `data.js`. `npm run dev` serves the app locally and
-`npm run build` creates the Cloudflare Pages output in `dist/`. A separate Node service in `server/`
-provides campus safety, SMS and scheduled push features.
+`npm run build` creates the Cloudflare Pages output in `dist/`. Campus safety, SMS and scheduled
+push features are provided by the Supabase Edge Function in `supabase/functions/campus-api/`.
 
 Serve the app over HTTP rather than opening it as a `file://` URL. Run `npm install` and
 `npm run dev`, then browse to `http://localhost:8000/`.
@@ -297,11 +297,13 @@ supabase/seed.sql                   re-runnable demo data
 
 Campus safety routes validate Supabase Auth access tokens and derive roles from `public.users`;
 they do not trust role claims sent by the browser. Keep the service-role key, VAPID private key and
-Twilio credentials only in the Node service environment. Deploy that Node service separately from
-the Cloudflare Pages frontend.
+Twilio credentials server-side. The Edge Function validates Supabase Auth access tokens and derives
+roles from `public.users`; it does not trust role claims sent by the browser.
 # Campus attendance, safety and PWA deployment
 
-The browser app is deployed as a Vite/Cloudflare Pages site. The campus safety API is a separate, always-on Node.js service under `server/`; it owns service-role operations, scheduled web-push reminders, SMS delivery, cover approval, gate events and hostel closing summaries. Never put `SUPABASE_SERVICE_ROLE_KEY`, VAPID private keys or Twilio credentials in frontend variables.
+The browser app is deployed as a Vite/Cloudflare Pages site. Supabase provides the database,
+authentication and campus API. Never put a Supabase secret/service-role key, VAPID private key or
+Twilio credentials in frontend variables.
 
 ## Apply the Supabase changes
 
@@ -314,7 +316,7 @@ staging project; production deployment remains pending.
 
 Create one or more hostels from **Campus safety → Hostel setup**, then add users with the **Hostel Supervisor** or **Security Guard** role from People. Assign supervisors to hostels in Campus safety, then classify each student and assign boarders to a hostel from People → Students. Parent SMS requires parent phone numbers and Twilio credentials.
 
-## Run the campus API
+## Run the campus API locally
 
 Copy `server/.env.example` to `server/.env` and set the Supabase URL, server-only service-role key, frontend origin(s), school timezone and optional VAPID/Twilio settings. Install and run the service from the repo root:
 
@@ -323,8 +325,15 @@ npm --prefix server install
 npm --prefix server run dev
 ```
 
-Deploy this service on an always-on Node.js host (Node 20+). It polls the schedule for five-minute attendance reminders and performs hostel close-out at `HOSTEL_CHECKOUT_LOCAL_TIME` (default 22:00 in the school timezone). A process that sleeps between requests cannot run these jobs reliably. Set the frontend build variable `VITE_CAMPUS_API_URL` to the deployed service origin; the Vite dev server proxies `/api` to `http://localhost:8788`.
+Set the Pages build variable `VITE_CAMPUS_API_URL` to
+`https://erlhyrswcqpqpqzbgmgb.supabase.co/functions/v1/campus-api`. The Pages origin is
+`https://happyman-academy.pages.dev`. For local development, the Vite dev server proxies `/api` to
+`http://localhost:8788`. Configure the once-per-minute Supabase Cron job using
+[`supabase/scheduler_setup.sql`](supabase/scheduler_setup.sql). Store the project URL and the
+existing `CAMPUS_SCHEDULER_SECRET` in Supabase Vault as `campus_scheduler_url` and
+`CAMPUS_SCHEDULER_SECRET` before running the script. Keep the token server-side; do not put it in
+Pages.
 
-Generate VAPID keys with `npx web-push generate-vapid-keys`, then set the public key, private key and contact subject in the API environment. Parent SMS delivery uses Twilio's REST API when all three Twilio variables are configured. Without these provider credentials the rest of the app remains available and notification status is surfaced in the gate register.
+Generate a fresh VAPID pair with `npx web-push generate-vapid-keys`, then store the public key, private key and contact subject as Supabase Edge Function secrets. The private key must never be committed or exposed in frontend variables. Parent SMS delivery uses Twilio's REST API when all three Twilio secrets are configured. Without these provider credentials the rest of the app remains available and notification status is surfaced in the gate register.
 
-The attendance outbox is stored in IndexedDB, falling back to localStorage. It is applied back to the on-device register after reload and synced when the app regains connectivity. Browser Background Sync is best-effort and asks an open app client to flush the queue; browsers that do not support Background Sync sync on the next `online` event while the app is open. PWA push reminders require the separate Node service and user permission.
+The attendance outbox is stored in IndexedDB, falling back to localStorage. It is applied back to the on-device register after reload and synced when the app regains connectivity. Browser Background Sync is best-effort and asks an open app client to flush the queue; browsers that do not support Background Sync sync on the next `online` event while the app is open. PWA push reminders require the campus API and user permission.
