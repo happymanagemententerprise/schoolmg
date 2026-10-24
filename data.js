@@ -30,6 +30,20 @@ let _demoMode = false;
 const DEMO_SESSION_KEY = 'hma_local_demo_email';
 const _supabaseFrom = _sb.from.bind(_sb);
 const _supabaseRpc = _sb.rpc.bind(_sb);
+const ACTIVE_SCHOOL_KEY = 'hma_active_school_id';
+let _activeSchoolId = null;
+const SCHOOL_SCOPED_TABLES = new Set([
+  'approval_requests', 'assignments', 'attendance', 'attendance_daily', 'attendance_weekly',
+  'class_period_attendance', 'classes', 'commendations', 'departments', 'events', 'gate_events',
+  'grades', 'hostel_daily_summaries', 'hostel_presence_events', 'hostel_staff_assignments',
+  'hostels', 'lms_attempts', 'lms_discussions', 'lms_lessons', 'lms_posts', 'lms_questions',
+  'lms_quizzes', 'notification_dispatches', 'parent_engagements', 'parent_pickup_pins',
+  'parent_students', 'path_requests', 'portfolio_artifacts', 'promotion_overrides', 'promotions',
+  'push_subscriptions', 'remarks', 'rooms', 'score_uploads', 'sessions', 'student_transfers',
+  'students', 'subject_selection_rules', 'subject_selections', 'subjects', 'teacher_classes',
+  'teacher_recognitions', 'teacher_subjects', 'terms', 'time_slots', 'timetable_settings',
+  'timetable_swaps', 'timetables', 'users', 'weekly_topics'
+]);
 function demoQuery() {
   const result = { data: null, error: null };
   let builder;
@@ -41,7 +55,33 @@ function demoQuery() {
   });
   return builder;
 }
-_sb.from = (...args) => _demoMode ? demoQuery() : _supabaseFrom(...args);
+function scopeSchoolQuery(builder, table) {
+  return new Proxy(builder, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop, target);
+      if (typeof value !== 'function') return value;
+      if (prop === 'then') return value.bind(target);
+      return (...args) => {
+        if (!_activeSchoolId) throw new Error(`No active school selected for ${table}.`);
+        let next;
+        if (prop === 'insert' || prop === 'upsert') {
+          const stamp = row => ({ ...row, school_id: _activeSchoolId });
+          const payload = Array.isArray(args[0]) ? args[0].map(stamp) : stamp(args[0] || {});
+          next = value.call(target, payload, ...args.slice(1));
+        } else {
+          next = value.apply(target, args);
+        }
+        if (prop === 'select' || prop === 'update' || prop === 'delete') next = next.eq('school_id', _activeSchoolId);
+        return scopeSchoolQuery(next, table);
+      };
+    }
+  });
+}
+_sb.from = (table, ...args) => {
+  if (_demoMode) return demoQuery();
+  const builder = _supabaseFrom(table, ...args);
+  return SCHOOL_SCOPED_TABLES.has(table) ? scopeSchoolQuery(builder, table) : builder;
+};
 _sb.rpc = (...args) => _demoMode ? Promise.resolve({ data: null, error: null }) : _supabaseRpc(...args);
 
 // ── In-memory store ──────────────────────────────────────────
@@ -77,7 +117,10 @@ const _cache = {
   parentEngagements: [],   // parent logins, acknowledges, PTA, early payments
   teacherRecognitions: [], // educator recognition awards
   loaded:         false,
-  failed:         []      // tables that could not be read
+  failed:         [],     // tables that could not be read
+  schools:        [],     // schools accessible to the signed-in account
+  platformAccount: null,
+  platformSchools: []
 };
 
 // ── localStorage fallback for session persistence ───────────
@@ -234,7 +277,7 @@ const _sources = {
   artifacts:  () => _sb.from('portfolio_artifacts').select('*'),
   commendations: () => _sb.from('commendations').select('*'),
   parentEngagements: () => _sb.from('parent_engagements').select('*'),
-  teacherRecognitions: () => _sb.from('teacher_recognitions').select('*')
+  teacherRecognitions: () => _sb.from('teacher_recognitions').select('*'),
 };
 
 // ── Map raw database rows into the synchronous cache ─────────
@@ -570,6 +613,7 @@ function _hydrate(raw) {
   _cache.scoreUploads = (raw.scoreUploads || []).map(u => ({
     id:        String(u.id),
     sessionId: String(u.session_id),
+    termId:    String(u.term_id),
     classId:   String(u.class_id),
     subjectId: String(u.subject_id),
     kind:      u.kind || 'ca',
@@ -734,8 +778,81 @@ async function loadFromSupabase() {
     _cache.failed = [];
     _loadDemoSchool();
     console.info('[HMA] Local demo session restored; Supabase reads and writes are disabled.');
-    return;
+    return { ready: true, demo: true };
   }
+
+  // A fresh visitor only needs the login shell. Do not query school records
+  // with the unauthenticated anon client before an Auth session exists.
+  let session = null;
+  try {
+    const { data, error } = await _sb.auth.getSession();
+    if (error) throw error;
+    session = data?.session || null;
+  } catch (err) {
+    console.warn('[HMA] could not check the Supabase session:', err?.message || err);
+    _cache.failed = Object.keys(_sources);
+    return { ready: false, error: err?.message || 'Could not check the session.' };
+  }
+  if (!session) {
+    _cache.failed = [];
+    _cache.schools = [];
+    _cache.platformAccount = null;
+    _cache.platformSchools = [];
+    _activeSchoolId = null;
+    return { ready: false, authenticated: false };
+  }
+
+  // SaaS owners have a separate platform membership and do not need a
+  // school profile or school-level membership to use the owner console.
+  _demoMode = false;
+  _usingSeedFallback = false;
+  _cache.platformAccount = null;
+  _cache.platformSchools = [];
+  try {
+    const { data: membership, error: membershipError } = await _supabaseFrom('platform_memberships')
+      .select('auth_user_id,platform_role,is_active')
+      .eq('auth_user_id', session.user.id)
+      .eq('platform_role', 'saas_owner')
+      .eq('is_active', true)
+      .maybeSingle();
+    if (!membershipError && membership) {
+      const { data: rows, error: dashboardError } = await _supabaseFrom('platform_school_dashboard')
+        .select('*').order('school_name');
+      if (dashboardError) throw dashboardError;
+      _cache.platformAccount = {
+        authUserId: session.user.id,
+        email: session.user.email || '',
+        platformRole: membership.platform_role
+      };
+      _cache.platformSchools = rows || [];
+      _cache.schools = [];
+      _activeSchoolId = null;
+      _cache.failed = [];
+      return { ready: true, authenticated: true, platformOwner: true };
+    }
+  } catch (err) {
+    console.warn('[HMA] platform-owner access could not be checked:', err?.message || err);
+  }
+
+  // RLS limits this list to schools linked to the authenticated account.
+  const { data: accessibleSchools, error: schoolsError } = await _supabaseFrom('schools')
+    .select('id,name,status').eq('status', 'active').order('name');
+  if (schoolsError || !accessibleSchools?.length) {
+    _cache.failed = ['schools'];
+    _cache.schools = [];
+    _activeSchoolId = null;
+    return { ready: false, authenticated: true, missing: ['schools'], error: schoolsError?.message || 'No active school access is linked to this account.' };
+  }
+  _cache.schools = accessibleSchools;
+  const savedSchoolId = localStorage.getItem(ACTIVE_SCHOOL_KEY);
+  _activeSchoolId = accessibleSchools.some(school => String(school.id) === String(savedSchoolId)) ? String(savedSchoolId) : String(accessibleSchools[0].id);
+  localStorage.setItem(ACTIVE_SCHOOL_KEY, _activeSchoolId);
+
+  // A real Auth session must never inherit demo/fallback state from an earlier
+  // visit in the same tab.
+  _demoMode = false;
+  _usingSeedFallback = false;
+  _cache.failed = [];
   const keys = Object.keys(_sources);
   const settled = await Promise.allSettled(keys.map(k => _sources[k]()));
   const raw = {};
@@ -747,32 +864,25 @@ async function loadFromSupabase() {
     }
   });
 
-  if (!raw.session.length) _ensureSession();
   _hydrate(raw);
   installAttendanceSync();
   if (typeof window !== 'undefined' && window.navigator?.onLine) flushAttendanceQueue();
   if (_cache.failed.length) console.warn('[HMA] could not read:', _cache.failed.join(', '));
 
-  // Fall back to the bundled demo school when the database cannot supply a
-  // usable one: offline, a rejected key, or a database that has not been
-  // migrated. Checking only for "no users" is not enough, because a partly
-  // migrated database can hold a handful of people and nothing else, which
-  // looks like a working school but silently breaks every report.
-  const thin = [];
-  if (!_cache.users.length)    thin.push('users');
-  if (!_cache.students.length) thin.push('students');
-  if (!_cache.classes.length)  thin.push('classes');
-  if (!_cache.subjects.length) thin.push('subjects');
-  if (thin.length) {
-    console.warn('[HMA] database has no usable school (missing: ' + thin.join(', ') +
-                 ') - loading the bundled demo school instead');
-    _loadSeedFallback();
-    _usingSeedFallback = true;
-  } else {
-    _usingSeedFallback = false;
+  // Never turn a failed authenticated production load into a demo account.
+  // RLS may legitimately return no students for a newly added teacher, or no
+  // linked students for a parent. Require the caller's own profile, not global
+  // school rows, before allowing sign-in. Report other empty sources for
+  // troubleshooting without rejecting valid limited-scope accounts.
+  if (!_cache.users.length) {
+    console.warn('[HMA] authenticated profile was not returned; demo records were not used as fallback');
+    return { ready: false, authenticated: true, missing: ['users'], failed: _cache.failed.slice() };
   }
+  const empty = ['students', 'classes', 'subjects'].filter(key => !_cache[key].length);
+  if (empty.length) console.warn('[HMA] authenticated data sources are empty:', empty.join(', '));
   await applyQueuedAttendanceToCache();
   console.log('[HMA] Supabase data loaded ✓');
+  return { ready: true, authenticated: true, empty, failed: _cache.failed.slice() };
 }
 
 // ── Session mapping ─────────────────────────────────────────
@@ -805,24 +915,6 @@ function _mapSession(sessionRows, termRows) {
     midtermBreak: sessRow?.midterm_break || { start: null, end: null },
     terms
   };
-}
-
-// If the school has no session yet, create the current one.
-async function _ensureSession() {
-  try {
-    const { data: s } = await _sb.from('sessions')
-      .insert({ name: '2026 / 2027', is_current: true, upload_open: { midterm: false, test: false, exam: true } })
-      .select().single();
-    if (!s) return;
-    await _sb.from('terms').insert([
-      { session_id: s.id, name: '1st Term', is_current: true,  start_date: '2026-09-07', end_date: '2026-12-18' },
-      { session_id: s.id, name: '2nd Term', is_current: false, start_date: '2027-01-11', end_date: '2027-04-09' },
-      { session_id: s.id, name: '3rd Term', is_current: false, start_date: '2027-04-26', end_date: '2027-07-23' }
-    ]);
-    console.log('[HMA] created a default academic session');
-  } catch (err) {
-    console.warn('[HMA] could not create a session:', err?.message || err);
-  }
 }
 
 // ── Helpers ────────────────────────────────────────────────
@@ -936,7 +1028,9 @@ function _loadSeedFallback() {
 // Mirrors supabase/seed.sql so every screen has data without a
 // backend. Nothing here is persisted; edits stay in memory only.
 function _loadDemoSchool() {
-  // Deterministic pseudo-random so the demo is stable across reloads
+  _cache.platformAccount = null;
+  _cache.platformSchools = [];
+  // Deterministic PRNG
   const rand = seed => { const x = Math.sin(seed * 12.9898) * 43758.5453; return x - Math.floor(x); };
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
@@ -1414,6 +1508,40 @@ function _loadDemoSchool() {
 // ============================================================
 const Data = {
 
+  schools() { return _cache.schools.slice(); },
+  isPlatformOwner() { return _cache.platformAccount?.platformRole === 'saas_owner'; },
+  platformAccount() { return _cache.platformAccount; },
+  platformUser(authUser = {}) {
+    const account = _cache.platformAccount;
+    if (!account) return null;
+    return {
+      id: account.authUserId, authUserId: account.authUserId,
+      email: authUser.email || account.email,
+      name: 'Happy Management Enterprise', initials: 'HM', tone: 'teal',
+      role: 'SaaS Owner', platformOwner: true
+    };
+  },
+  platformSchools() {
+    if (!this.isPlatformOwner()) return [];
+    return _cache.platformSchools.map(row => ({
+      id: String(row.school_id), name: row.school_name, status: row.school_status,
+      studentCount: Number(row.student_count) || 0,
+      planName: row.plan ? String(row.plan).replace(/\b\w/g, char => char.toUpperCase()) : null,
+      price: row.price_per_student_per_term == null ? null : Number(row.price_per_student_per_term),
+      subscriptionStatus: row.subscription_status || null,
+      prepaidTerms: row.prepaid_terms ?? null,
+      discountPercent: row.discount_percent ?? null
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  },
+  activeSchool() { return _cache.schools.find(school => String(school.id) === String(_activeSchoolId)) || null; },
+  setActiveSchool(schoolId) {
+    const school = _cache.schools.find(item => String(item.id) === String(schoolId));
+    if (!school) return false;
+    _activeSchoolId = String(school.id);
+    localStorage.setItem(ACTIVE_SCHOOL_KEY, _activeSchoolId);
+    return true;
+  },
+
   // ── Session ───────────────────────────────────────────────
   session()  { return _cache.session; },
   saveSession(s) {
@@ -1870,7 +1998,7 @@ const Data = {
   },
 
   startRealtime() {
-    if (_demoMode || typeof window === 'undefined' || window._hmaRealtime) return;
+    if (_demoMode || _cache.platformAccount || typeof window === 'undefined' || window._hmaRealtime) return;
     window._hmaRealtime = _sb.channel('hma-campus-live')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'students' }, payload => {
         const row = this.student(payload.new?.id);
@@ -2924,11 +3052,37 @@ const Data = {
     return user;
   },
   isDemoMode() { return _demoMode; },
+  async requestPasswordReset(email) {
+    const redirectTo = new URL('/?auth=password-recovery', window.location.origin).toString();
+    const { error } = await _sb.auth.resetPasswordForEmail(String(email || '').trim().toLowerCase(), { redirectTo });
+    return { error: error?.message || null };
+  },
+  async updateOwnPassword(password) {
+    const { error } = await _sb.auth.updateUser({ password });
+    return { error: error?.message || null };
+  },
+  onAuthStateChange(callback) {
+    return _sb.auth.onAuthStateChange(callback);
+  },
   async signIn({ email, password }) {
     _demoMode = false;
     localStorage.removeItem(DEMO_SESSION_KEY);
     const { data, error } = await _sb.auth.signInWithPassword({ email, password });
-    return { session: data?.session || null, error: error?.message || null };
+    if (error || !data?.session) return { session: null, error: error?.message || 'Sign-in failed.' };
+
+    const loaded = await loadFromSupabase();
+    if (loaded?.ready && loaded.platformOwner && this.platformUser(data.user)) {
+      return { session: data.session, error: null, platformOwner: true };
+    }
+    const user = this.userByEmail(data.user?.email || email);
+    if (!loaded?.ready || !user) {
+      await _sb.auth.signOut();
+      return {
+        session: null,
+        error: 'Your school profile or required school data could not be loaded. Please contact the school administrator.'
+      };
+    }
+    return { session: data.session, error: null };
   },
   async signOut() {
     if (_demoMode || localStorage.getItem(DEMO_SESSION_KEY)) {
@@ -2938,6 +3092,8 @@ const Data = {
       return;
     }
     await _sb.auth.signOut();
+    _cache.platformAccount = null;
+    _cache.platformSchools = [];
   },
   async getSession() {
     const demoEmail = localStorage.getItem(DEMO_SESSION_KEY);
@@ -3756,28 +3912,43 @@ const Progression = {
   async markUploaded({ classId, subjectId, kind, rowCount = 0 }, userId) {
     const sessionId = Data.session()._id;
     if (!sessionId) return;
+    const kinds = kind === 'both' ? ['ca', 'exam'] : [kind];
+    if (kinds.some(uploadKind => !['ca', 'exam'].includes(uploadKind))) {
+      console.warn('[HMA] score upload marker not saved: unsupported kind.');
+      return false;
+    }
     try {
-      const { data, error } = await _sb.from('score_uploads').upsert({
-        session_id:  Number(sessionId),
-        term_id:     Number(_termIdFromNum(Data.currentTerm())),
-        class_id:    Number(classId),
-        subject_id:  Number(subjectId),
-        kind,
-        status:      'submitted',
-        row_count:   Number(rowCount) || 0,
-        teacher_id:  userId ? Number(userId) : null,
+      const uploads = kinds.map(uploadKind => ({
+        session_id:   Number(sessionId),
+        term_id:      Number(_termIdFromNum(Data.currentTerm())),
+        class_id:     Number(classId),
+        subject_id:   Number(subjectId),
+        kind:         uploadKind,
+        status:       'submitted',
+        row_count:    Number(rowCount) || 0,
+        teacher_id:   userId ? Number(userId) : null,
         submitted_by: userId ? Number(userId) : null
-      }, { onConflict: 'session_id,term_id,class_id,subject_id,kind' }).select();
-      if (!error && data?.[0]) {
-        _cache.scoreUploads = _cache.scoreUploads || [];
-        _cache.scoreUploads.push({
-          id: String(data[0].id), sessionId: String(sessionId), classId: String(classId),
-          subjectId: String(subjectId), kind, status: 'submitted',
-          teacherId: userId ? String(userId) : null
-        });
-      }
+      }));
+      const { data, error } = await _sb.from('score_uploads').upsert(uploads,
+        { onConflict: 'session_id,term_id,class_id,subject_id,kind' }).select();
+      if (error) throw error;
+      if (!data || data.length !== kinds.length) throw new Error('Score upload markers were not returned after saving.');
+
+      const markers = data.map(upload => ({
+        id: String(upload.id), sessionId: String(upload.session_id), termId: String(upload.term_id),
+        classId: String(upload.class_id), subjectId: String(upload.subject_id), kind: upload.kind, status: upload.status,
+        rowCount: Number(upload.row_count) || 0, teacherId: upload.teacher_id ? String(upload.teacher_id) : null
+      }));
+      const markerKeys = new Set(markers.map(marker => `${marker.sessionId}:${marker.termId}:${marker.classId}:${marker.subjectId}:${marker.kind}`));
+      _cache.scoreUploads = [
+        ...(_cache.scoreUploads || []).filter(item =>
+          !markerKeys.has(`${item.sessionId}:${item.termId}:${item.classId}:${item.subjectId}:${item.kind}`)),
+        ...markers
+      ];
+      return true;
     } catch (err) {
       console.warn('[HMA] score upload marker not saved:', err?.message || err);
+      return false;
     }
   }
 };

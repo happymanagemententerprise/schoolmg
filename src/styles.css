@@ -306,6 +306,11 @@ hidden, [hidden] { display: none !important; }
 .login-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .login-error  { color: var(--coral); font-size: 12px; margin: 4px 0; }
 .login-status { font-size: 12px; margin: 4px 0; }
+.login-help-row { display: flex; justify-content: flex-end; margin: -4px 0 10px; }
+.login-help-link { padding: 4px 0; background: transparent; color: var(--blue); font-size: 12px; font-weight: 600; }
+.login-help-link:hover { text-decoration: underline; }
+.auth-recovery-overlay[hidden] { display: none; }
+.auth-recovery-form { display: flex; flex-direction: column; min-height: 0; }
 
 .password-wrap { position: relative; }
 .password-wrap input { padding-right: 40px; }
@@ -1152,7 +1157,7 @@ tr.att-focused { background: var(--blue-soft); }
     top: 50%; left: 50%;
     width: 78%;
     transform: translate(-50%, -50%);
-    background: url('assets/hma-watermark.svg') no-repeat center center;
+    background: url('../assets/hma-watermark.svg') no-repeat center center;
     background-size: contain;
     opacity: .07;
     pointer-events: none;
@@ -1712,3 +1717,17 @@ tr.att-focused { background: var(--blue-soft); }
 .session-row:first-child { border-top: 0; padding-top: 0; }
 .session-row strong { display: block; font-size: 13px; }
 .session-row small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+
+/* ── Active school context ─────────────────────────────────── */
+.active-school-control[hidden] { display: none; }
+.active-school-control { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 650; }
+.active-school-control select { max-width: 210px; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: var(--ink); padding: 7px 9px; font: 600 12px/1.2 'Space Grotesk', sans-serif; }
+@media (max-width: 760px) { .active-school-control select { max-width: 130px; } }
+
+
+/* ── Business owner school directory ───────────────────────── */
+.owner-stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 18px; }
+.owner-schools-panel { margin-top: 16px; }
+.owner-school-status { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; text-transform: capitalize; }
+@media (max-width: 760px) { .owner-stat-grid { grid-template-columns: 1fr; } }

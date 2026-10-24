@@ -5,7 +5,7 @@
 import Alpine from 'alpinejs';
 window.Alpine = Alpine;
 import './styles.css';
-import { initLogin, login } from './auth.js';
+import { initLogin, login, openPasswordRecovery } from './auth.js';
 import { wireGlobals } from './router.js';
 import { Data, DB } from './data/index.js';
 import { initAdminModals } from './views/admin.js';
@@ -50,7 +50,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Restore session from Supabase Auth (handles cookie/localStorage automatically)
   const session = await Data.getSession();
   if (session?.user?.email) {
-    const fresh = Data.userByEmail(session.user.email);
-    if (fresh && !Data.accountBlocked(fresh)) login(fresh);
+    const isPasswordRecovery = new URLSearchParams(window.location.search).get('auth') === 'password-recovery';
+    if (isPasswordRecovery) {
+      openPasswordRecovery(session.user.email);
+    } else {
+      const fresh = Data.platformUser(session.user) || Data.userByEmail(session.user.email);
+      if (fresh && (fresh.platformOwner || !Data.accountBlocked(fresh))) login(fresh);
+    }
   }
 });

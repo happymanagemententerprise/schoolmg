@@ -114,6 +114,7 @@ const STATIC_NAV = {
 };
 
 function navForUser(user) {
+  if (user?.role === 'SaaS Owner') return [{ page: 'view-owner-schools', label: 'Schools', icon: 'S' }];
   if (isTeacher(user)) return buildTeacherCapabilities(user);
   if (isStudent(user)) {
     const nav = [...STATIC_NAV['Student']];
@@ -511,6 +512,20 @@ function updateSidebarUser(user) {
   $('topbar-name').textContent    = user.name.split(' ')[0];
   $('topbar-avatar').textContent  = avatarInitials(user.name);
   $('topbar-avatar').className    = `avatar sm-avatar ${user.tone}`;
+  const schoolControl = $('active-school-control');
+  const schoolSelect = $('active-school-select');
+  const schools = Data.schools();
+  if (schoolControl && schoolSelect) {
+    schoolControl.hidden = schools.length < 2;
+    schoolSelect.replaceChildren(...schools.map(school => {
+      const option = document.createElement('option');
+      option.value = String(school.id);
+      option.textContent = school.name;
+      return option;
+    }));
+    const activeSchool = Data.activeSchool();
+    if (activeSchool) schoolSelect.value = String(activeSchool.id);
+  }
   const sess = Data.session();
   $('sidebar-session').textContent = `${sess.name} · Term ${sess.currentTerm}`;
 }
@@ -523,6 +538,7 @@ function routeToDefaultView(user) {
 // ── View router ──────────────────────────────────────────────
 function renderView(pageId) {
   ({
+    'view-owner-schools':      renderOwnerSchools,
     'view-admin-overview':    renderAdminOverview,
     'view-admin-people':      renderAdminPeople,
     'view-admin-classes':     renderAdminClasses,
@@ -574,6 +590,30 @@ document.addEventListener('click', e => {
 // ══════════════════════════════════════════════════════════════
 //  ADMINISTRATOR
 // ══════════════════════════════════════════════════════════════
+function renderOwnerSchools() {
+  const schools = Data.platformSchools();
+  const students = schools.reduce((sum, school) => sum + school.studentCount, 0);
+  const active = schools.filter(school => school.subscriptionStatus === 'active').length;
+  $('owner-stat-schools').textContent = schools.length;
+  $('owner-stat-students').textContent = students.toLocaleString();
+  $('owner-stat-subscribed').textContent = active;
+  const body = $('owner-schools-table');
+  if (!schools.length) {
+    body.innerHTML = '<tr><td colspan="5" class="muted-cell">No schools are available to this business account yet.</td></tr>';
+    return;
+  }
+  const money = value => value == null ? '—' : new Intl.NumberFormat('en-NG', {
+    style: 'currency', currency: 'NGN', maximumFractionDigits: 0
+  }).format(value);
+  body.innerHTML = schools.map(school => `<tr>
+    <td><strong>${esc(school.name)}</strong><small class="owner-school-status">${esc(school.status || 'active')}</small></td>
+    <td>${school.studentCount.toLocaleString()}</td>
+    <td>${school.planName ? esc(school.planName) : '<span class="muted-cell">Not subscribed</span>'}</td>
+    <td>${money(school.price)}</td>
+    <td>${school.subscriptionStatus ? esc(school.subscriptionStatus.replace('_', ' ')) : '—'}</td>
+  </tr>`).join('');
+}
+
 function renderAdminOverview() {
   const sess = Data.session();
   const term = sess.currentTerm;
@@ -3867,6 +3907,9 @@ function openStudentReport(studentId, termOverride = null) {
 //  GLOBAL WIRING
 // ══════════════════════════════════════════════════════════════
 function wireGlobals() {
+  $('active-school-select')?.addEventListener('change', event => {
+    if (Data.setActiveSchool(event.target.value)) window.location.reload();
+  });
   $all('[data-close-drawer]').forEach(el => el.addEventListener('click', closeDrawer));
   $all('.close-modal').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.modal)));
   $all('[data-modal]').forEach(btn => {

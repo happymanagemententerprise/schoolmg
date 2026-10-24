@@ -11,6 +11,18 @@
         ],
         "createdAt": "2026-10-17T11:18:28.563Z",
         "reason": "False positive: index.html links src/styles.css, where body text is 14px, panel h2 is 19px, and dashboard h1 scales from 30px to 40px, providing clear typographic steps; the HTML-only finding misses the external stylesheet."
+      },
+      {
+        "rule": "overused-font",
+        "value": "space grotesk",
+        "createdAt": "2026-10-21T17:39:58.644Z",
+        "reason": "Existing brand/display typeface paired with DM Sans body copy in the login and app wordmarks."
+      },
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-10-21T17:39:58.762Z",
+        "reason": "System-font stack is intentionally used for the printable student achievement passport for predictable print rendering."
       }
     ]
   }

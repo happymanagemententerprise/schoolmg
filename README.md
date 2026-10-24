@@ -50,16 +50,23 @@ backed by RLS policies.
 19. `supabase/migrations/20261019120000_authenticated_api_grants.sql` — grants authenticated users
     only the table operations covered by their RLS policies, grants sequences only for insertable
     tables, and keeps quiz answer keys and profile updates restricted.
+20. supabase/migrations/20261021103948_multi_school_tenancy.sql — adds organization and school
+    membership foundations with school-scoped RLS. The application does not yet expose active-school
+    switching; do not provision a second school until that app context is implemented.
+21. supabase/migrations/20261021120000_service_role_api_grants.sql — grants the server role
+    only the profile lookup and Auth identity-link update needed for provisioning.
+22. `supabase/migrations/20261021163930_active_school_membership_access.sql` — ensures a revoked
+    school membership no longer satisfies the tenancy access helper.
 
 Then run `supabase/seed.sql` to create the demo school (34 subjects, 12 classes, 20 teachers, an
 administrator, 11 students, a parent, sample grades, attendance and LMS content).
 
 For an **existing database**, do not blindly replay the full list. Compare the deployed schema with
-the migrations and apply only the missing changes in order. The two 20261019 security migrations
-and the authenticated-grants migration have been applied to the empty
-`happyman-academy-staging` project and verified with 22 role-scope assertions. The existing
-`happyman-academy` project was not changed; reconcile its migration history and review its schema
-before planning a production rollout. Applying migrations through the SQL Editor does not
+its migrations and apply only missing changes in order. The first 21 migrations are applied to staging project
+`fxakrqtybwlrjwlnylhq`; its database is seeded and all 22 role-scope assertions pass. Migration 22 is a
+new local correction and still needs staging validation and application. The production
+happyman-academy project has not received the application migrations; reconcile its schema and
+migration history before any production rollout. Applying migrations through the SQL Editor does not
 automatically record Supabase CLI migration history.
 
 For local development, `supabase start` and `supabase db reset` apply the migrations and configured
@@ -307,12 +314,18 @@ Twilio credentials in frontend variables.
 
 ## Apply the Supabase changes
 
-Follow the complete 19-file migration order in [Setup](#setup), including vehicle check-in and the
-security and explicit-grants migrations. The attendance migration adds the `students.residence_status`
-classification (`BOARDER` / `DAY_STUDENT`), optional hostel assignment, scoped presence/event tables,
-approved timetable cover records, period attendance, push subscription storage and an end-of-day
-summary. The security migrations have been applied and role-scope checks have passed on the empty
-staging project; production deployment remains pending.
+For a **new project**, follow the complete 22-file order in [Setup](#setup), including vehicle
+check-in, security, and explicit-grants migrations. Production project `erlhyrswcqpqpqzbgmgb` is
+not a new project: it has a partial legacy schema and only one migration-history entry. Do not run
+the full list or `supabase/seed.sql` there. Follow the reviewed, production-specific steps in
+[`PRODUCTION-DATABASE-PLAN.md`](PRODUCTION-DATABASE-PLAN.md) after taking a backup. The production
+RPC, grade-policy, tenancy-shape, and privilege differences still need a forward migration and
+deployment review; no production schema changes have been made.
+
+The attendance migration adds the `students.residence_status` classification (`BOARDER` /
+`DAY_STUDENT`), optional hostel assignment, scoped presence/event tables, approved timetable cover
+records, period attendance, push subscription storage and an end-of-day summary. Those changes and
+the role-scope checks are present on staging project `fxakrqtybwlrjwlnylhq`.
 
 Create one or more hostels from **Campus safety → Hostel setup**, then add users with the **Hostel Supervisor** or **Security Guard** role from People. Assign supervisors to hostels in Campus safety, then classify each student and assign boarders to a hostel from People → Students. Parent SMS requires parent phone numbers and Twilio credentials.
 

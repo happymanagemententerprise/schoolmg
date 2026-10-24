@@ -85,7 +85,10 @@ values
   ('Clement Anane',   'commerce2@happyman.edu',  'teacher', '08031234584', 'blue',   hma_initials('Clement Anane'),   'Subject Teacher',   false, null, null),
   -- arts
   ('Emeka Obi',       'arts@happyman.edu',       'teacher', '08031234572', 'blue',   hma_initials('Emeka Obi'),       'HOD',               false, null, null),
-  ('Ruth Opoku',      'arts2@happyman.edu',      'teacher', '08031234585', 'coral',  hma_initials('Ruth Opoku'),      'Subject Teacher',   false, null, null)
+  ('Ruth Opoku',      'arts2@happyman.edu',      'teacher', '08031234585', 'coral',  hma_initials('Ruth Opoku'),      'Subject Teacher',   false, null, null),
+  -- campus safety demo roles
+  ('Demo Security Guard', 'security@happyman.edu', 'security_guard', '08031234588', 'blue', hma_initials('Demo Security Guard'), null, false, null, null),
+  ('Demo Hostel Supervisor', 'hostel@happyman.edu', 'hostel_staff', '08031234589', 'green', hma_initials('Demo Hostel Supervisor'), null, false, null, null)
 on conflict (email) do update
   set name           = excluded.name,
       role           = excluded.role,

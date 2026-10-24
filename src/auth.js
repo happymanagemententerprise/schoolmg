@@ -93,6 +93,7 @@ export function buildTeacherCapabilities(user) {
 }
 
 export function navForUser(user) {
+  if (user?.role === 'SaaS Owner') return [{ page: 'view-owner-schools', label: 'Schools', icon: 'S' }];
   if (user?.role === 'Security Guard') return [{ page: 'view-campus', label: 'Gate register', icon: 'G' }];
   if (user?.role === 'Hostel Supervisor') return [{ page: 'view-campus', label: 'Hostel register', icon: 'H' }];
   if (isTeacher(user)) return buildTeacherCapabilities(user);
@@ -113,6 +114,80 @@ export function navForUser(user) {
 // ── Login / logout ───────────────────────────────────────────
 export function initLogin() {
   const emailI = $('login-email'), pwI = $('login-password');
+
+  Data.onAuthStateChange?.((event, session) => {
+    if (event === 'PASSWORD_RECOVERY' && session?.user) {
+      openPasswordRecovery(session.user.email);
+    }
+  });
+
+  $('forgot-password-link').addEventListener('click', async () => {
+    const email = emailI.value.trim().toLowerCase();
+    const status = $('login-status');
+    status.hidden = false;
+    status.className = 'login-status muted-cell';
+    if (!email) {
+      status.textContent = 'Enter your email address above, then choose Forgot password?';
+      emailI.focus();
+      return;
+    }
+
+    const button = $('forgot-password-link');
+    button.disabled = true;
+    status.textContent = 'Sending password reset link…';
+    try {
+      const { error } = await Data.requestPasswordReset(email);
+      if (error) throw new Error(error);
+      status.textContent = 'If an account exists for this email, a reset link has been sent.';
+    } catch (error) {
+      status.textContent = error?.message || 'Could not send a reset link. Please try again.';
+      status.className = 'login-status login-error';
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $('password-recovery-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const password = $('recovery-password').value;
+    const confirm = $('recovery-password-confirm').value;
+    const feedback = $('recovery-feedback');
+    const submit = $('save-recovery-password');
+    feedback.textContent = '';
+    feedback.className = 'form-feedback mt8';
+
+    if (password.length < 8) {
+      feedback.textContent = 'Use at least 8 characters.';
+      feedback.classList.add('error');
+      return;
+    }
+    if (password !== confirm) {
+      feedback.textContent = 'The passwords do not match.';
+      feedback.classList.add('error');
+      return;
+    }
+
+    submit.disabled = true;
+    try {
+      const { error } = await Data.updateOwnPassword(password);
+      if (error) throw new Error(error);
+      const session = await Data.getSession();
+      const email = session?.user?.email || emailI.value.trim().toLowerCase();
+      await Data.signOut();
+      $('auth-recovery-modal').hidden = true;
+      $('password-recovery-form').reset();
+      window.history.replaceState(null, '', window.location.pathname);
+      $('app-shell').hidden = true;
+      $('login-screen').hidden = false;
+      emailI.value = email;
+      statusMessage('Password updated. Sign in with your new password.');
+    } catch (error) {
+      feedback.textContent = error?.message || 'Could not update your password. Request a new reset link and try again.';
+      feedback.classList.add('error');
+    } finally {
+      submit.disabled = false;
+    }
+  });
 
   $all('.demo-btn').forEach(btn => btn.addEventListener('click', async () => {
     emailI.value = btn.dataset.email;
@@ -138,17 +213,32 @@ export function initLogin() {
       return;
     }
 
-    const user = Data.userByEmail(session.user.email);
+    const user = Data.platformUser(session.user) || Data.userByEmail(session.user.email);
     if (!user) {
-      Alpine.store('loginError', 'Account not loaded. Reload the page and try again.');
+      Alpine.store('loginError', 'This account has no school access or active SaaS-owner membership.');
       return;
     }
-    if (Data.accountBlocked(user)) {
+    if (!user.platformOwner && Data.accountBlocked(user)) {
       Alpine.store('loginError', 'This account has been archived. Contact the school office.');
       return;
     }
     login(user);
   });
+}
+
+function statusMessage(message) {
+  const status = $('login-status');
+  status.hidden = false;
+  status.className = 'login-status muted-cell';
+  status.textContent = message;
+}
+
+export function openPasswordRecovery(email = '') {
+  if (email) $('login-email').value = email;
+  $('login-screen').hidden = false;
+  $('app-shell').hidden = true;
+  $('auth-recovery-modal').hidden = false;
+  $('recovery-password').focus();
 }
 
 export function login(user) {
@@ -217,6 +307,7 @@ export function buildNav(user) {
 
 function navGroupsForUser(user, items) {
   const definitions = {
+    'SaaS Owner': [['Platform', ['view-owner-schools']]],
     Administrator: [
       ['Today', ['view-admin-overview']],
       ['People', ['view-admin-people', 'view-campus', 'view-admin-recognition']],
@@ -261,7 +352,11 @@ export function updateSidebarUser(user) {
   $('topbar-avatar').textContent  = avatarInitials(user.name);
   $('topbar-avatar').className    = `avatar sm-avatar ${user.tone}`;
   const sess = Data.session();
-  $('sidebar-session').textContent = `${sess.name} · Term ${sess.currentTerm}`;
+  $('sidebar-session').textContent = user.platformOwner
+    ? 'SaaS platform owner'
+    : sess ? `${sess.name} · Term ${sess.currentTerm}` : 'School account';
+  const notices = $('notif-btn');
+  if (notices) notices.hidden = !!user.platformOwner;
 }
 
 export function routeToDefaultView(user) {

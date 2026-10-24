@@ -33,6 +33,7 @@ import {
   renderParentAssignments, renderParentTimetable
 } from './views/parent.js';
 import { renderCampus } from './views/campus.js';
+import { renderPlatformSchools } from './views/platform.js';
 
 // ── View helpers ─────────────────────────────────────────────
 export function showView(pageId) {
@@ -50,6 +51,7 @@ export function showView(pageId) {
 
 export function renderView(pageId) {
   ({
+    'view-owner-schools':     renderPlatformSchools,
     'view-admin-overview':    renderAdminOverview,
     'view-campus':            renderCampus,
     'view-admin-people':      renderAdminPeople,

@@ -42,6 +42,9 @@
                   @click="show = !show">&#128065;</button>
         </div>
       </div>
+      <div class="login-help-row">
+        <button type="button" id="forgot-password-link" class="login-help-link">Forgot password?</button>
+      </div>
       <p id="login-error"
          class="login-error"
          x-data
@@ -124,6 +127,10 @@
         <strong id="page-title">Overview</strong>
       </div>
       <div class="top-actions">
+        <label class="active-school-control" id="active-school-control" for="active-school-select" hidden>
+          <span>School</span>
+          <select id="active-school-select" aria-label="Active school"></select>
+        </label>
         <button class="btn-sm-save" id="push-enable-btn" type="button" hidden>Enable alerts</button>
         <button class="btn-sm-save" id="install-app-btn" type="button" hidden>Install app</button>
         <button class="icon-button" aria-label="Notifications" id="notif-btn">&#128276;<i></i></button>
@@ -149,6 +156,31 @@
     <!-- ┌─────────────────────────────────────────────────────┐ -->
     <!-- │  ADMINISTRATOR VIEWS                                │ -->
     <!-- └─────────────────────────────────────────────────────┘ -->
+
+    <!-- Business owner: Schools and subscriptions -->
+    <div class="page-wrap" id="view-owner-schools" hidden>
+      <section class="welcome-row">
+        <div>
+          <p class="eyebrow">SaaS owner console</p>
+          <h1>Customer schools</h1>
+          <p class="subcopy">Student enrolment and subscription status across your platform.</p>
+        </div>
+      </section>
+      <section class="stat-grid owner-stat-grid" aria-label="School portfolio summary">
+        <article class="stat-card accent-coral"><div class="stat-top"><span class="stat-label">Schools</span><span class="stat-icon">S</span></div><strong id="owner-stat-schools">0</strong><div class="stat-trend neutral">Customer schools</div></article>
+        <article class="stat-card accent-blue"><div class="stat-top"><span class="stat-label">Students</span><span class="stat-icon">P</span></div><strong id="owner-stat-students">0</strong><div class="stat-trend neutral">Across the platform</div></article>
+        <article class="stat-card accent-green"><div class="stat-top"><span class="stat-label">Active subscriptions</span><span class="stat-icon">✓</span></div><strong id="owner-stat-subscribed">0</strong><div class="stat-trend neutral">Current paid or trial plans</div></article>
+      </section>
+      <article class="panel table-panel owner-schools-panel">
+        <div class="panel-heading"><div><p class="eyebrow">Portfolio</p><h2>School directory</h2></div></div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>School</th><th>Students</th><th>Plan</th><th>Price / student / term</th><th>Subscription</th></tr></thead>
+            <tbody id="owner-schools-table"></tbody>
+          </table>
+        </div>
+      </article>
+    </div>
 
     <!-- Admin: Overview -->
     <div class="page-wrap" id="view-admin-overview" data-role="Administrator" hidden>
@@ -1243,6 +1275,30 @@
       <button type="button" class="btn-primary" id="save-user-btn" style="width:auto;margin:0">Add person</button>
     </div>
   </div>
+</div>
+
+<!-- Supabase password recovery -->
+<div class="modal-overlay auth-recovery-overlay" id="auth-recovery-modal" hidden>
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-recovery-title">
+    <div class="modal-header"><h2 id="auth-recovery-title">Set a new password</h2></div>
+    <form id="password-recovery-form" class="auth-recovery-form">
+      <div class="modal-body">
+        <p class="role-muted" style="margin-top:0">Your reset link is verified. Choose a new password to continue.</p>
+        <div class="form-group">
+          <label for="recovery-password">New password</label>
+          <input id="recovery-password" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <div class="form-group">
+          <label for="recovery-password-confirm">Confirm new password</label>
+          <input id="recovery-password-confirm" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <p id="recovery-feedback" class="form-feedback mt8" aria-live="polite"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" id="save-recovery-password" type="submit" style="width:auto;margin:0">Update password</button>
+      </div>
+    </form>
+  </section>
 </div>
 
 <!-- Reset password modal -->

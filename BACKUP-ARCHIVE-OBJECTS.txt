@@ -1,0 +1,231 @@
+# Backup archive public object inventory
+
+Source file: %USERPROFILE%\Downloads\happyman-academy-backup.dump
+Source provenance: owner-confirmed production project happyman-academy (erlhyrswcqpqpqzbgmgb); provenance is owner-confirmed, not encoded in the archive metadata.
+Observed with PostgreSQL 17.11 pg_restore --list on 2026-10-22. This lists archive contents; it is not a fresh live-catalog export.
+
+## Counts
+
+- Public base tables: 53
+- Public routines (all FUNCTION archive entries): 15
+- Public views: 1
+- Public policies: 123
+- Non-public application schemas (auth, storage, private): none listed in archive TOC.
+
+## Public base tables
+
+approval_requests
+assignments
+attendance
+attendance_daily
+attendance_weekly
+class_period_attendance
+classes
+commendations
+departments
+events
+gate_events
+grades
+hostel_daily_summaries
+hostel_presence_events
+hostel_staff_assignments
+hostels
+lms_attempts
+lms_discussions
+lms_lessons
+lms_posts
+lms_questions
+lms_quizzes
+notification_dispatches
+organizations
+parent_engagements
+parent_pickup_pins
+parent_students
+path_requests
+portfolio_artifacts
+promotion_overrides
+promotions
+push_subscriptions
+remarks
+rooms
+school_memberships
+schools
+score_uploads
+sessions
+student_transfers
+students
+subject_selection_rules
+subject_selections
+subjects
+teacher_classes
+teacher_recognitions
+teacher_subjects
+terms
+time_slots
+timetable_settings
+timetable_swaps
+timetables
+users
+weekly_topics
+
+## Live production comparison (2026-10-22)
+
+Read-only live inventories for `happyman-academy` (`erlhyrswcqpqpqzbgmgb`)
+were supplied by the coordinating task. The 53 public base-table names match
+exactly: no live tables are missing from the archive and no archive-only public
+base tables were found. All 15 public routine names and the `class_subjects`
+view name also match the live inventory. The coordinator reports that all 123
+live policy names were checked against this archive inventory and match.
+
+This is inventory/name parity evidence, not proof that archived object
+definitions, grants/ACLs, or row data are current or identical to production.
+The live catalogs were queried in the coordinating task; they were not queried
+independently from this workspace.
+
+## Public routines
+
+admin_update_user(bigint, jsonb)
+app_user_id()
+app_user_role()
+current_student_id()
+hma_initials(text)
+is_admin_user()
+link_auth_user_to_school_user()
+lms_questions_for_current_user()
+parent_student_ids()
+prevent_self_role_or_auth_link_change()
+public_user_id()
+rls_auto_enable()
+student_positions(bigint, bigint)
+submit_lms_quiz(bigint, jsonb)
+teacher_class_ids()
+
+## Public views
+
+class_subjects
+
+## Public policies (table.policy)
+
+approval_requests.approval_requests_insert
+approval_requests.approval_requests_select
+approval_requests.approval_requests_update
+assignments.assignments_insert
+assignments.assignments_select
+assignments.assignments_update
+attendance_daily.attendance_daily_insert
+attendance_daily.attendance_daily_select
+attendance_daily.attendance_daily_update
+attendance_weekly.attendance_weekly_insert
+attendance_weekly.attendance_weekly_select
+attendance_weekly.attendance_weekly_update
+attendance.attendance_insert
+attendance.attendance_select
+attendance.attendance_update
+class_period_attendance.class_period_attendance_read
+classes.classes_insert
+classes.classes_select
+classes.classes_update
+commendations.commendations_insert
+commendations.commendations_select
+departments.departments_insert
+departments.departments_select
+departments.departments_update
+events.events_insert
+events.events_select
+events.events_update
+gate_events.gate_events_read
+grades.grades_insert
+grades.grades_select
+grades.grades_update
+hostel_daily_summaries.hostel_daily_summaries_read
+hostel_presence_events.hostel_presence_read
+hostel_staff_assignments.hostel_staff_assignments_read
+hostels.hostels_read
+lms_attempts.lms_attempts_insert
+lms_attempts.lms_attempts_select
+lms_attempts.lms_attempts_update
+lms_discussions.lms_discussions_insert
+lms_discussions.lms_discussions_select
+lms_discussions.lms_discussions_update
+lms_lessons.lms_lessons_insert
+lms_lessons.lms_lessons_select
+lms_lessons.lms_lessons_update
+lms_posts.lms_posts_delete
+lms_posts.lms_posts_insert
+lms_posts.lms_posts_select
+lms_questions.lms_questions_insert
+lms_questions.lms_questions_select
+lms_questions.lms_questions_update
+lms_quizzes.lms_quizzes_insert
+lms_quizzes.lms_quizzes_select
+lms_quizzes.lms_quizzes_update
+parent_engagements.parent_engagements_insert
+parent_engagements.parent_engagements_select
+parent_students.parent_students_insert
+parent_students.parent_students_select
+parent_students.parent_students_update
+path_requests.path_requests_insert
+path_requests.path_requests_select
+path_requests.path_requests_update
+portfolio_artifacts.portfolio_artifacts_insert
+portfolio_artifacts.portfolio_artifacts_select
+portfolio_artifacts.portfolio_artifacts_update
+promotion_overrides.promotion_overrides_delete
+promotion_overrides.promotion_overrides_insert
+promotion_overrides.promotion_overrides_select
+promotion_overrides.promotion_overrides_update
+promotions.promotions_insert
+promotions.promotions_select
+promotions.promotions_update
+remarks.remarks_insert
+remarks.remarks_select
+remarks.remarks_update
+rooms.rooms_insert
+rooms.rooms_select
+rooms.rooms_update
+score_uploads.score_uploads_insert
+score_uploads.score_uploads_select
+score_uploads.score_uploads_update
+sessions.sessions_insert
+sessions.sessions_select
+sessions.sessions_update
+student_transfers.student_transfers_insert
+student_transfers.student_transfers_select
+student_transfers.student_transfers_update
+students.students_insert
+students.students_residence_admin_update
+students.students_select
+students.students_update
+subject_selection_rules.subject_selection_rules_select
+subject_selection_rules.subject_selection_rules_update
+subject_selections.subject_selections_insert
+subject_selections.subject_selections_select
+subject_selections.subject_selections_update
+subjects.subjects_insert
+subjects.subjects_select
+subjects.subjects_update
+teacher_classes.teacher_classes_insert
+teacher_classes.teacher_classes_select
+teacher_classes.teacher_classes_update
+teacher_recognitions.teacher_recognitions_insert
+teacher_recognitions.teacher_recognitions_select
+teacher_subjects.teacher_subjects_insert
+teacher_subjects.teacher_subjects_select
+teacher_subjects.teacher_subjects_update
+terms.terms_insert
+terms.terms_select
+terms.terms_update
+time_slots.time_slots_insert
+time_slots.time_slots_select
+time_slots.time_slots_update
+timetable_settings.timetable_settings_select
+timetable_settings.timetable_settings_update
+timetable_swaps.timetable_swaps_read
+timetables.timetables_insert
+timetables.timetables_select
+timetables.timetables_update
+users.users_select
+users.users_update
+weekly_topics.weekly_topics_insert
+weekly_topics.weekly_topics_select
+weekly_topics.weekly_topics_update

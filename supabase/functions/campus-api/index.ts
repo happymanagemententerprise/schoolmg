@@ -626,7 +626,8 @@ async function autoCheckoutHostels() {
       const { data: last, error: lastError } = await db.from('hostel_presence_events').select('event_type').eq('hostel_id', hostel.id).eq('student_id', student.id).eq('event_date', date).order('created_at', { ascending: false }).limit(1).maybeSingle();
       if (lastError) throw lastError;
       if (last?.event_type !== 'check_in') continue;
-      await db.from('hostel_presence_events').insert({ hostel_id: hostel.id, student_id: student.id, event_type: 'auto_checkout', event_date: date, note: 'Automatic day close.' });
+      const { error: checkoutError } = await db.from('hostel_presence_events').insert({ hostel_id: hostel.id, student_id: student.id, event_type: 'auto_checkout', event_date: date, note: 'Automatic day close.' });
+      if (checkoutError) throw checkoutError;
     }
     const { data: todayEvents, error: summaryError } = await db.from('hostel_presence_events').select('event_type').eq('hostel_id', hostel.id).eq('event_date', date);
     if (summaryError) throw summaryError;
@@ -637,7 +638,8 @@ async function autoCheckoutHostels() {
       checked_out_count: events.filter(e => e.event_type === 'check_out').length,
       auto_checkout_count: events.filter(e => e.event_type === 'auto_checkout').length
     };
-    await db.from('hostel_daily_summaries').upsert(summary, { onConflict: 'hostel_id,summary_date' });
+    const { error: summaryWriteError } = await db.from('hostel_daily_summaries').upsert(summary, { onConflict: 'hostel_id,summary_date' });
+    if (summaryWriteError) throw summaryWriteError;
   }
 }
 

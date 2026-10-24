@@ -20,15 +20,17 @@
 
 ## 👥 Demo Accounts
 
-| Role | Email | Password | Notes |
+| Role | Email | Access | Notes |
 |------|-------|----------|-------|
-| **Administrator** | admin@happyman.edu | admin123 | Full system access |
-| **Class Teacher** | class@happyman.edu | class123 | Grade 7 class |
-| **Subject Teacher** | subject@happyman.edu | subject123 | English Studies |
-| **HOD** | hod@happyman.edu | hod123 | Science department |
-| **Student (Good)** | ama.osei@happyman.edu | student123 | Grade 7, good performance |
-| **Student (Repeat)** ⭐ | emeka.okafor@happyman.edu | student123 | Grade 8, below 50% |
-| **Parent** | parent@happyman.edu | parent123 | Parent of Ama & Fatima |
+| **Administrator** | admin@happyman.edu | Local demo + staging Auth | Full system access |
+| **Class Teacher** | class@happyman.edu | Local demo + staging Auth | Grade 7 class |
+| **Subject Teacher** | subject@happyman.edu | Local demo + staging Auth | English Studies |
+| **HOD** | hod@happyman.edu | Local demo + staging Auth | Science department |
+| **Student (Good)** | ama.osei@happyman.edu | Local demo + staging Auth | Grade 7, good performance |
+| **Student (Repeat)** ⭐ | emeka.okafor@happyman.edu | Local demo + staging Auth | Grade 8, below 50% |
+| **Parent** | parent@happyman.edu | Local demo + staging Auth | Parent of Ama & Fatima |
+| **Security Guard** | security@happyman.edu | Staging Auth | Gate workflows |
+| **Hostel Supervisor** | hostel@happyman.edu | Staging Auth | Boarding workflows |
 
 ---
 
@@ -224,7 +226,7 @@ For issues or questions:
 
 ---
 
-## Security (Updated: 2026-10-19)
+## Security (Updated: 2026-10-21)
 
 Supabase Auth sessions and row-level policies are the authentication boundary. Passwords are provisioned and changed through authenticated server endpoints that call Supabase Auth Admin; the legacy SHA-256 password columns and login/verifier Edge Functions are retired by `supabase/migrations/20261019091035_security_hardening.sql` and the 410 handlers under `supabase/functions/`.
 
@@ -232,8 +234,7 @@ The security hardening migrations also restrict role changes to an admin-only RP
 
 ### Deployment required
 
-The complete 19-migration sequence is applied to the empty `happyman-academy-staging` Supabase project. The grade-scope suite passed all 22 assertions there, covering anonymous denial, student self-access, linked-parent access, teacher assignments and administrator access. Automatic Data API table exposure is disabled; `20261019120000_authenticated_api_grants.sql` supplies only policy-backed authenticated privileges. The existing `happyman-academy` project was not modified. Before production rollout, reconcile its migration history and schema, then deploy the reviewed migration sequence, retired `login` and `verify-password` Edge Function handlers (410 responses), and the updated app/server. Production policy state, Auth links and function deployment status remain unverified.
+The first 21 local migrations are applied to staging project `fxakrqtybwlrjwlnylhq`; the staging migration histories matched before migration 22 was added. The staging seed contains 36 profile users, 12 students, 352 grades, one session and three terms. All 36 profile accounts have linked Supabase Auth identities. Seven representative accounts (administrator, class and subject teachers, security guard, hostel supervisor, student and parent) completed real password sign-ins. The grade-scope suite passed all 22 assertions against this seeded database, covering anonymous denial, student self-access, linked-parent access, teacher assignments and administrator access. Automatic Data API table exposure is disabled. Migration 22 adds the `is_active` check to school membership access and has not yet been applied or validated on staging. Production application migrations and role policies remain unverified. The production `happyman-academy` project now has the campus scheduler and campus API deployment. Its migration history currently records only `20261020214425 enable_pg_cron_scheduler`; reconcile the production schema against staging before applying the reviewed application migrations. Then verify production Auth links and users, retired `login` and `verify-password` handlers (410 responses), and the updated app/server. Production role policies and the full application schema remain unverified.
 
 ## Supabase Auth
-✅ Integrated — run `scripts/provision-auth-users.js` with the service role key to provision auth accounts for existing users.
-Service role key: get from https://supabase.com/dashboard/project/erlhyrswcqpqpqzbgmgb/settings/api (never commit it).
+✅ Staging demo Auth identities are provisioned in `fxakrqtybwlrjwlnylhq`. Shared staging sign-in details are provided separately. Production accounts are separate. Keep the service-role key out of the frontend and source control.

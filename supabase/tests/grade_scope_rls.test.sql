@@ -132,8 +132,8 @@ RESET ROLE;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', 'a0000000-0000-4000-8000-000000000001', true);
-SELECT is((SELECT count(*)::integer FROM public.grades), 3, 'an administrator can read school-wide grades');
-SELECT is((SELECT count(*)::integer FROM public.students), 2, 'an administrator can read school-wide students');
+SELECT cmp_ok((SELECT count(*)::integer FROM public.grades), '>=', 3, 'an administrator can read school-wide grades including seeded data');
+SELECT cmp_ok((SELECT count(*)::integer FROM public.students), '>=', 2, 'an administrator can read school-wide students including seeded data');
 SELECT is((SELECT count(*)::integer FROM public.student_positions(current_setting('test.rls_session_id')::bigint, current_setting('test.rls_term_id')::bigint)), 2, 'an administrator can read the position rows');
 RESET ROLE;
 

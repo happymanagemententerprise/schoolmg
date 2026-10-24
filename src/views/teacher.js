@@ -408,10 +408,7 @@ export function downloadScoreSheet(asExcel) {
     const sheets = classIds.map(cid => {
       const cl       = Data.cls(cid);
       const students = Data.studentsByClass(cid);
-      const rows = [
-        [`Happy Man Academy — ${subject?.name} · ${cl?.name || ''} · Term ${term}`],
-        header
-      ];
+      const rows = [header];
       students.forEach(s => {
         const e  = Data.studentScores(s.id)[subjectId]?.[term];
         const fb = Data.feedback()[s.id];
@@ -423,7 +420,7 @@ export function downloadScoreSheet(asExcel) {
     });
     downloadXlsxMulti(`scores_${subject?.code || 'sub'}_term${term}.xlsx`, sheets);
   } else {
-    const rows = [[`Happy Man Academy — ${subject?.name} · Term ${term}`], header];
+    const rows = [header];
     classIds.forEach(cid => {
       const cl = Data.cls(cid);
       Data.studentsByClass(cid).forEach(s => {
@@ -442,11 +439,11 @@ export function downloadScoreSheet(asExcel) {
 export async function processScoreUpload(file) {
   const currentUser = getCurrentUser();
   const buf = await file.arrayBuffer();
-  let rows = [];
+  let sheets = [];
 
   if (file.name.toLowerCase().endsWith('.csv')) {
     const text = new TextDecoder().decode(buf);
-    rows = text.split(/\r?\n/).map(line => {
+    const rows = text.split(/\r?\n/).map(line => {
       const out = []; let cur = '', inQ = false;
       for (let i = 0; i < line.length; i++) {
         const ch = line[i];
@@ -457,9 +454,10 @@ export async function processScoreUpload(file) {
       out.push(cur.trim());
       return out;
     }).filter(r => r.some(c => c));
+    sheets = [{ name: file.name, rows }];
   } else {
     try {
-      rows = await _parseXlsxRows(buf);
+      sheets = await _parseXlsxSheets(buf);
     } catch (err) {
       const msg = err.message?.includes('DecompressionStream')
         ? 'Your browser does not support XLSX decompression. Please save as .csv and upload again.'
@@ -469,19 +467,38 @@ export async function processScoreUpload(file) {
     }
   }
 
-  if (rows.length < 2) { toast('The file appears to be empty.', 'error'); return; }
+  sheets = sheets.filter(sheet => sheet.rows.some(row => row.some(value => String(value ?? '').trim())));
+  if (!sheets.length) { toast('The file appears to be empty.', 'error'); return; }
 
-  const header = rows[0].map(h => String(h ?? '').toLowerCase().trim());
-  const col = name => header.findIndex(h => h.includes(name));
+  // Locate the score header even if a teacher adds a title row. Validate every
+  // non-empty sheet before writing any scores, to avoid a partial workbook import.
+  const preparedSheets = sheets.map(sheet => {
+    const headerRow = sheet.rows.findIndex(row => {
+      const headers = row.map(value => String(value ?? '').toLowerCase().trim());
+      const find = name => headers.findIndex(header => header.includes(name));
+      const midterm = find('mid-term') >= 0 || find('midterm') >= 0;
+      const ca = find('second-half ca') >= 0 || find('ca') >= 0 || find('test') >= 0;
+      const exam = find('exam') >= 0;
+      const identity = find('admission') >= 0 || find('student name') >= 0 || find('name') >= 0;
+      return midterm && ca && exam && identity;
+    });
+    if (headerRow < 0) return null;
 
-  const colAdm  = col('admission');
-  const colName = col('student name') >= 0 ? col('student name') : col('name');
-  const colMidterm = col('mid-term') >= 0 ? col('mid-term') : col('midterm');
-  const colCA   = col('second-half ca') >= 0 ? col('second-half ca') : (col('ca') >= 0 ? col('ca') : col('test'));
-  const colExam = col('exam');
+    const header = sheet.rows[headerRow].map(value => String(value ?? '').toLowerCase().trim());
+    const col = name => header.findIndex(value => value.includes(name));
+    return {
+      ...sheet,
+      headerRow,
+      colAdm: col('admission'),
+      colName: col('student name') >= 0 ? col('student name') : col('name'),
+      colMidterm: col('mid-term') >= 0 ? col('mid-term') : col('midterm'),
+      colCA: col('second-half ca') >= 0 ? col('second-half ca') : (col('ca') >= 0 ? col('ca') : col('test')),
+      colExam: col('exam')
+    };
+  });
 
-  if (colMidterm < 0 || colCA < 0 || colExam < 0) {
-    toast('Missing columns. Use the score sheet with Mid-term, Second-half CA, and Exam columns.', 'error');
+  if (preparedSheets.some(sheet => !sheet)) {
+    toast('Missing score columns. Use the downloaded sheet with Mid-term, Second-half CA, Exam, and student identity columns.', 'error');
     return;
   }
 
@@ -499,39 +516,42 @@ export async function processScoreUpload(file) {
   const byName = new Map(allowedStudents.map(s => [s.name.toLowerCase(), s]));
 
   let saved = 0, skipped = 0, errors = [];
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    const admVal  = colAdm  >= 0 ? String(row[colAdm]  ?? '').toLowerCase().trim() : '';
-    const nameVal = colName >= 0 ? String(row[colName] ?? '').toLowerCase().trim() : '';
-    const midRaw = row[colMidterm];
-    const caRaw   = row[colCA];
-    const exRaw   = row[colExam];
+  for (const sheet of preparedSheets) {
+    for (let i = sheet.headerRow + 1; i < sheet.rows.length; i++) {
+      const row = sheet.rows[i];
+      const admVal = sheet.colAdm >= 0 ? String(row[sheet.colAdm] ?? '').toLowerCase().trim() : '';
+      const nameVal = sheet.colName >= 0 ? String(row[sheet.colName] ?? '').toLowerCase().trim() : '';
+      const midRaw = row[sheet.colMidterm];
+      const caRaw = row[sheet.colCA];
+      const exRaw = row[sheet.colExam];
 
-    if (!midRaw && !caRaw && !exRaw) { skipped++; continue; }
+      if ([midRaw, caRaw, exRaw].every(value => value == null || String(value).trim() === '')) { skipped++; continue; }
 
-    const midterm = Math.min(20, Math.max(0, Number(String(midRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
-    const ca   = Math.min(20, Math.max(0, Number(String(caRaw  ?? '').replace(/[^0-9.]/g, '')) || 0));
-    const exam = Math.min(60, Math.max(0, Number(String(exRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
+      const midterm = Math.min(20, Math.max(0, Number(String(midRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
+      const ca = Math.min(20, Math.max(0, Number(String(caRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
+      const exam = Math.min(60, Math.max(0, Number(String(exRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
 
-    const student = (admVal && byAdm.get(admVal)) || (nameVal && byName.get(nameVal));
-    if (!student) {
-      if (admVal || nameVal) errors.push(`Row ${i + 1}: "${admVal || nameVal}" not found`);
-      skipped++;
-      continue;
+      const student = (admVal && byAdm.get(admVal)) || (nameVal && byName.get(nameVal));
+      if (!student) {
+        if (admVal || nameVal) errors.push(`${sheet.name}, row ${i + 1}: "${admVal || nameVal}" not found`);
+        skipped++;
+        continue;
+      }
+
+      const ok = await Data.saveGrade(student.id, subjectId, term, midterm, ca, exam);
+      if (ok) saved++; else skipped++;
     }
-
-    const ok = await Data.saveGrade(student.id, subjectId, term, midterm, ca, exam);
-    if (ok) saved++; else skipped++;
   }
 
-  await Progression.markUploaded(
+  const uploadMarked = await Progression.markUploaded(
     { classId: allowedClassIds[0] || '', subjectId, kind: 'both', rowCount: saved },
     currentUser.id
   );
 
   const msg = `Uploaded ${saved} score${saved !== 1 ? 's' : ''}` +
     (skipped ? ` · ${skipped} skipped` : '') +
-    (errors.length ? ` · ${errors.length} unmatched` : '');
+    (errors.length ? ` · ${errors.length} unmatched` : '') +
+    (uploadMarked === false ? ' · upload status not recorded' : '');
   toast(msg, saved > 0 ? 'success' : 'error');
   if (errors.length) console.warn('[HMA] unmatched upload rows:', errors.join('; '));
 
@@ -539,7 +559,7 @@ export async function processScoreUpload(file) {
   renderSubjectDashboard();
 }
 
-export async function _parseXlsxRows(buf) {
+async function _parseXlsxSheets(buf) {
   const u8  = new Uint8Array(buf);
   const dec = new TextDecoder();
 
@@ -594,35 +614,48 @@ export async function _parseXlsxRows(buf) {
 
   const wb   = (await zipEntry('xl/workbook.xml')) || '';
   const rel  = (await zipEntry('xl/_rels/workbook.xml.rels')) || '';
-  const sheetIdM = wb.match(/<sheet[^>]+sheetId="1"[^>]+r:id="([^"]+)"/);
-  const sheetId  = sheetIdM?.[1] || 'rId1';
-  const targetM  = rel.match(new RegExp(`Id="${sheetId}"[^>]+Target="([^"]+)"`));
-  const target   = targetM?.[1] || 'worksheets/sheet1.xml';
-  const sheetXml = (await zipEntry('xl/' + target)) || (await zipEntry('xl/worksheets/sheet1.xml')) || '';
+  const attrs = text => Object.fromEntries([...text.matchAll(/([\w:]+)="([^"]*)"/g)].map(match => [match[1], match[2]]));
+  const targets = new Map([...rel.matchAll(/<Relationship\b([^>]*)\/?\s*>/g)].map(match => {
+    const values = attrs(match[1]);
+    return [values.Id, values.Target];
+  }));
+  const sheetRefs = [...wb.matchAll(/<sheet\b([^>]*)\/?\s*>/g)].map(match => attrs(match[1]));
+  const sheets = [];
 
-  const result = [];
-  for (const rowM of sheetXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
-    const cells = [];
-    let lastCol = -1;
-    for (const cellM of rowM[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)) {
-      const colStr = cellM[1];
-      const colIdx = [...colStr].reduce((a, c) => a * 26 + c.charCodeAt(0) - 64, 0) - 1;
-      while (cells.length <= colIdx) cells.push('');
-      const attrs = cellM[2], inner = cellM[3];
-      const vM = inner.match(/<v>([\s\S]*?)<\/v>/);
-      const val = vM ? vM[1] : '';
-      if (attrs.includes('t="s"')) {
-        cells[colIdx] = shared[Number(val)] ?? '';
-      } else if (attrs.includes('t="inlineStr"') || attrs.includes('t="str"')) {
-        cells[colIdx] = inner.replace(/<[^>]+>/g, '');
-      } else {
-        cells[colIdx] = val === '' ? '' : isNaN(Number(val)) ? val : Number(val);
+  for (const ref of sheetRefs) {
+    const target = targets.get(ref['r:id']);
+    if (!target) continue;
+    const path = target.startsWith('/') ? target.slice(1) : (target.startsWith('xl/') ? target : `xl/${target}`);
+    const sheetXml = await zipEntry(path);
+    if (!sheetXml) continue;
+
+    const result = [];
+    for (const rowM of sheetXml.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
+      const cells = [];
+      for (const cellM of rowM[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)) {
+        const colStr = cellM[1];
+        const colIdx = [...colStr].reduce((a, c) => a * 26 + c.charCodeAt(0) - 64, 0) - 1;
+        while (cells.length <= colIdx) cells.push('');
+        const cellAttrs = cellM[2], inner = cellM[3];
+        const vM = inner.match(/<v>([\s\S]*?)<\/v>/);
+        const val = vM ? vM[1] : '';
+        if (cellAttrs.includes('t="s"')) {
+          cells[colIdx] = shared[Number(val)] ?? '';
+        } else if (cellAttrs.includes('t="inlineStr"') || cellAttrs.includes('t="str"')) {
+          cells[colIdx] = inner.replace(/<[^>]+>/g, '');
+        } else {
+          cells[colIdx] = val === '' ? '' : isNaN(Number(val)) ? val : Number(val);
+        }
       }
-      lastCol = colIdx;
+      result.push(cells);
     }
-    result.push(cells);
+    sheets.push({ name: ref.name || `Sheet ${sheets.length + 1}`, rows: result });
   }
-  return result;
+  return sheets;
+}
+
+export async function _parseXlsxRows(buf) {
+  return (await _parseXlsxSheets(buf))[0]?.rows || [];
 }
 
 // ── Assignment modal ──────────────────────────────────────────
