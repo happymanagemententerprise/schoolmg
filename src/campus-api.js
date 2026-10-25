@@ -4,9 +4,11 @@ const base = String(import.meta.env.VITE_CAMPUS_API_URL || '').replace(/\/$/, ''
 export async function campusApi(path, options = {}) {
   const token = await Data.getAccessToken();
   if (!token) throw new Error('Sign in again to continue.');
+  const school = Data.activeSchool();
+  if (!school?.id) throw new Error('Select an active school before using campus services.');
   const response = await fetch(`${base}${path}`, {
     ...options,
-    headers: { Authorization: `Bearer ${token}`, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
+    headers: { Authorization: `Bearer ${token}`, 'X-School-ID': String(school.id), ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }
   });
   const payload = response.status === 204 ? null : await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload?.error || `Campus service returned ${response.status}.`);
@@ -21,8 +23,10 @@ export function watchCampusEvents(onEvent) {
       try {
         const token = await Data.getAccessToken();
         if (!token) throw new Error('Sign-in required.');
+        const school = Data.activeSchool();
+        if (!school?.id) throw new Error('Select an active school.');
         const response = await fetch(`${base}/api/campus/events`, {
-          headers: { Authorization: `Bearer ${token}` }, signal: controller.signal
+          headers: { Authorization: `Bearer ${token}`, 'X-School-ID': String(school.id) }, signal: controller.signal
         });
         if (!response.ok || !response.body) throw new Error(`Campus event stream returned ${response.status}.`);
         const reader = response.body.getReader(), decoder = new TextDecoder();

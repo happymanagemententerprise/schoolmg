@@ -10,7 +10,7 @@
           "index.html"
         ],
         "createdAt": "2026-10-17T11:18:28.563Z",
-        "reason": "False positive: index.html links src/styles.css, where body text is 14px, panel h2 is 19px, and dashboard h1 scales from 30px to 40px, providing clear typographic steps; the HTML-only finding misses the external stylesheet."
+        "reason": "Agent: scanner reads HTML without external CSS; heading hierarchy is defined in CSS with h1 at 34–46px, h2 at 21px, and body copy at 14px."
       },
       {
         "rule": "overused-font",
@@ -22,7 +22,7 @@
         "rule": "overused-font",
         "value": "arial",
         "createdAt": "2026-10-21T17:39:58.762Z",
-        "reason": "System-font stack is intentionally used for the printable student achievement passport for predictable print rendering."
+        "reason": "Agent: Arial and Helvetica are intentional document-safe fonts for the printable student achievement passport; the app UI uses IBM Plex Sans and DM Sans."
       }
     ]
   }

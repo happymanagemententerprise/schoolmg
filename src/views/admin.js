@@ -31,11 +31,18 @@ export function renderAdminOverview() {
   const currentUser = getCurrentUser();
   const sess = Data.session();
   const term = sess.currentTerm;
+  const students = Data.students();
 
-  $('admin-stat-students').textContent = Data.students().length;
+  $('admin-stat-students').textContent = students.length.toLocaleString('en-NG');
   $('admin-stat-classes').textContent  = Data.classes().length;
   $('admin-stat-staff').textContent    = Data.users().filter(u => isTeacher(u)).length;
   $('admin-stat-subjects').textContent = Data.subjects().length;
+  const attendanceBlocks = students.flatMap(student => Academic.monthlyAttendance(student.id, term));
+  const attendancePossible = attendanceBlocks.reduce((sum, block) => sum + (Number(block.possible) || 0), 0);
+  const attendancePresent = attendanceBlocks.reduce((sum, block) => sum + (Number(block.present) || 0), 0);
+  $('admin-stat-attendance').textContent = attendancePossible
+    ? `${Math.round(attendancePresent / attendancePossible * 100)}%`
+    : '—';
 
   const now = new Date();
   $('admin-date-label').textContent =
@@ -46,19 +53,21 @@ export function renderAdminOverview() {
   const termBadge = $('admin-term-badge');
   if (termBadge) termBadge.innerHTML = `<span class="live-dot"></span>Term ${term} · Active`;
 
-  $('admin-class-perf-table').innerHTML =
-    `<div class="role-table-head"><span>Class</span><span>Students</span><span>Term ${term} avg</span><span>Status</span></div>` +
-    Data.classes().map(cl => {
-      const avg   = Academic.classAverage(cl.id, term);
-      const badge = avg >= 60 ? 'promoted' : avg >= 45 ? 'review' : 'repeat';
-      const label = avg >= 60 ? 'On track'  : avg >= 45 ? 'Monitor' : 'At risk';
-      return `<div class="role-table-row">
-        <span><strong>${esc(cl.name)}</strong> ${streamTag(cl.stream)}</span>
-        <span>${Data.studentsByClass(cl.id).length}</span>
-        <span><strong>${avg}%</strong></span>
-        <span><span class="status ${badge}">${label}</span></span>
-      </div>`;
-    }).join('');
+  const classes = Data.classes();
+  $('admin-class-perf-table').innerHTML = classes.length
+    ? classes.map(cl => {
+        const avg = Academic.classAverage(cl.id, term);
+        const badge = avg >= 60 ? 'promoted' : avg >= 45 ? 'review' : 'repeat';
+        const label = avg >= 60 ? 'On track' : avg >= 45 ? 'Monitor' : 'At risk';
+        return `<div class="admin-class-row">
+          <div class="admin-class-row-top"><strong>${esc(cl.name)}</strong><span class="admin-class-average">${avg}%</span></div>
+          <div class="admin-class-track" role="progressbar" aria-label="${esc(cl.name)} average score" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.max(0, Math.min(100, avg))}"><span style="width:${Math.max(0, Math.min(100, avg))}%"></span></div>
+          <div class="admin-class-row-meta"><span>${Data.studentsByClass(cl.id).length} students</span><span class="status ${badge}">${label}</span></div>
+        </div>`;
+      }).join('')
+    : '<p class="admin-chart-empty">Add class groups to see performance here.</p>';
+
+  renderAdminAttendanceChart(students, term);
 
   renderEventsList('admin-events-list', 4);
   renderAdminStudentTable();
@@ -66,6 +75,52 @@ export function renderAdminOverview() {
   // renderAdminStudentTable is called via Alpine @input on #admin-student-search
   // Expose it on window so the Alpine expression can reference it
   window.renderAdminStudentTable = renderAdminStudentTable;
+}
+
+function renderAdminAttendanceChart(students, term) {
+  const root = $('admin-attendance-chart');
+  if (!root) return;
+
+  const periods = new Map();
+  students.forEach(student => {
+    Academic.monthlyAttendance(student.id, term).forEach(block => {
+      const key = Math.floor((Number(block.first) - 1) / 4);
+      const current = periods.get(key) || { first: block.first, last: block.last, present: 0, possible: 0 };
+      current.first = Math.min(current.first, block.first);
+      current.last = Math.max(current.last, block.last);
+      current.present += Number(block.present) || 0;
+      current.possible += Number(block.possible) || 0;
+      periods.set(key, current);
+    });
+  });
+
+  const points = [...periods.entries()].sort((a, b) => a[0] - b[0]).map(([, period]) => ({
+    label: `Weeks ${period.first}–${period.last}`,
+    value: period.possible ? Math.round(period.present / period.possible * 100) : 0
+  }));
+
+  if (!points.length) {
+    root.innerHTML = '<div class="admin-chart-empty-state"><span class="admin-chart-empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 18V6m0 12h16M7 14l4-4 3 2 5-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div><strong>Attendance data will appear here</strong><p>Record attendance to build this term’s trend.</p></div></div>';
+    return;
+  }
+
+  const xAt = index => points.length === 1 ? 350 : 54 + index * (612 / (points.length - 1));
+  const yAt = value => 158 - (Math.max(0, Math.min(100, value)) * 1.28);
+  const line = points.map((point, index) => `${index ? 'L' : 'M'} ${xAt(index)} ${yAt(point.value)}`).join(' ');
+  const fill = `${line} L ${xAt(points.length - 1)} 158 L ${xAt(0)} 158 Z`;
+  const grid = [0, 25, 50, 75, 100].map(value => {
+    const y = yAt(value);
+    return `<g class="admin-chart-gridline"><line x1="46" y1="${y}" x2="680" y2="${y}"/><text x="0" y="${y + 4}">${value}%</text></g>`;
+  }).join('');
+  const labels = points.map((point, index) => `<text class="admin-chart-period-label" x="${xAt(index)}" y="190" text-anchor="middle">${point.label}</text>`).join('');
+  const markers = points.map((point, index) => `<circle class="admin-chart-marker" cx="${xAt(index)}" cy="${yAt(point.value)}" r="4"><title>${point.label}: ${point.value}% attendance</title></circle>`).join('');
+
+  root.innerHTML = `<div class="admin-chart-legend"><span><i></i>Present or late</span><strong>${points.at(-1).value}% <small>latest period</small></strong></div>
+    <svg class="admin-attendance-svg" viewBox="0 0 700 208" role="img" aria-labelledby="admin-attendance-title admin-attendance-desc" preserveAspectRatio="none">
+      <title id="admin-attendance-title">Average attendance by four-week period</title><desc id="admin-attendance-desc">${points.map(point => `${point.label}: ${point.value}%`).join('; ')}</desc>
+      <defs><linearGradient id="admin-attendance-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#438b82" stop-opacity=".2"/><stop offset="100%" stop-color="#438b82" stop-opacity=".015"/></linearGradient></defs>
+      ${grid}<path class="admin-chart-area" d="${fill}"/><path class="admin-chart-line" d="${line}"/>${markers}${labels}
+    </svg>`;
 }
 
 export function renderAdminStudentTable(query = '') {

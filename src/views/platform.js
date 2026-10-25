@@ -1,8 +1,8 @@
 import { Data } from '../data/index.js';
 import { $, esc, showFormMessage } from '../utils.js';
 
-const money = value => value == null ? '—' : new Intl.NumberFormat('en-NG', {
-  style: 'currency', currency: 'NGN', maximumFractionDigits: 0
+const money = (value, currency = 'NGN') => value == null ? '—' : new Intl.NumberFormat('en-NG', {
+  style: 'currency', currency: /^[A-Z]{3}$/.test(currency) ? currency : 'NGN', maximumFractionDigits: 0
 }).format(value);
 
 export function renderPlatformSchools() {
@@ -36,29 +36,38 @@ function wireOnboarding() {
   const form = $('owner-onboarding-form');
   const feedback = $('owner-onboarding-feedback');
   const success = $('owner-onboarding-success');
+  const tiers = $('owner-tier-options');
   success.hidden = true;
   feedback.hidden = true;
-  const planSelect = $('owner-onboarding-plan');
-  planSelect.innerHTML = '<option value="">Loading plans…</option>';
-  planSelect.disabled = true;
-  $('owner-create-school').disabled = true;
+  tiers.innerHTML = '<span class="muted-cell">Loading tiers…</span>';
+  tiers.setAttribute('aria-busy', 'true');
+  let availablePlans = [];
+  const submit = $('owner-create-school');
+  submit.disabled = true;
   Data.platformPlans().then(plans => {
-    planSelect.innerHTML = plans.length
-      ? plans.map(plan => `<option value="${esc(plan.code)}">${esc(plan.name)} — ${money(plan.price_per_student_per_term)} / student / term</option>`).join('')
-      : '<option value="">No available plans</option>';
-    planSelect.disabled = !plans.length;
-    $('owner-create-school').disabled = !plans.length;
+    availablePlans = Array.isArray(plans) ? plans : [];
+    tiers.innerHTML = availablePlans.length
+      ? availablePlans.map((plan, index) => `<label class="owner-tier-card">
+          <input type="radio" name="planCode" value="${esc(plan.code)}" required ${index === 0 ? 'checked' : ''}>
+          <span class="owner-tier-radio" aria-hidden="true"></span>
+          <span class="owner-tier-copy"><strong>${esc(plan.name)}</strong><small>School subscription</small></span>
+          <span class="owner-tier-price">${money(plan.price_per_student_per_term, plan.currency)}<small>per student / term</small></span>
+        </label>`).join('')
+      : '<span class="muted-cell">No subscription tiers are available. Add an available plan before onboarding a school.</span>';
+    tiers.setAttribute('aria-busy', 'false');
+    submit.disabled = !availablePlans.length;
     updatePriceHint(plans);
-    planSelect.onchange = () => updatePriceHint(plans);
+    tiers.onchange = () => updatePriceHint(availablePlans);
   }).catch(error => {
-    $('owner-create-school').disabled = true;
+    tiers.setAttribute('aria-busy', 'false');
+    tiers.innerHTML = '<span class="muted-cell">Tiers could not be loaded. Retry by reopening this page.</span>';
+    submit.disabled = true;
     showFormMessage(feedback, error.message || 'Could not load plans.', 'error');
   });
   form.onsubmit = async event => {
     event.preventDefault();
     feedback.hidden = true;
     success.hidden = true;
-    const submit = $('owner-create-school');
     const fields = new FormData(form);
     const values = {
       organizationName: String(fields.get('organizationName') || '').trim(),
@@ -73,29 +82,38 @@ function wireOnboarding() {
     submit.textContent = 'Creating school…';
     try {
       const created = await Data.onboardPlatformSchool(values);
-      await Data.refreshPlatformSchools();
-      renderSchoolDirectory();
+      let refreshMessage = '';
+      try {
+        await Data.refreshPlatformSchools();
+        renderSchoolDirectory();
+      } catch {
+        refreshMessage = '<span class="owner-refresh-note">School setup succeeded, but the directory did not refresh. Return to Schools and refresh it.</span>';
+      }
+      const selectedPlan = availablePlans.find(plan => plan.code === values.planCode);
       success.innerHTML = `<strong>${esc(values.schoolName)} is registered.</strong>
-        <span>Plan: ${esc($('owner-onboarding-plan').selectedOptions[0]?.textContent || values.planCode)}</span>
-        <span>First administrator: ${esc(values.adminName)} · ${esc(values.adminEmail)}</span>
-        <span class="owner-invite-next">Next: in Supabase Dashboard, open Authentication → Users and invite <strong>${esc(values.adminEmail)}</strong>. The school admin profile is ready for the Auth account to link to it.</span>
+        <span>Tier: ${esc(selectedPlan?.name || values.planCode)} · ${money(created.plan_price ?? selectedPlan?.price_per_student_per_term, selectedPlan?.currency)} per student / term</span>
+        <span>First school account: ${esc(values.adminName)} · ${esc(values.adminEmail)} · School administrator</span>
+        <span class="owner-invite-next"><strong>Next: create the admin sign-in.</strong> In Supabase Dashboard, open Authentication → Users and invite <strong>${esc(values.adminEmail)}</strong>. This setup created the school admin profile and membership; the invitation links the login.</span>
+        ${refreshMessage}
         <small>School ID: ${esc(created.school_id)}</small>`;
       success.hidden = false;
       form.reset();
-      $('owner-onboarding-plan').value = values.planCode;
-      updatePriceHint();
+      const selectedRadio = [...form.querySelectorAll('input[name="planCode"]')].find(input => input.value === values.planCode);
+      if (selectedRadio) selectedRadio.checked = true;
+      updatePriceHint(availablePlans);
     } catch (error) {
-      showFormMessage(feedback, error.message || 'Could not create the school. No onboarding records were saved.', 'error');
+      showFormMessage(feedback, error.message || 'Could not finish school setup. Check the school, administrator, and tier details.', 'error');
     } finally {
-      submit.disabled = planSelect.disabled;
-      submit.textContent = 'Create school';
+      submit.disabled = !availablePlans.length;
+      submit.textContent = 'Create school and first account';
     }
   };
 }
 
 function updatePriceHint(plans) {
-  const chosen = plans?.find(plan => plan.code === $('owner-onboarding-plan').value);
+  const selectedCode = $('owner-onboarding-form')?.querySelector('input[name="planCode"]:checked')?.value;
+  const chosen = plans?.find(plan => plan.code === selectedCode);
   $('owner-plan-price').textContent = chosen
-    ? `${money(chosen.price_per_student_per_term)} per student each term · ${chosen.currency || 'NGN'}`
+    ? `${money(chosen.price_per_student_per_term, chosen.currency)} per student each term. ${chosen.currency || 'NGN'} billing.`
     : '';
 }

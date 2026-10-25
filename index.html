@@ -185,28 +185,43 @@
 
     <div class="page-wrap" id="view-owner-onboarding" hidden>
       <section class="welcome-row">
-        <div><h1>Onboard a school</h1><p class="subcopy">Set up the school, first administrator, and subscription.</p></div>
+        <div><h1>Onboard a school</h1><p class="subcopy">Create a school, its first account, and its subscription together.</p></div>
         <button type="button" class="btn-sm-save" data-nav="view-owner-schools">Back to schools</button>
       </section>
       <section class="panel owner-onboarding-panel">
         <div class="panel-heading">
-          <div><h2>School onboarding</h2></div>
-          <span class="owner-step-count">Setup · 1 of 1</span>
+          <div><h2>New school setup</h2></div>
+          <span class="owner-step-count">One setup · three essentials</span>
         </div>
-        <p class="subcopy">Create the school tenant, its first administrator profile, and its subscription in one step.</p>
+        <p class="subcopy">The administrator is created as the school’s first account. The selected tier and pricing are attached at setup.</p>
         <form id="owner-onboarding-form" class="owner-onboarding-form">
-          <div class="owner-form-grid">
-            <label class="form-group"><span>Organization name</span><input name="organizationName" required maxlength="120" placeholder="e.g. Happy Education Group"></label>
-            <label class="form-group"><span>School name</span><input name="schoolName" required maxlength="120" placeholder="e.g. Happy Man Academy"></label>
-            <label class="form-group"><span>Administrator full name</span><input name="adminName" required maxlength="120" placeholder="First and last name"></label>
-            <label class="form-group"><span>Administrator email</span><input name="adminEmail" type="email" required maxlength="254" placeholder="admin@school.edu"></label>
-            <label class="form-group"><span>Plan</span><select name="planCode" id="owner-onboarding-plan" required><option value="">Loading plans…</option></select><small id="owner-plan-price" class="muted-cell"></small></label>
-            <label class="form-group"><span>Prepaid terms</span><select name="prepaidTerms"><option value="1">1 term</option><option value="2">2 terms</option><option value="3">3 terms</option></select></label>
-            <label class="form-group"><span>Prepaid discount (%)</span><input name="discountPercent" type="number" min="0" max="100" step="1" value="0" required></label>
-          </div>
+          <section class="owner-onboarding-section" aria-labelledby="owner-school-details-heading">
+            <div class="owner-section-heading"><div><h3 id="owner-school-details-heading">School details</h3><p>Set the school’s organization and display name.</p></div></div>
+            <div class="owner-form-grid">
+              <label class="form-group"><span>Organization name</span><input name="organizationName" required maxlength="120" autocomplete="organization" placeholder="e.g. Happy Education Group"></label>
+              <label class="form-group"><span>School name</span><input name="schoolName" required maxlength="120" autocomplete="organization-title" placeholder="e.g. Happy Man Academy"></label>
+            </div>
+          </section>
+          <section class="owner-onboarding-section" aria-labelledby="owner-admin-heading">
+            <div class="owner-section-heading"><div><h3 id="owner-admin-heading">First school account</h3><p>This administrator is created before teachers, students, or parents.</p></div><span class="owner-role-badge">School administrator</span></div>
+            <div class="owner-form-grid">
+              <label class="form-group"><span>Administrator full name</span><input name="adminName" required maxlength="120" autocomplete="name" placeholder="First and last name"></label>
+              <label class="form-group"><span>Administrator email</span><input name="adminEmail" type="email" required maxlength="254" autocomplete="email" placeholder="admin@school.edu"></label>
+            </div>
+            <p class="owner-admin-note">The account profile is created now. Its Supabase sign-in invitation is a separate step after setup.</p>
+          </section>
+          <section class="owner-onboarding-section" aria-labelledby="owner-tier-heading">
+            <div class="owner-section-heading"><div><h3 id="owner-tier-heading">Choose a tier</h3><p>Select the plan and its prepaid term options.</p></div></div>
+            <fieldset class="owner-tier-fieldset"><legend class="sr-only">Subscription tier</legend><div id="owner-tier-options" class="owner-tier-options" aria-busy="true"><span class="muted-cell">Loading tiers…</span></div></fieldset>
+            <p id="owner-plan-price" class="owner-plan-price" aria-live="polite"></p>
+            <div class="owner-form-grid owner-prepaid-grid">
+              <label class="form-group"><span>Prepaid terms</span><select name="prepaidTerms"><option value="1">1 term</option><option value="2">2 terms</option><option value="3">3 terms</option></select></label>
+              <label class="form-group"><span>Prepaid discount (%)</span><input name="discountPercent" type="number" min="0" max="100" step="1" value="0" required></label>
+            </div>
+          </section>
           <div id="owner-onboarding-feedback" class="form-feedback mt8" role="status" aria-live="polite" hidden></div>
           <div id="owner-onboarding-success" class="owner-onboarding-success" hidden></div>
-          <div class="owner-onboarding-actions"><button type="submit" class="btn-primary" id="owner-create-school">Create school</button></div>
+          <div class="owner-onboarding-actions"><button type="submit" class="btn-primary" id="owner-create-school" disabled>Create school and first account</button></div>
         </form>
       </section>
     </div>
@@ -222,43 +237,45 @@
         <div class="term-badge" id="admin-term-badge"><span class="live-dot"></span>Term 1 &middot; Active</div>
       </section>
 
-      <section class="stat-grid" aria-label="School summary">
+      <section class="stat-grid admin-dashboard-metrics" aria-label="School summary">
         <article class="stat-card accent-coral">
-          <div class="stat-top"><span class="stat-label">Total students</span><span class="stat-icon">S</span></div>
+          <div class="stat-top"><span class="stat-label">Students</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20m6-9a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm6-6a3.5 3.5 0 0 1 0 6.8M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span></div>
           <strong id="admin-stat-students">&mdash;</strong>
-          <div class="stat-trend up">&#8597; Active enrolment</div>
+          <div class="stat-trend neutral">School enrolment</div>
         </article>
         <article class="stat-card accent-blue">
-          <div class="stat-top"><span class="stat-label">Classes</span><span class="stat-icon">C</span></div>
+          <div class="stat-top"><span class="stat-label">Classes</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 19.5V5.8A1.8 1.8 0 0 1 5.8 4H20v15.5H5.8A1.8 1.8 0 0 0 4 21m0-1.5A1.5 1.5 0 0 1 5.5 18H20M8 8h8m-8 3h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
           <strong id="admin-stat-classes">&mdash;</strong>
-          <div class="stat-trend neutral">This session</div>
+          <div class="stat-trend neutral">Organised class groups</div>
         </article>
         <article class="stat-card accent-yellow">
-          <div class="stat-top"><span class="stat-label">Staff members</span><span class="stat-icon">T</span></div>
+          <div class="stat-top"><span class="stat-label">Teaching staff</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 20V6.5A1.5 1.5 0 0 1 5.5 5H15v15m0-11h3.5A1.5 1.5 0 0 1 20 10.5V20M8 9h3m-3 4h3m-3 4h3m6-5h.01M17 16h.01M3 20h18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
           <strong id="admin-stat-staff">&mdash;</strong>
           <div class="stat-trend neutral">Teachers &amp; mentors</div>
         </article>
         <article class="stat-card accent-green">
-          <div class="stat-top"><span class="stat-label">Subjects offered</span><span class="stat-icon">+</span></div>
+          <div class="stat-top"><span class="stat-label">Subjects</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 4.5h14v15H5zM8 8h8m-8 3.5h8m-8 3.5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
           <strong id="admin-stat-subjects">&mdash;</strong>
           <div class="stat-trend neutral">Across all classes</div>
         </article>
+        <article class="stat-card accent-teal">
+          <div class="stat-top"><span class="stat-label">Average attendance</span><span class="stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 18V6m0 12h16M7 14l4-4 3 2 5-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+          <strong id="admin-stat-attendance">&mdash;</strong>
+          <div class="stat-trend neutral">For the selected term</div>
+        </article>
       </section>
 
-      <section class="dashboard-grid">
-        <article class="panel">
+      <section class="dashboard-grid admin-analytics-grid">
+        <article class="panel admin-attendance-panel">
           <div class="panel-heading">
-            <div><p class="eyebrow">Academic health</p><h2>Class performance</h2></div>
-            <button class="text-button" data-nav="view-admin-analytics">View analytics &nearr;</button>
+            <div><p class="eyebrow">Attendance</p><h2>Term attendance trend</h2><p class="subcopy">Recorded attendance, grouped into four-week periods.</p></div>
+            <button class="text-button" data-nav="view-admin-analytics">Full analytics &nearr;</button>
           </div>
-          <div id="admin-class-perf-table" class="role-table mt16"></div>
+          <div id="admin-attendance-chart" class="admin-attendance-chart mt16"></div>
         </article>
-        <article class="panel">
-          <div class="panel-heading">
-            <div><p class="eyebrow">Coming up</p><h2>Key dates</h2></div>
-          </div>
-          <div class="timeline" id="admin-events-list"></div>
-          <button class="outline-button" data-nav="view-admin-setup">Manage calendar &nearr;</button>
+        <article class="panel admin-class-panel">
+          <div class="panel-heading"><div><p class="eyebrow">Academic health</p><h2>Class performance</h2></div></div>
+          <div id="admin-class-perf-table" class="admin-class-performance mt16"></div>
         </article>
       </section>
 
@@ -277,10 +294,17 @@
             </table>
           </div>
         </article>
-        <article class="panel">
-          <div class="panel-heading"><div><p class="eyebrow">Action queue</p><h2>Score entry windows</h2></div></div>
-          <p class="role-muted">Check which score periods are open before teachers submit this term’s marks.</p>
-          <div class="upload-toggles" id="admin-upload-toggles"></div>
+        <article class="panel admin-operations-panel">
+          <section class="admin-operations-section">
+            <div class="panel-heading"><div><p class="eyebrow">Coming up</p><h2>Key dates</h2></div></div>
+            <div class="timeline" id="admin-events-list"></div>
+            <button class="outline-button" data-nav="view-admin-setup">Manage calendar &nearr;</button>
+          </section>
+          <section class="admin-operations-section">
+            <div class="panel-heading"><div><p class="eyebrow">Action queue</p><h2>Score entry windows</h2></div></div>
+            <p class="role-muted">Check which score periods are open before teachers submit this term’s marks.</p>
+            <div class="upload-toggles" id="admin-upload-toggles"></div>
+          </section>
         </article>
       </section>
     </div>
