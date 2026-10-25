@@ -93,7 +93,10 @@ export function buildTeacherCapabilities(user) {
 }
 
 export function navForUser(user) {
-  if (user?.role === 'SaaS Owner') return [{ page: 'view-owner-schools', label: 'Schools', icon: 'S' }];
+  if (user?.role === 'SaaS Owner') return [
+    { page: 'view-owner-schools', label: 'Schools', icon: 'S' },
+    { page: 'view-owner-onboarding', label: 'Onboard school', icon: '+' }
+  ];
   if (user?.role === 'Security Guard') return [{ page: 'view-campus', label: 'Gate register', icon: 'G' }];
   if (user?.role === 'Hostel Supervisor') return [{ page: 'view-campus', label: 'Hostel register', icon: 'H' }];
   if (isTeacher(user)) return buildTeacherCapabilities(user);
@@ -307,7 +310,7 @@ export function buildNav(user) {
 
 function navGroupsForUser(user, items) {
   const definitions = {
-    'SaaS Owner': [['Platform', ['view-owner-schools']]],
+    'SaaS Owner': [['Platform', ['view-owner-schools', 'view-owner-onboarding']]],
     Administrator: [
       ['Today', ['view-admin-overview']],
       ['People', ['view-admin-people', 'view-campus', 'view-admin-recognition']],

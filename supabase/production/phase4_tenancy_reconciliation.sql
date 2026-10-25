@@ -1,5 +1,11 @@
 -- PRODUCTION ROLLOUT DRAFT — REVIEW BEFORE EXECUTION.
 -- Target: happyman-academy (erlhyrswcqpqpqzbgmgb)
+-- STALE / DO NOT RUN AS WRITTEN (rechecked 2026-10-24): production already has
+-- one organization, one school, 34 school memberships, one organization
+-- membership, and school_id on all 50 application data tables. The empty-table
+-- preconditions below will abort. Replace this bootstrap with a narrow,
+-- current-shape reconciliation only if the app requires missing metadata.
+-- Do not create a second school until active-school context is implemented.
 -- No SQL in this file has been applied to production.
 --
 -- This adapts production's existing empty, partial tenancy tables to the

@@ -1,6 +1,7 @@
 -- PRODUCTION ROLLOUT DRAFT — REVIEW BEFORE EXECUTION.
 -- Target: happyman-academy (erlhyrswcqpqpqzbgmgb)
--- No SQL in this file has been applied to production.
+-- The class_subjects view statements below were applied on 2026-10-24.
+-- The ALTER DEFAULT PRIVILEGES statements remain unapplied.
 --
 -- Live inventory confirms postgres-created public defaults currently grant
 -- anon/authenticated/service_role broad table access, sequence USAGE/SELECT,

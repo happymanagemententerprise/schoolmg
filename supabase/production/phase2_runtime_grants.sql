@@ -3,7 +3,7 @@
 -- No SQL in this file has been applied to production or staging.
 --
 -- This reconciles grants for the checked-in Node API in server/index.js.
--- Production currently grants service_role all operations on all 54 public
+-- Production currently grants service_role all operations on all 58 public
 -- relations. Staging's present grants are narrower but underprovide this API:
 -- the server also uses its service-role client for roster, account, timetable,
 -- and hostel reads/writes. Applying only the staging grants would break those

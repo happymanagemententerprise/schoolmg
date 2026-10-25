@@ -1050,7 +1050,7 @@ export function renderAdminAnalytics() {
     $('analytics-attendance').innerHTML = students.map(s => {
       const wks   = Data.studentAttendance(s.id, term);
       const cells = Array.from({ length: 16 }, (_, i) => `<td>${Number(wks[`W${i + 1}`]) || 0}/5</td>`).join('');
-      const pct   = +Academic.attendancePct(s.id, term);
+      const pct   = parseInt(Academic.attendancePct(s.id, term), 10) || 0;
       const rating = pct >= 90 ? 'Excellent' : pct >= 75 ? 'Good' : pct >= 60 ? 'Fair' : 'At risk';
       const rc     = pct >= 90 ? 'promoted' : pct >= 75 ? 'review' : 'repeat';
       return `<tr>
@@ -1068,7 +1068,7 @@ export function renderAdminAnalytics() {
       `<tr><th>Student</th>${labels.map(l => `<th>${esc(l)}</th>`).join('')}<th>${esc(termNameOf(term))} %</th></tr>`;
     $('analytics-attendance-month').innerHTML = blockCount
       ? students.map((s, si) => {
-          const pct = +Academic.attendancePct(s.id, term);
+          const pct = parseInt(Academic.attendancePct(s.id, term), 10) || 0;
           const cells = labels.map((_, i) => {
             const b = monthRows[si][i];
             if (!b) return '<td class="muted-cell">—</td>';

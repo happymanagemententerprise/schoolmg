@@ -22,7 +22,7 @@ export function renderParentDashboard() {
   $('par-welcome').textContent       = `Good morning, ${currentUser.name.split(' ')[0]}.`;
   $('par-stat-children').textContent = children.length;
   $('par-stat-names').textContent    = children.map(c => c.name.split(' ')[0]).join(' · ') || '—';
-  const atts = children.map(c => +Academic.attendancePct(c.id));
+  const atts = children.map(c => parseInt(Academic.attendancePct(c.id), 10) || 0);
   $('par-stat-att').textContent = (atts.length ? Math.round(atts.reduce((a, b) => a + b, 0) / atts.length) : 0) + '%';
   const avgs = children.map(c => Academic.termAverage(c.id, term));
   $('par-stat-avg').textContent    = released && avgs.length ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) + '%' : '—';

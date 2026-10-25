@@ -1533,6 +1533,35 @@ const Data = {
       discountPercent: row.discount_percent ?? null
     })).sort((a, b) => a.name.localeCompare(b.name));
   },
+  async platformPlans() {
+    if (!this.isPlatformOwner()) throw new Error('SaaS-owner access is required.');
+    const { data, error } = await _supabaseRpc('platform_available_plans');
+    if (error) throw new Error(error.message || 'Could not load subscription plans.');
+    return data || [];
+  },
+  async refreshPlatformSchools() {
+    if (!this.isPlatformOwner()) throw new Error('SaaS-owner access is required.');
+    const { data, error } = await _supabaseFrom('platform_school_dashboard').select('*').order('school_name');
+    if (error) throw new Error(error.message || 'Could not refresh the school directory.');
+    _cache.platformSchools = data || [];
+    return this.platformSchools();
+  },
+  async onboardPlatformSchool(input) {
+    if (!this.isPlatformOwner()) throw new Error('SaaS-owner access is required.');
+    const { data, error } = await _supabaseRpc('platform_onboard_school', {
+      p_organization_name: input.organizationName,
+      p_school_name: input.schoolName,
+      p_admin_name: input.adminName,
+      p_admin_email: input.adminEmail,
+      p_plan_code: input.planCode,
+      p_prepaid_terms: input.prepaidTerms,
+      p_discount_percent: input.discountPercent
+    });
+    if (error) throw new Error(error.message || 'Could not create the school.');
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result?.school_id) throw new Error('School creation returned no school record.');
+    return result;
+  },
   activeSchool() { return _cache.schools.find(school => String(school.id) === String(_activeSchoolId)) || null; },
   setActiveSchool(schoolId) {
     const school = _cache.schools.find(item => String(item.id) === String(schoolId));

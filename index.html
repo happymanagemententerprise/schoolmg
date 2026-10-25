@@ -9,7 +9,7 @@
   <title>Happy Man Academy</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -165,6 +165,7 @@
           <h1>Customer schools</h1>
           <p class="subcopy">Student enrolment and subscription status across your platform.</p>
         </div>
+        <button type="button" class="btn-primary" data-nav="view-owner-onboarding">Onboard a school</button>
       </section>
       <section class="stat-grid owner-stat-grid" aria-label="School portfolio summary">
         <article class="stat-card accent-coral"><div class="stat-top"><span class="stat-label">Schools</span><span class="stat-icon">S</span></div><strong id="owner-stat-schools">0</strong><div class="stat-trend neutral">Customer schools</div></article>
@@ -180,6 +181,34 @@
           </table>
         </div>
       </article>
+    </div>
+
+    <div class="page-wrap" id="view-owner-onboarding" hidden>
+      <section class="welcome-row">
+        <div><h1>Onboard a school</h1><p class="subcopy">Set up the school, first administrator, and subscription.</p></div>
+        <button type="button" class="btn-sm-save" data-nav="view-owner-schools">Back to schools</button>
+      </section>
+      <section class="panel owner-onboarding-panel">
+        <div class="panel-heading">
+          <div><h2>School onboarding</h2></div>
+          <span class="owner-step-count">Setup · 1 of 1</span>
+        </div>
+        <p class="subcopy">Create the school tenant, its first administrator profile, and its subscription in one step.</p>
+        <form id="owner-onboarding-form" class="owner-onboarding-form">
+          <div class="owner-form-grid">
+            <label class="form-group"><span>Organization name</span><input name="organizationName" required maxlength="120" placeholder="e.g. Happy Education Group"></label>
+            <label class="form-group"><span>School name</span><input name="schoolName" required maxlength="120" placeholder="e.g. Happy Man Academy"></label>
+            <label class="form-group"><span>Administrator full name</span><input name="adminName" required maxlength="120" placeholder="First and last name"></label>
+            <label class="form-group"><span>Administrator email</span><input name="adminEmail" type="email" required maxlength="254" placeholder="admin@school.edu"></label>
+            <label class="form-group"><span>Plan</span><select name="planCode" id="owner-onboarding-plan" required><option value="">Loading plans…</option></select><small id="owner-plan-price" class="muted-cell"></small></label>
+            <label class="form-group"><span>Prepaid terms</span><select name="prepaidTerms"><option value="1">1 term</option><option value="2">2 terms</option><option value="3">3 terms</option></select></label>
+            <label class="form-group"><span>Prepaid discount (%)</span><input name="discountPercent" type="number" min="0" max="100" step="1" value="0" required></label>
+          </div>
+          <div id="owner-onboarding-feedback" class="form-feedback mt8" role="status" aria-live="polite" hidden></div>
+          <div id="owner-onboarding-success" class="owner-onboarding-success" hidden></div>
+          <div class="owner-onboarding-actions"><button type="submit" class="btn-primary" id="owner-create-school">Create school</button></div>
+        </form>
+      </section>
     </div>
 
     <!-- Admin: Overview -->
@@ -1123,7 +1152,7 @@
       <section class="stat-grid">
         <article class="student-stat coral-stat"><span>Children</span><strong id="par-stat-children">&mdash;</strong><small id="par-stat-names">&mdash;</small></article>
         <article class="student-stat green-stat"><span>Combined attendance</span><strong id="par-stat-att">&mdash;</strong><small>This term average</small></article>
-        <article class="student-stat yellow-stat"><span>Term average</span><strong id="par-stat-avg">&mdash;</strong><small>Across children</small></article>
+        <article class="student-stat coral-stat"><span>Term average</span><strong id="par-stat-avg">&mdash;</strong><small>Across children</small></article>
         <article class="student-stat blue-stat"><span>School events</span><strong id="par-stat-events">&mdash;</strong><small>On the calendar</small></article>
       </section>
       <section class="role-grid">
@@ -1625,3 +1654,4 @@
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>
+

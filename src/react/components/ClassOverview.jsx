@@ -36,7 +36,7 @@ export default function ClassOverview() {
   const avg      = Academic.classAverage(cl.id, term);
   const girls    = students.filter(s => s.gender === 'F').length;
   const boys     = students.filter(s => s.gender === 'M').length;
-  const atts     = students.map(s => +Academic.attendancePct(s.id));
+  const atts     = students.map(s => parseInt(Academic.attendancePct(s.id), 10) || 0);
   const avgAtt   = atts.length ? Math.round(atts.reduce((a, b) => a + b, 0) / atts.length) : 0;
   const promoted = students.filter(s => Academic.canPromote ? Academic.canPromote(s.id, term) : false).length;
 
@@ -69,7 +69,7 @@ export default function ClassOverview() {
   };
 
   const atRisk = students.flatMap(s => {
-    const att   = +Academic.attendancePct(s.id);
+    const att   = parseInt(Academic.attendancePct(s.id), 10) || 0;
     const items = [];
     if (att < 90) items.push({ icon: '!', color: 'coral-bg', msg: `Low attendance (${att}%)`, name: s.name });
     if (Academic.promotionStatus(s.id, term) === 'Repeat') {
@@ -238,3 +238,4 @@ export default function ClassOverview() {
     </>
   );
 }
+

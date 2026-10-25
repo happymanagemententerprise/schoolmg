@@ -5,3 +5,4 @@ playwright-report/
 server/.env
 .env.*
 !.env.example
+!.env.production
