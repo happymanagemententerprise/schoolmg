@@ -22,7 +22,7 @@
         "rule": "overused-font",
         "value": "arial",
         "createdAt": "2026-10-21T17:39:58.762Z",
-        "reason": "Agent: Arial and Helvetica are intentional document-safe fonts for the printable student achievement passport; the app UI uses IBM Plex Sans and DM Sans."
+        "reason": "Student Achievement Passport is a print-oriented school record; this system font choice favors predictable, readable rendering across common browsers and print engines."
       }
     ]
   }

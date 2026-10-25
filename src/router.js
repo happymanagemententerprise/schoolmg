@@ -46,7 +46,34 @@ export function showView(pageId) {
     $('page-title').textContent = nav.find(n => n.page === pageId)?.label || 'Dashboard';
   }
   $all('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.page === pageId));
+  closeMobileNav();
+}
+
+function closeMobileNav() {
   $q('.sidebar')?.classList.remove('open');
+  document.body.classList.remove('nav-open');
+  const backdrop = $('sidebar-backdrop');
+  if (backdrop) backdrop.hidden = true;
+  const button = $('mobile-menu');
+  if (button) {
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-label', 'Open navigation');
+  }
+}
+
+function toggleMobileNav() {
+  const sidebar = $('sidebar');
+  if (!sidebar) return;
+  const open = !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', open);
+  document.body.classList.toggle('nav-open', open);
+  const backdrop = $('sidebar-backdrop');
+  if (backdrop) backdrop.hidden = !open;
+  const button = $('mobile-menu');
+  if (button) {
+    button.setAttribute('aria-expanded', String(open));
+    button.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+  }
 }
 
 export function renderView(pageId) {
@@ -120,9 +147,10 @@ export function wireGlobals() {
     closeModal(id);
   });
   $('logout-btn').addEventListener('click', logout);
-  $('mobile-menu').addEventListener('click', () => $q('.sidebar').classList.toggle('open'));
+  $('mobile-menu').addEventListener('click', toggleMobileNav);
+  $('sidebar-backdrop')?.addEventListener('click', closeMobileNav);
   $q('.drawer-backdrop')?.addEventListener('click', closeDrawer);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenus(); closeDrawer(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenus(); closeDrawer(); closeMobileNav(); } });
 
   // Global [data-nav] button handler
   document.addEventListener('click', e => {
