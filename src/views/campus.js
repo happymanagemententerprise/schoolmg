@@ -2,7 +2,7 @@ import { Data } from '../data/index.js';
 import { getCurrentUser } from '../state.js';
 import { $, $q, esc, toast } from '../utils.js';
 import { campusApi, watchCampusEvents } from '../campus-api.js';
-import { isAdmin, isTeacher } from '../auth.js';
+import { isAdmin } from '../auth.js';
 
 const userRole = () => getCurrentUser()?.role;
 const isGuard = () => userRole() === 'Security Guard';
@@ -22,6 +22,11 @@ const feedback = (message, isError = false) => {
 };
 
 export async function renderCampus() {
+  const currentUser = getCurrentUser();
+  if (!isAdmin(currentUser) && !isGuard() && !isHostelStaff()) {
+    $('campus-content').innerHTML = '<div class="panel empty-state">Campus operations are available to school administrators and security staff.</div>';
+    return;
+  }
   if (Data.isDemoMode() && (isGuard() || isHostelStaff())) {
     renderLocalCampusDemo();
     return;
@@ -38,18 +43,17 @@ export async function renderCampus() {
   });
   const content = $('campus-content');
   const admin = isAdmin(getCurrentUser());
-  const teacher = isTeacher(getCurrentUser());
   const sections = [];
   if (admin || isGuard()) sections.push(renderGateSection());
   if (admin || isHostelStaff()) sections.push(renderHostelSection());
-  if (teacher || admin) sections.push(renderPeriodSection());
+  if (admin) sections.push(renderPeriodSection());
   if (admin) sections.push(renderHostelSetup());
   content.innerHTML = sections.join('') || '<div class="panel empty-state">Your account does not have a campus operations assignment.</div>';
   $('campus-refresh').onclick = renderCampus;
   await Promise.all([
     (admin || isGuard()) ? loadGateRoster() : Promise.resolve(),
     (admin || isHostelStaff()) ? loadHostelDashboard() : Promise.resolve(),
-    (teacher || admin) ? loadPeriodsAndSwaps() : Promise.resolve(),
+    admin ? loadPeriodsAndSwaps() : Promise.resolve(),
     admin ? bindHostelSetup() : Promise.resolve()
   ]);
 }

@@ -73,7 +73,6 @@ export function buildTeacherCapabilities(user) {
     { page: 'view-teacher-quizzes',     label: 'Quizzes',     icon: 'Q' },
     { page: 'view-teacher-discussions', label: 'Discussions', icon: '◇' }
   );
-  nav.push({ page: 'view-campus', label: 'Campus safety', icon: '◆' });
   const cl = myClassRecord(user);
   if (cl) {
     nav.push(
@@ -283,14 +282,36 @@ export function buildNav(user) {
     People: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM16 5.5a3 3 0 0 1 0 5.8M18 14a5 5 0 0 1 3 4.6V20h-4"/>',
     Family: '<path d="M3 11.5 12 4l9 7.5M5 10v10h14V10M9 20v-6h6v6"/>',
     School: '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-7h6v7M8 10h.01M12 10h.01M16 10h.01"/>',
-    Settings: '<circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.8-1l-1.7.7-1.4-2.4 1.4-1.1a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.8 1l1.7-.7 1.4 2.4-1.4 1.1a8 8 0 0 1 0 2Z" transform="translate(-1 -1) scale(1.08)"/>'
+    Settings: '<circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.8 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.8-1l-1.7.7-1.4-2.4 1.4-1.1a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.8-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.8 1l1.7-.7 1.4 2.4-1.4 1.1a8 8 0 0 1 0 2Z" transform="translate(-1 -1) scale(1.08)"/>',
+    Dashboard: '<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/>',
+    Overview: '<path d="M3 19h18M5 16l4-5 4 3 6-8"/>',
+    Schools: '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-7h6v7"/>',
+    'Onboard school': '<path d="M12 5v14M5 12h14"/><circle cx="12" cy="12" r="9"/>',
+    People: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1zM16 5.5a3 3 0 0 1 0 5.8M18 14a5 5 0 0 1 3 4.6V20h-4"/>',
+    'Campus safety': '<path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z"/><path d="m9 12 2 2 4-4"/>',
+    Classes: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21zM4 5.5v15.5M8 7h8M8 11h8"/>',
+    Subjects: '<path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/>',
+    Progression: '<path d="M4 19h16M7 16V9m5 7V5m5 11v-5M5 9l7-4 5 7 3-3"/>',
+    Timetable: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h3M14 14h3M8 17h3"/>',
+    Attendance: '<path d="M4 19V5m0 14h16M7 14l4-4 3 2 5-6"/>',
+    Analytics: '<path d="M4 19V5m0 14h16M7 14l4-4 3 2 5-6"/><circle cx="7" cy="14" r="1"/><circle cx="14" cy="12" r="1"/>',
+    'My Results': '<path d="M5 3h14v18H5zM8 8h8M8 12h8M8 16h5"/>',
+    Scores: '<path d="M5 3h14v18H5zM8 8h8M8 12h3M14 12h2M8 16h8"/>',
+    Assignments: '<path d="M7 3h10v18H7zM10 8h4M10 12h4M10 16h4"/>',
+    Lessons: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21zM4 5.5v15.5M8 7h8M8 11h8M8 15h5"/>',
+    Quizzes: '<path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16l2 2 4-4"/>',
+    Discussions: '<path d="M4 5h16v12H9l-5 4zM8 9h8M8 13h5"/>',
+    Leaderboard: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM12 13v5M8 21h8M8 17h8M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4"/>',
+    Recognition: '<path d="m12 3 2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.7-5 2.7.9-5.6-4-3.9 5.6-.8z"/>',
+    'Gate register': '<path d="M4 21V5l8-3 8 3v16M4 11h16M9 11v10M15 11v10M9 7h.01M15 7h.01"/>',
+    'Hostel register': '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-7h6v7M8 10h.01M12 10h.01M16 10h.01"/>'
   };
   $('main-nav').innerHTML = groups.map(group =>
     `<section class="nav-group" aria-label="${group.label}">
        <p class="nav-label">${group.label}</p>
        ${group.items.map(n =>
          `<button class="nav-item" data-page="${n.page}">
-            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${iconPaths[group.label] || iconPaths.School}</svg></span>${n.label}
+            <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${iconPaths[n.label] || iconPaths[group.label] || iconPaths.School}</svg></span>${n.label}
           </button>`
        ).join('')}
      </section>`
@@ -321,7 +342,7 @@ function navGroupsForUser(user, items) {
     Teacher: [
       ['Today', ['view-subject-dashboard']],
       ['Teaching', ['view-subject-scores', 'view-teacher-lessons', 'view-teacher-quizzes', 'view-teacher-discussions']],
-      ['Classroom', ['view-class-overview', 'view-class-report', 'view-class-attendance', 'view-class-feedback', 'view-admin-timetable', 'view-campus', 'view-hod-dashboard']]
+      ['Classroom', ['view-class-overview', 'view-class-report', 'view-class-attendance', 'view-class-feedback', 'view-admin-timetable', 'view-hod-dashboard']]
     ],
     Student: [
       ['Today', ['view-student-dashboard']],

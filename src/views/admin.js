@@ -23,7 +23,7 @@ import { isTeacher, isAdmin, isStudent, isParent, isHOD, myClassRecord } from '.
 import { openStudentReport } from './reports.js';
 import { timetableTable, askSensitiveConfirm, openResetPasswordModal, openClassReportModal,
          renderEventsList, termNameOf, resultsLockedNote, xpBar,
-         renderStudentGrowth, renderParentGuardian, recordParentLoginIfNew, renderPassport } from './shared.js';
+         renderStudentGrowth, renderPassport } from './shared.js';
 // openMentorModal is loaded dynamically to break the admin ↔ teacher circular import
 
 // ── Admin overview ────────────────────────────────────────────

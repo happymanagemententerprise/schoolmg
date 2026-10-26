@@ -60,9 +60,13 @@ function wireOnboarding() {
     tiers.onchange = () => updatePriceHint(availablePlans);
   }).catch(error => {
     tiers.setAttribute('aria-busy', 'false');
-    tiers.innerHTML = '<span class="muted-cell">Tiers could not be loaded. Retry by reopening this page.</span>';
+    tiers.innerHTML = '<span class="muted-cell">Subscription tiers are unavailable. The database setup needs attention.</span>';
     submit.disabled = true;
-    showFormMessage(feedback, error.message || 'Could not load plans.', 'error');
+    const detail = String(error?.message || '');
+    const missingRpc = /platform_available_plans|PGRST202|schema cache|could not find the function/i.test(detail);
+    showFormMessage(feedback, missingRpc
+      ? 'Could not load plans: public.platform_available_plans() is missing or not visible in this project’s API schema cache. Apply supabase/migrations/20261024044308_platform_school_onboarding.sql to the project this app uses, then reload the API schema cache. No school was created.'
+      : 'Could not load subscription tiers. Check your SaaS-owner sign-in and database connection, then try again.', 'error');
   });
   form.onsubmit = async event => {
     event.preventDefault();

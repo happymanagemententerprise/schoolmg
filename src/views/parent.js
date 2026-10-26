@@ -8,7 +8,7 @@ import {
   $, $all, esc, toast, currentTerm, passMark, gradeLabel, toneClass, subjectChip, statusClass
 } from '../utils.js';
 import { openStudentReport } from './reports.js';
-import { renderTimetableFor, renderParentGuardian, recordParentLoginIfNew, resultsLockedNote, termNameOf, renderEventsList, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
+import { renderTimetableFor, resultsLockedNote, termNameOf, renderEventsList, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
 import { campusApi } from '../campus-api.js';
 
 // ── Parent dashboard ──────────────────────────────────────────
@@ -73,8 +73,6 @@ export function renderParentDashboard() {
   }
 
   renderEventsList('par-events-list', 5);
-  recordParentLoginIfNew();
-  renderParentGuardian();
   bindPickupPinForm();
 }
 

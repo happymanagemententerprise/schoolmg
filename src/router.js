@@ -37,11 +37,12 @@ import { renderPlatformSchools, renderPlatformOnboarding } from './views/platfor
 
 // ── View helpers ─────────────────────────────────────────────
 export function showView(pageId) {
+  const currentUser = getCurrentUser();
+  if (!navForUser(currentUser).some(item => item.page === pageId)) return;
   $all('.page-wrap').forEach(v => { v.hidden = true; });
   const view = $(pageId);
   if (view) {
     view.hidden = false;
-    const currentUser = getCurrentUser();
     const nav = navForUser(currentUser);
     $('page-title').textContent = nav.find(n => n.page === pageId)?.label || 'Dashboard';
   }

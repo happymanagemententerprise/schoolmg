@@ -234,42 +234,6 @@ export function renderStudentGrowth() {
   $('std-passport-btn').onclick = () => renderPassport(sid);
 }
 
-// ── Parent guardian panel ─────────────────────────────────────
-export function renderParentGuardian() {
-  const currentUser = getCurrentUser();
-  const pid = currentUser.id;
-  const pp  = Growth.parentProfile(pid);
-  $('par-guard-count').textContent = `${pp.badges.length} badge${pp.badges.length !== 1 ? 's' : ''} earned`;
-  $('par-guard-note').textContent  = pp.badges.length
-    ? 'You are an engaged guardian — keep it up to lock in the incentives.'
-    : 'No guardian badges yet. Acknowledge results, attend PTA, and settle early to unlock them.';
-  $('par-guard-badges').innerHTML = pp.badges.length
-    ? pp.badges.map(b => `<div class="badge-chip"><span>${b.icon}</span><div><strong>${esc(b.label)}</strong><small>${esc(b.note)}</small></div></div>`).join('')
-    : '<p class="muted-cell">Badges appear as you engage.</p>';
-  $('par-guard-stats').innerHTML = `
-    <span class="guard-stat"><small>Logins</small><b>${pp.loginCount}</b></span>
-    <span class="guard-stat"><small>Results &amp; PTA this session</small><b>${pp.thisSessSlog}</b></span>
-    <span class="guard-stat"><small>Engagement total</small><b>${pp.engagementTotal}</b></span>
-    <span class="guard-stat"><small>Early payment</small><b>${pp.earlyPayment ? '✓' : '—'}</b></span>`;
-  $('par-ack-btn').onclick = async () => {
-    await Growth.recordParentEngagement(pid, 'ack_results');
-    renderParentGuardian(); toast('Results acknowledged — thank you for staying engaged.');
-  };
-  $('par-pta-btn').onclick = async () => {
-    await Growth.recordParentEngagement(pid, 'pta');
-    renderParentGuardian(); toast('PTA attendance recorded.');
-  };
-}
-
-// ── Record parent login ───────────────────────────────────────
-export function recordParentLoginIfNew() {
-  const currentUser = getCurrentUser();
-  const eng = (Data.parentEngagements() || []).filter(e => e.kind === 'login' && String(e.parentId) === String(currentUser.id));
-  const last = eng.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))[0];
-  const today = new Date().toISOString().slice(0, 10);
-  if (!eng.length || String(last?.at || '').slice(0, 10) !== today) Growth.recordParentEngagement(currentUser.id, 'login');
-}
-
 // ── Student Achievement Passport ──────────────────────────────
 export function renderPassport(studentId) {
   const sid = String(studentId);

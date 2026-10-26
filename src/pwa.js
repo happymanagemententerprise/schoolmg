@@ -23,7 +23,7 @@ export function initPWA() {
 
 export async function showPWAActions() {
   const button = document.getElementById('push-enable-btn');
-  if (!button || !('PushManager' in window) || !('serviceWorker' in navigator)) { if (button) button.hidden = true; return; }
+  if (!button || !('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator)) { if (button) button.hidden = true; return; }
   const registration = await navigator.serviceWorker.ready.catch(() => null);
   const subscription = await registration?.pushManager.getSubscription().catch(() => null);
   button.hidden = Notification.permission === 'granted' && !!subscription;
@@ -31,14 +31,24 @@ export async function showPWAActions() {
 
 async function subscribeToPush() {
   const button = document.getElementById('push-enable-btn');
+  if (!button || button.disabled) return;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  button.textContent = 'Setting up…';
   try {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('Push notifications are not supported by this browser.');
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('Push notifications are not supported by this browser.');
+    if (Data.isDemoMode()) throw new Error('Local demo mode does not send real alerts. Sign in with a school account to enable notifications.');
+    if (!apiBase) throw new Error('Push alerts are not configured for this site yet. Set VITE_CAMPUS_API_URL to the Supabase campus-api function URL in the site’s build settings, then redeploy.');
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') throw new Error('Allow notifications in your browser settings to enable attendance reminders.');
     const token = await Data.getAccessToken();
+    if (!token) throw new Error('Sign in with your school account again, then enable alerts.');
     const keyResponse = await fetch(`${apiBase}/api/push/vapid-public-key`, { headers: { Authorization: `Bearer ${token}` } });
-    const { publicKey, error } = await keyResponse.json();
-    if (!keyResponse.ok) throw new Error(error || 'Push service is not configured.');
+    const keyResult = await keyResponse.json().catch(() => ({}));
+    if (!keyResponse.ok) throw new Error(keyResult.error || 'The push service could not provide its public key. Check the server-side VAPID configuration.');
+    const publicKey = keyResult.publicKey;
+    if (!publicKey) throw new Error('The push service is missing its VAPID public key. Ask the administrator to configure server-side push secrets.');
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeKey(publicKey) });
     const response = await fetch(`${apiBase}/api/push/subscribe`, {
@@ -47,6 +57,11 @@ async function subscribeToPush() {
     if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.error || 'Could not save this device for alerts.'); }
     button.hidden = true; toast('Attendance notifications enabled.');
   } catch (err) { toast(err.message || 'Could not enable notifications.', 'error'); }
+  finally {
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    if (!button.hidden) button.textContent = originalText;
+  }
 }
 
 function decodeKey(value) {

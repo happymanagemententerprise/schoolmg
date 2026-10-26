@@ -11,7 +11,7 @@ import {
 } from '../utils.js';
 import { openModal, closeModal } from '../modals.js';
 import { openStudentReport } from './reports.js';
-import { renderTimetableFor, renderParentGuardian, recordParentLoginIfNew, renderPassport, resultsLockedNote, termNameOf, renderStudentGrowth, dayChipsHTML, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
+import { renderTimetableFor, renderPassport, resultsLockedNote, termNameOf, renderStudentGrowth, dayChipsHTML, attendanceGridHTML, monthlyAttendanceHTML, assignmentRowsHTML } from './shared.js';
 import { mount as _reactMount } from '../react/mount.js';
 import QuizTaker from '../react/components/QuizTaker.jsx';
 import StudentResults from '../react/components/StudentResults.jsx';
