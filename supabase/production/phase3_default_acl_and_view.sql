@@ -1,5 +1,5 @@
 -- PRODUCTION ROLLOUT DRAFT — REVIEW BEFORE EXECUTION.
--- Target: happyman-academy (erlhyrswcqpqpqzbgmgb)
+-- Target: happyman-academy
 -- The class_subjects view statements below were applied on 2026-10-24.
 -- The ALTER DEFAULT PRIVILEGES statements remain unapplied.
 --

@@ -1,5 +1,5 @@
 -- PRODUCTION ROLLOUT DRAFT — REVIEW BEFORE EXECUTION.
--- Target: happyman-academy (erlhyrswcqpqpqzbgmgb)
+-- Target: happyman-academy
 -- STALE / DO NOT RUN AS WRITTEN (rechecked 2026-10-24): production already has
 -- one organization, one school, 34 school memberships, one organization
 -- membership, and school_id on all 50 application data tables. The empty-table

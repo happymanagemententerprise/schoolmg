@@ -1,5 +1,5 @@
 -- PRODUCTION ROLLOUT DRAFT — REVIEW BEFORE EXECUTION.
--- Target: happyman-academy (erlhyrswcqpqpqzbgmgb)
+-- Target: happyman-academy
 -- No SQL in this file has been applied to production or staging.
 --
 -- This reconciles grants for the checked-in Node API in server/index.js.

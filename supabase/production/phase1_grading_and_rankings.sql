@@ -1,5 +1,5 @@
 -- PRODUCTION ROLLOUT DRAFT — REVIEW BEFORE EXECUTION.
--- Target: happyman-academy (erlhyrswcqpqpqzbgmgb)
+-- Target: happyman-academy
 -- This is deliberately outside supabase/migrations because production's
 -- migration history does not match the local migration history.
 -- No SQL in this file has been applied to production.
