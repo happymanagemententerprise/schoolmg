@@ -9,10 +9,10 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const _sb = createClient(
-  import.meta.env.VITE_SUPABASE_URL || 'https://erlhyrswcqpqpqzbgmgb.supabase.co',
-  import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVybGh5cnN3Y3FwcXBxemJnbWdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzczNzQsImV4cCI6MjEwNjAxMzM3NH0.64Swd6hsUE0h3jzpmJFbq1z4aTTey4YoTxuxlJV0pUc'
-);
+const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || 'https://erlhyrswcqpqpqzbgmgb.supabase.co';
+const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVybGh5cnN3Y3FwcXBxemJnbWdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzczNzQsImV4cCI6MjEwNjAxMzM3NH0.64Swd6hsUE0h3jzpmJFbq1z4aTTey4YoTxuxlJV0pUc';
+
+const _sb = createClient(supabaseUrl, supabaseAnonKey);
 
 // ── LRU cache ────────────────────────────────────────────────
 // Map preserves insertion order.  Oldest entry = first key.

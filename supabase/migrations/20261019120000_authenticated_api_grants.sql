@@ -6,7 +6,7 @@
 
 GRANT USAGE ON SCHEMA public TO authenticated;
 
-DO $migration$
+DO $$
 DECLARE
   v_table record;
   v_privileges text;
@@ -57,7 +57,7 @@ BEGIN
                    v_sequence.sequence_schema, v_sequence.sequence_name);
   END LOOP;
 END;
-$migration$;
+$$;
 
 -- This table intentionally exposes question content through a security
 -- definer RPC so students cannot fetch correct answers from the base table.

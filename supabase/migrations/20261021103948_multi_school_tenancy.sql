@@ -68,7 +68,7 @@ LIMIT 1;
 -- Add the school key to every existing application table and associate all
 -- existing records with the current school. Nullable remains intentional in
 -- this foundation migration so existing app writes continue during rollout.
-DO $migration$
+DO $$
 DECLARE
   v_table record;
   v_school_id uuid;
@@ -103,7 +103,7 @@ BEGIN
     );
   END LOOP;
 END;
-$migration$;
+$$;
 
 -- Existing accounts retain their current app role inside the bootstrapped school.
 INSERT INTO public.school_memberships (school_id, user_id, role)
