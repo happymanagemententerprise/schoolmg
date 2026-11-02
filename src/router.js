@@ -250,9 +250,15 @@ function wireNotifications() {
     }
     return notices.sort((a, b) => a.id.localeCompare(b.id));
   };
-  const refresh = () => {
+  const refresh = async () => {
     const user = getCurrentUser();
-    const notices = noticesFor(user);
+    let notices = noticesFor(user);
+    // DB-backed in-app notifications (birthday digest, etc.) for this user or
+    // school-wide. Best-effort; read state is tracked via the same read set.
+    try {
+      const db = await (Data.unreadSchoolNotifications?.(user.id) || Promise.resolve([]));
+      if (db.length) notices = [...db, ...notices];
+    } catch { /* in-app notifications are best-effort */ }
     const read = getRead(user);
     const unread = notices.filter(notice => !read.has(notice.id));
     const count = $('notification-count');

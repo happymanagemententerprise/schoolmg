@@ -2839,6 +2839,21 @@ const Data = {
     if (error) throw new Error(error.message);
     return true;
   },
+  // ── In-app notifications (birthday digest, etc.) ────────────
+  async unreadSchoolNotifications(userId) {
+    if (!userId) return [];
+    const { data, error } = await _sb.from('school_notifications')
+      .select('id,kind,title,body,created_at')
+      .or(`user_id.eq.${Number(userId)},user_id.is.null`)
+      .is('read_at', null)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (error) return [];
+    return (data || []).map(n => ({
+      id: 'sn:' + n.id, title: n.title || 'Notification',
+      detail: n.body || '', page: ''
+    }));
+  },
   transfers()         { return _cache.transfers || []; },
   scoreUploads()      { return _cache.scoreUploads || []; },
   weeklyTopics()      { return _cache.weeklyTopics || []; },

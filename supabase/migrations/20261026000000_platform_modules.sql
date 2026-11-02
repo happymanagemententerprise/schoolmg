@@ -359,14 +359,8 @@ CREATE POLICY notifications_write_admin   ON public.school_notifications  FOR IN
 -- everyone can read (logos must be public for favicon/CSS injection).
 DROP POLICY IF EXISTS tenant_assets_write_own ON storage.objects;
 CREATE POLICY tenant_assets_write_own ON storage.objects FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'tenant-assets' AND
-    (storage.foldername(name))[1] = (SELECT string_agg(c, '') FROM (
-      SELECT chr(CASE WHEN c ~ '[0-9a-f]' THEN ascii(c) ELSE ascii(lower(c)) END)
-      FROM unnest(string_to_array(uuid_to_string(
-        (SELECT s.id FROM public.schools s WHERE private.has_school_access(s.id) LIMIT 1)
-      ), '-')) WITH ORDINALITY AS arr(c, ord)
-      WHERE ord = 1
-    ) t));
+  WITH CHECK (bucket_id = 'tenant-assets'
+    AND (storage.foldername(name))[1] = (SELECT s.id::text FROM public.schools s WHERE private.has_school_access(s.id) LIMIT 1));
 
 DROP POLICY IF EXISTS tenant_assets_read ON storage.objects;
 CREATE POLICY tenant_assets_read ON storage.objects FOR SELECT TO authenticated
@@ -396,11 +390,11 @@ AS $function$
       FROM public.school_subscriptions AS ss
       JOIN public.subscription_plans AS p ON p.code = ss.plan_code
       WHERE ss.school_id = p_school_id AND ss.status = 'active'
-        AND p.features ? p_feature
+        AND p.features @> jsonb_build_array(p_feature)
     )
     OR EXISTS (
       SELECT 1 FROM public.schools AS s
-      WHERE s.id = p_school_id AND s.enabled_features ? p_feature
+      WHERE s.id = p_school_id AND s.enabled_features @> jsonb_build_array(p_feature)
     );
 $function$;
 REVOKE ALL ON FUNCTION private.school_has_feature(uuid, text) FROM PUBLIC, anon;

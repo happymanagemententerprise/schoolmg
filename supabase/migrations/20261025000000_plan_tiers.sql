@@ -85,7 +85,7 @@ AS $function$
       JOIN public.subscription_plans AS p ON p.code = ss.plan_code
       WHERE ss.school_id = p_school_id
         AND ss.status = 'active'
-        AND p.features ? p_feature
+        AND p.features @> jsonb_build_array(p_feature)
     );
 $function$;
 REVOKE ALL ON FUNCTION private.school_has_feature(uuid, text)
