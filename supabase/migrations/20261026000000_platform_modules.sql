@@ -47,7 +47,7 @@ ALTER TABLE public.users ADD CONSTRAINT users_role_check
 
 ALTER TABLE public.school_memberships DROP CONSTRAINT IF EXISTS school_memberships_role_check;
 ALTER TABLE public.school_memberships ADD CONSTRAINT school_memberships_role_check
-  CHECK (role IN ('admin','teacher','student','parent','security_guard','hostel_staff','bursar','librarian'));
+  CHECK (role IN ('admin','teacher','student','parent','security_guard','hostel_staff','bursar','librarian','school_admin'));
 
 -- ── 4. Approval workflow: extend action_type + execute RPC ──
 -- Add the Vice-Principal → Principal high-impact actions to the existing
@@ -321,6 +321,19 @@ ALTER TABLE public.user_device_tokens    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.school_notifications  ENABLE ROW LEVEL SECURITY;
 
 -- Tenant-bound tables: bound by school membership (has_school_access).
+-- DROP IF EXISTS so this migration is re-runnable and coexists with 20261027000000.
+DROP POLICY IF EXISTS grading_structures_read  ON public.grading_structures;
+DROP POLICY IF EXISTS grading_structures_write ON public.grading_structures;
+DROP POLICY IF EXISTS fee_structures_read      ON public.fee_structures;
+DROP POLICY IF EXISTS fee_structures_write     ON public.fee_structures;
+DROP POLICY IF EXISTS student_fees_read        ON public.student_fees;
+DROP POLICY IF EXISTS student_fees_write       ON public.student_fees;
+DROP POLICY IF EXISTS payment_transactions_read ON public.payment_transactions;
+DROP POLICY IF EXISTS payment_transactions_write ON public.payment_transactions;
+DROP POLICY IF EXISTS device_tokens_self      ON public.user_device_tokens;
+DROP POLICY IF EXISTS notifications_read       ON public.school_notifications;
+DROP POLICY IF EXISTS notifications_write_admin ON public.school_notifications;
+
 CREATE POLICY grading_structures_read   ON public.grading_structures  FOR SELECT TO authenticated USING (private.has_school_access(school_id));
 CREATE POLICY grading_structures_write  ON public.grading_structures  FOR ALL    TO authenticated USING (public.is_admin_user()) WITH CHECK (public.is_admin_user());
 CREATE POLICY fee_structures_read        ON public.fee_structures       FOR SELECT TO authenticated USING (private.has_school_access(school_id));
