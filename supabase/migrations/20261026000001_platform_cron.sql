@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS public.push_outbox (
 );
 CREATE INDEX IF NOT EXISTS push_outbox_pending_idx ON public.push_outbox (status, created_at);
 ALTER TABLE public.push_outbox ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS push_outbox_admin ON public.push_outbox;
 CREATE POLICY push_outbox_admin ON public.push_outbox FOR SELECT TO authenticated
   USING (public.is_admin_user());
 
