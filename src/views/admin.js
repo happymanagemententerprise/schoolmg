@@ -19,12 +19,27 @@ import {
 } from '../utils.js';
 import { openModal, closeModal } from '../modals.js';
 import { openDrawer, closeMenus } from '../router.js';
-import { isTeacher, isAdmin, isStudent, isParent, isHOD, myClassRecord } from '../auth.js';
+import { isTeacher, isAdmin, isVicePrincipal, isStudent, isParent, isHOD, myClassRecord } from '../auth.js';
 import { openStudentReport } from './reports.js';
 import { timetableTable, askSensitiveConfirm, openResetPasswordModal, openClassReportModal,
          renderEventsList, termNameOf, resultsLockedNote, xpBar,
          renderStudentGrowth, renderPassport } from './shared.js';
 // openMentorModal is loaded dynamically to break the admin ↔ teacher circular import
+
+// VP high-impact actions (open exam portal, change term, publish results) are
+// routed to the Principal for approval instead of executing directly.
+// Returns true when the action was intercepted (VP) so the caller can return.
+async function vpGate(actionType, payload = {}) {
+  const user = getCurrentUser();
+  if (!isVicePrincipal(user)) return false;
+  try {
+    await Data.requestPrincipalApproval(actionType, payload, user.id);
+    toast('Sent to the Principal for approval.');
+  } catch (e) {
+    toast(e.message || 'Could not request approval.', 'error');
+  }
+  return true;
+}
 
 // ── Admin overview ────────────────────────────────────────────
 export function renderAdminOverview() {
@@ -1329,16 +1344,19 @@ export function renderAdminSetup() {
     Data.saveSession(s);
     updateUploadLabels(s);
   };
-  $('toggle-exam-upload').onclick = () => {
+  $('toggle-exam-upload').onclick = async () => {
     const s = Data.session();
+    if (!s.uploadOpen.exam && await vpGate('open_exam_portal', { session_id: s._id })) return;
     s.uploadOpen.exam = !s.uploadOpen.exam;
     Data.saveSession(s);
     updateUploadLabels(s);
   };
-  $('save-session-btn').onclick = () => {
+  $('save-session-btn').onclick = async () => {
     const s = Data.session();
+    const newTerm = +$('setup-term').value;
+    if (newTerm !== s.currentTerm && await vpGate('change_term', { term_id: s.terms[newTerm - 1]?._id ?? null, term: newTerm })) return;
     s.name = $('setup-session-name').value.trim() || s.name;
-    s.currentTerm = +$('setup-term').value;
+    s.currentTerm = newTerm;
     s.midtermBreak = {
       start: $('setup-break-start').value || s.midtermBreak?.start || null,
       end:   $('setup-break-end').value   || s.midtermBreak?.end   || null
@@ -1736,6 +1754,7 @@ export function renderProgressionPublish() {
   $all('#pr-publish-form [data-publish]').forEach(btn => btn.addEventListener('click', async () => {
     const term = +btn.dataset.publish;
     const on = !('unpublish' in btn.dataset);
+    if (on && await vpGate('publish_results', { term_id: Data.session().terms[term - 1]?._id ?? null, term })) return;
     await Progression.setTermPublished(term, on, currentUser.id);
     renderProgressionPublish();
     toast(on ? `Term ${term} results published.` : `Term ${term} results taken offline.`);

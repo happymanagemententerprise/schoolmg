@@ -12,6 +12,7 @@ export function isTeacher(user) {
   return !!user && ['Subject Teacher', 'Class Teacher', 'HOD'].includes(user.role);
 }
 export function isAdmin(user)   { return user?.role === 'Administrator'; }
+export function isVicePrincipal(user) { return user?.role === 'Administrator' && user.adminTier === 'vice_principal'; }
 export function isStudent(user) { return user?.role === 'Student'; }
 export function isParent(user)  { return user?.role === 'Parent'; }
 export function isHOD(user)     { return user?.role === 'HOD'; }
