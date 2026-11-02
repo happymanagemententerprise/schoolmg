@@ -280,6 +280,7 @@ export function login(user) {
   import('./pwa.js').then(({ showPWAActions }) => showPWAActions());
   $('login-screen').hidden = true;
   $('app-shell').hidden    = false;
+  applyTenantBranding();
   buildNav(user);
   updateSidebarUser(user);
   routeToDefaultView(user);
@@ -422,4 +423,43 @@ export function routeToDefaultView(user) {
       renderView(first.page);
     });
   }
+}
+
+// ── Multi-tenant branding ────────────────────────────────────
+// Inject the active school's logo + colors at runtime: favicon, CSS
+// variables (--primary-color, --tenant-logo-url, --tenant-color-N), and a
+// faded logo watermark shown only in print (report cards / fee receipts).
+// Pre-login, subdomain-based branding needs server/DNS resolution + a public
+// tenant-lookup endpoint (not in this repo); for now branding applies after
+// the active school is known.
+export function applyTenantBranding() {
+  const school = Data.activeSchool();
+  if (!school) return;
+  const root = document.documentElement;
+  if (school.primaryColor) root.style.setProperty('--primary-color', school.primaryColor);
+  if (school.logoUrl) root.style.setProperty('--tenant-logo-url', `url("${school.logoUrl}")`);
+  (school.additionalColors || []).forEach((c, i) =>
+    root.style.setProperty(`--tenant-color-${i + 2}`, c));
+
+  if (school.logoUrl) {
+    let icon = document.querySelector('link[rel="icon"]');
+    if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; document.head.appendChild(icon); }
+    icon.href = school.logoUrl;
+  }
+
+  ensureWatermarkStyle();
+  let wm = document.getElementById('tenant-watermark');
+  if (!wm) { wm = document.createElement('div'); wm.id = 'tenant-watermark'; wm.className = 'tenant-watermark'; document.body.appendChild(wm); }
+  wm.style.backgroundImage = school.logoUrl ? `url("${school.logoUrl}")` : '';
+}
+
+function ensureWatermarkStyle() {
+  if (document.getElementById('tenant-watermark-style')) return;
+  const style = document.createElement('style');
+  style.id = 'tenant-watermark-style';
+  style.textContent = `
+    .tenant-watermark{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0;background-repeat:repeat;background-size:220px;}
+    @media print{.tenant-watermark{opacity:0.12;}}
+  `;
+  document.head.appendChild(style);
 }

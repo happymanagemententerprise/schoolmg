@@ -42,7 +42,9 @@ const SCHOOL_SCOPED_TABLES = new Set([
   'push_subscriptions', 'remarks', 'rooms', 'score_uploads', 'sessions', 'student_transfers',
   'students', 'subject_selection_rules', 'subject_selections', 'subjects', 'teacher_classes',
   'teacher_recognitions', 'teacher_subjects', 'terms', 'time_slots', 'timetable_settings',
-  'timetable_swaps', 'timetables', 'users', 'weekly_topics'
+  'timetable_swaps', 'timetables', 'users', 'weekly_topics',
+  'grading_structures', 'fee_structures', 'student_fees', 'payment_transactions',
+  'user_device_tokens', 'school_notifications', 'push_outbox'
 ]);
 function demoQuery() {
   const result = { data: null, error: null };
@@ -859,6 +861,8 @@ async function loadFromSupabase() {
   _cache.schools = accessibleSchools.map(s => ({
     id: String(s.id), name: s.name, status: s.status,
     planCode: s.plan_code || null, planName: s.plan_name || null,
+    logoUrl: s.logo_url || null, primaryColor: s.primary_color || null,
+    additionalColors: Array.isArray(s.additional_colors) ? s.additional_colors : [],
     features: Array.isArray(s.features) ? s.features : null
   }));
   const savedSchoolId = localStorage.getItem(ACTIVE_SCHOOL_KEY);
