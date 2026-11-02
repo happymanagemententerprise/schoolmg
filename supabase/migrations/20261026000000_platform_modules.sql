@@ -228,10 +228,10 @@ CREATE INDEX IF NOT EXISTS payment_transactions_school_idx ON public.payment_tra
 CREATE OR REPLACE FUNCTION public.record_fee_payment(
   p_school_id  uuid,
   p_student_id bigint,
-  p_parent_id  bigint DEFAULT NULL,
   p_amount     numeric,
   p_gateway    text,
   p_reference  text,
+  p_parent_id  bigint DEFAULT NULL,
   p_status     text DEFAULT 'successful',
   p_fee_id     bigint DEFAULT NULL
 )
@@ -276,9 +276,9 @@ BEGIN
   RETURN v_row;
 END;
 $function$;
-REVOKE ALL ON FUNCTION public.record_fee_payment(uuid, bigint, bigint, numeric, text, text, text, bigint)
+REVOKE ALL ON FUNCTION public.record_fee_payment(uuid, bigint, numeric, text, text, bigint, text, bigint)
   FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.record_fee_payment(uuid, bigint, bigint, numeric, text, text, text, bigint)
+GRANT EXECUTE ON FUNCTION public.record_fee_payment(uuid, bigint, numeric, text, text, bigint, text, bigint)
   TO authenticated;
 
 -- ── 7. Mobile push device tokens (FCM / APNs) ────────────────
