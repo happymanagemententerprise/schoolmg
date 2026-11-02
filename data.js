@@ -2772,6 +2772,73 @@ const Data = {
     if (error) throw new Error(error.message);
     return data;
   },
+  // ── Fees + payments (parent portal) ─────────────────────────
+  async childFees(studentId) {
+    const sid = Number(studentId);
+    const [feesRes, plansRes] = await Promise.all([
+      _sb.from('student_fees').select('id,fee_structure_id,term_id,amount_due,amount_paid,status,created_at')
+        .eq('student_id', sid).order('created_at'),
+      _sb.from('fee_structures').select('id,label,level,is_termly,amount')
+    ]);
+    if (feesRes.error) throw new Error(feesRes.error.message);
+    const planById = new Map((plansRes.data || []).map(p => [String(p.id), p]));
+    return (feesRes.data || []).map(f => {
+      const due = Number(f.amount_due) || 0, paid = Number(f.amount_paid) || 0;
+      const plan = planById.get(String(f.fee_structure_id));
+      return {
+        id: String(f.id), termId: f.term_id ? String(f.term_id) : null,
+        label: plan?.label || 'Fee', level: plan?.level || null,
+        amountDue: due, amountPaid: paid,
+        outstanding: Math.max(0, due - paid), status: f.status
+      };
+    });
+  },
+  async childPayments(studentId) {
+    const { data, error } = await _sb.from('payment_transactions')
+      .select('id,amount,gateway,reference,status,created_at')
+      .eq('student_id', Number(studentId)).order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(p => ({
+      id: String(p.id), amount: Number(p.amount) || 0, gateway: p.gateway,
+      reference: p.reference, status: p.status, date: (p.created_at || '').slice(0, 10)
+    }));
+  },
+  async feesCheckout({ studentId, feeId = null, gateway = 'paystack', amount = null, callbackUrl = null } = {}) {
+    const { data, error } = await _sb.functions.invoke('payment-checkout', {
+      body: {
+        student_id: Number(studentId),
+        fee_id: feeId ? Number(feeId) : null,
+        gateway,
+        amount: amount == null ? null : Number(amount),
+        callback_url: callbackUrl || (typeof location !== 'undefined' ? location.href : '')
+      }
+    });
+    if (error) throw new Error(error.message || 'Could not start payment.');
+    return data;
+  },
+  // ── Mobile push device tokens ────────────────────────────────
+  async deviceTokens(userId) {
+    const { data, error } = await _sb.from('user_device_tokens')
+      .select('id,device_token,platform,is_active,created_at,updated_at')
+      .eq('user_id', Number(userId)).order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data || []).map(d => ({
+      id: String(d.id), deviceToken: d.device_token, platform: d.platform,
+      isActive: !!d.is_active, createdAt: (d.created_at || '').slice(0, 10)
+    }));
+  },
+  async registerDeviceToken(userId, token, platform) {
+    const { data, error } = await _sb.from('user_device_tokens').upsert({
+      user_id: Number(userId), device_token: String(token), platform, is_active: true
+    }, { onConflict: 'user_id,device_token' }).select('id').single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+  async removeDeviceToken(id) {
+    const { error } = await _sb.from('user_device_tokens').delete().eq('id', Number(id));
+    if (error) throw new Error(error.message);
+    return true;
+  },
   transfers()         { return _cache.transfers || []; },
   scoreUploads()      { return _cache.scoreUploads || []; },
   weeklyTopics()      { return _cache.weeklyTopics || []; },

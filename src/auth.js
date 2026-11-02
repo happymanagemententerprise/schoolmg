@@ -60,7 +60,8 @@ export const STATIC_NAV = {
     { page: 'view-parent-dashboard',   label: 'Dashboard',  icon: 'D' },
     { page: 'view-parent-attendance',  label: 'Attendance', icon: 'A' },
     { page: 'view-parent-assignments', label: 'Assignments', icon: '✎' },
-    { page: 'view-parent-timetable',   label: 'Timetable',  icon: 'T' }
+    { page: 'view-parent-timetable',   label: 'Timetable',  icon: 'T' },
+    { page: 'view-parent-fees',        label: 'Fees',       icon: '₦' }
   ]
 };
 
@@ -89,6 +90,7 @@ export function buildTeacherCapabilities(user) {
       '. Classes with teachers:', JSON.stringify(teacherClasses));
   }
   if (isHOD(user)) nav.push({ page: 'view-hod-dashboard', label: 'Department', icon: 'D' });
+  nav.push({ page: 'view-teacher-devices', label: 'Push devices', icon: '◆' });
   return nav;
 }
 
@@ -340,6 +342,8 @@ export function buildNav(user) {
     Recognition: '<path d="m12 3 2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.7-5 2.7.9-5.6-4-3.9 5.6-.8z"/>',
     Grading: '<path d="M4 19h16M7 16V9m5 7V5m5 11v-5"/>',
     Approvals: '<path d="M5 12l4 4L19 7"/>',
+    Fees: '<path d="M5 4v16M5 4h11M5 8h9M5 12h9M5 16h9M9 20l4-4"/>',
+    'Push devices': '<path d="M7 3h10v18H7zM11 18h2M9 6h6"/>',
     'Gate register': '<path d="M4 21V5l8-3 8 3v16M4 11h16M9 11v10M15 11v10M9 7h.01M15 7h.01"/>',
     'Hostel register': '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-7h6v7M8 10h.01M12 10h.01M16 10h.01"/>'
   };
@@ -379,7 +383,8 @@ function navGroupsForUser(user, items) {
     Teacher: [
       ['Today', ['view-subject-dashboard']],
       ['Teaching', ['view-subject-scores', 'view-teacher-lessons', 'view-teacher-quizzes', 'view-teacher-discussions']],
-      ['Classroom', ['view-class-overview', 'view-class-report', 'view-class-attendance', 'view-class-feedback', 'view-admin-timetable', 'view-hod-dashboard']]
+      ['Classroom', ['view-class-overview', 'view-class-report', 'view-class-attendance', 'view-class-feedback', 'view-admin-timetable', 'view-hod-dashboard']],
+      ['Settings', ['view-teacher-devices']]
     ],
     Student: [
       ['Today', ['view-student-dashboard']],
@@ -387,7 +392,7 @@ function navGroupsForUser(user, items) {
       ['Learning', ['view-student-lessons', 'view-student-quizzes', 'view-student-discussions', 'view-student-assignments']]
     ],
     Parent: [
-      ['Family', ['view-parent-dashboard', 'view-parent-attendance', 'view-parent-assignments', 'view-parent-timetable']]
+      ['Family', ['view-parent-dashboard', 'view-parent-attendance', 'view-parent-assignments', 'view-parent-timetable', 'view-parent-fees']]
     ]
   };
   const role = user?.role === 'Administrator' ? 'Administrator'
