@@ -42,6 +42,7 @@ export const STATIC_NAV = {
     { page: 'view-admin-analytics',  label: 'Analytics',  icon: 'A' },
     { page: 'view-admin-leaderboard', label: 'Leaderboard', icon: '🏆' },
     { page: 'view-admin-recognition', label: 'Recognition', icon: '★' },
+    { page: 'view-admin-grading',    label: 'Grading',    icon: 'G' },
     { page: 'view-admin-setup',      label: 'Setup',      icon: '◎' }
   ],
   'Student': [
@@ -110,7 +111,11 @@ export function navForUser(user) {
     }
     return nav;
   }
-  return STATIC_NAV[user.role] || [];
+  const base = STATIC_NAV[user.role] || [];
+  if (user?.role === 'Administrator' && user.adminTier === 'principal') {
+    return [...base, { page: 'view-admin-approvals', label: 'Approvals', icon: '✓' }];
+  }
+  return base;
 }
 
 // ── Tier gating ──────────────────────────────────────────────
@@ -333,6 +338,8 @@ export function buildNav(user) {
     Discussions: '<path d="M4 5h16v12H9l-5 4zM8 9h8M8 13h5"/>',
     Leaderboard: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM12 13v5M8 21h8M8 17h8M8 6H4v2a4 4 0 0 0 4 4M16 6h4v2a4 4 0 0 1-4 4"/>',
     Recognition: '<path d="m12 3 2.5 5.1 5.6.8-4 3.9.9 5.6-5-2.7-5 2.7.9-5.6-4-3.9 5.6-.8z"/>',
+    Grading: '<path d="M4 19h16M7 16V9m5 7V5m5 11v-5"/>',
+    Approvals: '<path d="M5 12l4 4L19 7"/>',
     'Gate register': '<path d="M4 21V5l8-3 8 3v16M4 11h16M9 11v10M15 11v10M9 7h.01M15 7h.01"/>',
     'Hostel register': '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-7h6v7M8 10h.01M12 10h.01M16 10h.01"/>'
   };
@@ -365,9 +372,9 @@ function navGroupsForUser(user, items) {
     Administrator: [
       ['Today', ['view-admin-overview']],
       ['People', ['view-admin-people', 'view-campus', 'view-admin-recognition']],
-      ['Academics', ['view-admin-classes', 'view-admin-subjects', 'view-admin-progression']],
+      ['Academics', ['view-admin-classes', 'view-admin-subjects', 'view-admin-progression', 'view-admin-grading']],
       ['Planning', ['view-admin-timetable', 'view-admin-analytics', 'view-admin-leaderboard']],
-      ['Settings', ['view-admin-setup']]
+      ['Settings', ['view-admin-setup', 'view-admin-approvals']]
     ],
     Teacher: [
       ['Today', ['view-subject-dashboard']],

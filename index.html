@@ -1244,6 +1244,54 @@
       <div id="par-tt-grid" class="mt16"></div>
     </div>
 
+    <!-- Admin: Grading configuration -->
+    <div class="page-wrap" id="view-admin-grading" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Assessment</p><h1>Grading</h1><p class="subcopy">Configure assessment components and maximum scores per school level. The final score is computed from the active configuration.</p></div>
+        <div class="form-row tight">
+          <select id="gs-level" class="select-inline" aria-label="School level">
+            <option value="JSS">Junior Secondary (JSS)</option>
+            <option value="SSS">Senior Secondary (SSS)</option>
+          </select>
+          <span class="read-only-badge" id="gs-total">&mdash;</span>
+        </div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Components</p><h2>Assessment components</h2></div>
+          <button class="text-button" id="gs-add" type="button">+ Add component</button></div>
+        <p class="role-muted" id="gs-rule">&mdash;</p>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Label</th><th>Key</th><th>Max score</th><th></th></tr></thead>
+            <tbody id="gs-components"></tbody>
+          </table>
+        </div>
+        <div class="form-row mt16">
+          <button class="btn-primary" id="gs-save" type="button">Save configuration</button>
+          <span class="form-feedback" id="gs-feedback" hidden></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin: Principal approval queue -->
+    <div class="page-wrap" id="view-admin-approvals" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Authorization</p><h1>Approvals</h1><p class="subcopy">Vice-Principal actions awaiting your sign-off. Approving executes the action automatically.</p></div>
+        <span class="read-only-badge" id="pa-count">&mdash;</span>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Pending</p><h2>Request queue</h2></div>
+          <button class="text-button" id="pa-refresh" type="button">Refresh</button></div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Action</th><th>Requested by</th><th>Detail</th><th>Requested</th><th></th></tr></thead>
+            <tbody id="pa-table"></tbody>
+          </table>
+        </div>
+        <div class="form-feedback" id="pa-feedback" hidden></div>
+      </div>
+    </div>
+
   </main><!-- /main-content -->
 </div><!-- /app-shell -->
 

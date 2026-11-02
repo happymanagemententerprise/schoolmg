@@ -34,6 +34,8 @@ import {
 } from './views/parent.js';
 import { renderCampus } from './views/campus.js';
 import { renderPlatformSchools, renderPlatformOnboarding } from './views/platform.js';
+import { renderAdminGrading } from './views/grading.js';
+import { renderAdminApprovals } from './views/approvals.js';
 
 // ── View helpers ─────────────────────────────────────────────
 export function showView(pageId) {
@@ -92,6 +94,8 @@ export function renderView(pageId) {
     'view-admin-leaderboard': renderAdminLeaderboard,
     'view-admin-recognition': renderAdminRecognition,
     'view-admin-setup':       renderAdminSetup,
+    'view-admin-grading':      renderAdminGrading,
+    'view-admin-approvals':    renderAdminApprovals,
     'view-subject-dashboard': renderSubjectDashboard,
     'view-subject-scores':    renderSubjectScores,
     'view-class-overview':    renderClassOverview,

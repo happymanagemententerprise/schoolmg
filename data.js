@@ -2727,6 +2727,51 @@ const Data = {
   subjectSelections() { return _cache.subjectSelections || {}; },
   selectionRules()    { return _cache.selectionRules; },
   approvalRequests()  { return _cache.approvalRequests || []; },
+  // ── Grading structures + calculation engine ────────────────
+  async gradingStructures() {
+    const { data, error } = await _sb.from('grading_structures')
+      .select('id,school_level,components,is_active').order('school_level');
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+  async saveGradingStructure(schoolLevel, components) {
+    const school = this.activeSchool();
+    if (!school) throw new Error('Select an active school first.');
+    const { data, error } = await _sb.from('grading_structures')
+      .upsert({ school_id: school.id, school_level: schoolLevel, components, is_active: true },
+              { onConflict: 'school_id,school_level' })
+      .select('id,school_level,components,is_active').single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+  async computeFinalScore(componentsMax, scores) {
+    const { data, error } = await _sb.rpc('grading_compute',
+      { p_components_max: componentsMax, p_scores: scores });
+    if (error) throw new Error(error.message);
+    return Number(data) || 0;
+  },
+  // ── Principal approval workflow ────────────────────────────
+  async pendingApprovals() {
+    const { data, error } = await _sb.from('approval_requests')
+      .select('id,action_type,entity_type,entity_id,payload,status,requested_by,created_at')
+      .eq('status', 'pending').order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+  async decideApproval(requestId, approve, note) {
+    const { data, error } = await _sb.rpc('principal_decide_request',
+      { p_request_id: Number(requestId), p_approve: !!approve, p_note: note || null });
+    if (error) throw new Error(error.message);
+    return data;
+  },
+  async requestPrincipalApproval(actionType, payload = {}, requestedBy = null) {
+    const { data, error } = await _sb.from('approval_requests').insert({
+      action_type: actionType, entity_type: 'term', payload,
+      status: 'pending', requested_by: requestedBy
+    }).select('id').single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
   transfers()         { return _cache.transfers || []; },
   scoreUploads()      { return _cache.scoreUploads || []; },
   weeklyTopics()      { return _cache.weeklyTopics || []; },
