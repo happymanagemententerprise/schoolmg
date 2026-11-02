@@ -23,7 +23,7 @@ BEGIN
 
   PERFORM cron.schedule('hma-email-digest', '5 6 * * *', $job$
     SELECT net.http_post(
-      url := '<YOUR_FUNCTIONS_BASE_URL>/email-digest',
+      url := 'https://erlhyrswcqpqpqzbgmgb.functions.supabase.co/email-digest',
       headers := '{"Authorization":"Bearer <YOUR_EMAIL_DISPATCH_SECRET>","Content-Type":"application/json"}'::jsonb,
       body := '{}'::jsonb
     );
@@ -31,7 +31,7 @@ BEGIN
 
   PERFORM cron.schedule('hma-push-dispatch', '* * * * *', $job$
     SELECT net.http_post(
-      url := '<YOUR_FUNCTIONS_BASE_URL>/push-dispatch',
+      url := 'https://erlhyrswcqpqpqzbgmgb.functions.supabase.co/push-dispatch',
       headers := '{"Authorization":"Bearer <YOUR_PUSH_DISPATCH_SECRET>","Content-Type":"application/json"}'::jsonb,
       body := '{}'::jsonb
     );
