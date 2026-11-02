@@ -44,17 +44,34 @@ async function subscribeToPush() {
     if (permission !== 'granted') throw new Error('Allow notifications in your browser settings to enable attendance reminders.');
     const token = await Data.getAccessToken();
     if (!token) throw new Error('Sign in with your school account again, then enable alerts.');
-    const keyResponse = await fetch(`${apiBase}/api/push/vapid-public-key`, { headers: { Authorization: `Bearer ${token}` } });
-    const keyResult = await keyResponse.json().catch(() => ({}));
-    if (!keyResponse.ok) throw new Error(keyResult.error || 'The push service could not provide its public key. Check the server-side VAPID configuration.');
-    const publicKey = keyResult.publicKey;
-    if (!publicKey) throw new Error('The push service is missing its VAPID public key. Ask the administrator to configure server-side push secrets.');
+
+    // VAPID public key — baked in at build time via VITE_VAPID_PUBLIC_KEY in
+    // .env.production. Falls back to fetching from the campus API if not set.
+    let publicKey = String(import.meta.env.VITE_VAPID_PUBLIC_KEY || '').trim();
+    if (!publicKey) {
+      if (!apiBase) throw new Error('Push is not configured. Set VITE_VAPID_PUBLIC_KEY in .env.production and rebuild.');
+      const keyResponse = await fetch(`${apiBase}/api/push/vapid-public-key`, { headers: { Authorization: `Bearer ${token}` } });
+      const keyResult = await keyResponse.json().catch(() => ({}));
+      if (!keyResponse.ok) throw new Error(keyResult.error || 'Could not load the push public key.');
+      publicKey = keyResult.publicKey;
+    }
+    if (!publicKey) throw new Error('VAPID public key is missing. Set VITE_VAPID_PUBLIC_KEY in .env.production and rebuild.');
+
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeKey(publicKey) });
-    const response = await fetch(`${apiBase}/api/push/subscribe`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription })
-    });
-    if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.error || 'Could not save this device for alerts.'); }
+
+    // Save the subscription — try the Supabase push_subscriptions table directly,
+    // fall back to the campus API /api/push/subscribe if the direct write fails.
+    const school = Data.activeSchool();
+    const saved = school
+      ? await Data.savePushSubscription(subscription.toJSON())
+      : null;
+    if (!saved && apiBase) {
+      const response = await fetch(`${apiBase}/api/push/subscribe`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription })
+      });
+      if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.error || 'Could not save this device for alerts.'); }
+    }
     button.hidden = true; toast('Attendance notifications enabled.');
   } catch (err) { toast(err.message || 'Could not enable notifications.', 'error'); }
   finally {

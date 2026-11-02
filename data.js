@@ -2841,6 +2841,15 @@ const Data = {
     if (error) throw new Error(error.message);
     return true;
   },
+  // ── Push subscription (Web Push / VAPID) ────────────────────
+  async savePushSubscription(subscriptionJson) {
+    const { data, error } = await _sb.from('push_subscriptions').upsert({
+      endpoint: subscriptionJson.endpoint,
+      subscription: subscriptionJson
+    }, { onConflict: 'endpoint' }).select('id').maybeSingle();
+    if (error) return null;
+    return data;
+  },
   // ── In-app notifications (birthday digest, etc.) ────────────
   async unreadSchoolNotifications(userId) {
     if (!userId) return [];
