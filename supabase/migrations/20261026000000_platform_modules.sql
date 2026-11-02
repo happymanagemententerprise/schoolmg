@@ -407,7 +407,9 @@ GRANT EXECUTE ON FUNCTION private.school_has_feature(uuid, text) TO authenticate
 -- Redefines the view from 20261025000000 to also expose logo/colors and to
 -- merge subscription_plans.features with schools.enabled_features, so the
 -- app's Data.hasFeature() honors both tier packages and A-la-carte toggles.
-CREATE OR REPLACE VIEW public.school_entitlements
+-- DROP first because CREATE OR REPLACE cannot change column order/names.
+DROP VIEW IF EXISTS public.school_entitlements;
+CREATE VIEW public.school_entitlements
 WITH (security_invoker = true)
 AS
 SELECT s.id AS id,
