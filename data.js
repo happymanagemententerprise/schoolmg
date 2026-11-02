@@ -863,7 +863,7 @@ async function loadFromSupabase() {
     planCode: s.plan_code || null, planName: s.plan_name || null,
     logoUrl: s.logo_url || null, primaryColor: s.primary_color || null,
     additionalColors: Array.isArray(s.additional_colors) ? s.additional_colors : [],
-    features: Array.isArray(s.features) ? s.features : null
+    features: s.features || null
   }));
   const savedSchoolId = localStorage.getItem(ACTIVE_SCHOOL_KEY);
   _activeSchoolId = accessibleSchools.some(school => String(school.id) === String(savedSchoolId)) ? String(savedSchoolId) : String(accessibleSchools[0].id);
@@ -1587,10 +1587,12 @@ const Data = {
   hasFeature(feature) {
     // Platform owners and legacy/no-plan schools (no subscription yet) get
     // full access so the bootstrap school is never locked out. Schools
-    // onboarded through platform_onboard_school carry a plan and are gated.
+    // onboarded through platform_onboard_school carry a plan and are gated
+    // by the merged plan + add-on feature object (key -> true).
     const school = this.activeSchool();
-    if (!school || !school.features) return true;
-    return school.features.includes(feature);
+    if (!school) return true;                  // platform owner / no active school
+    if (!school.planCode) return true;          // legacy / no subscription → full access
+    return school.features?.[feature] === true;
   },
   setActiveSchool(schoolId) {
     const school = _cache.schools.find(item => String(item.id) === String(schoolId));

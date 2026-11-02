@@ -25,11 +25,32 @@
 --  apply and test on the target Supabase project.
 -- ============================================================
 
--- ── 1. Plan catalog shape ───────────────────────────────────
+-- features is a JSON object mapping module key -> true (the catalog enforces
+-- jsonb_typeof(features) = 'object'). School add-ons use the same shape.
 ALTER TABLE public.subscription_plans
-  ADD COLUMN IF NOT EXISTS features jsonb NOT NULL DEFAULT '[]'::jsonb;
+  ADD COLUMN IF NOT EXISTS features jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE public.subscription_plans
   ADD COLUMN IF NOT EXISTS display_order int NOT NULL DEFAULT 0;
+
+-- The catalog's code check may only allow basic/standard/premium; widen it to
+-- accept 'pro' (keep 'standard' so any existing row still passes). The DO
+-- block drops whatever code check already exists by name, then re-adds it.
+DO $$
+DECLARE v_conname text;
+BEGIN
+  SELECT con.conname INTO v_conname
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+    WHERE nsp.nspname = 'public' AND rel.relname = 'subscription_plans'
+      AND con.contype = 'c' AND pg_get_constraintdef(con.oid) ILIKE '%code%';
+  IF v_conname IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE public.subscription_plans DROP CONSTRAINT %I', v_conname);
+  END IF;
+  ALTER TABLE public.subscription_plans
+    ADD CONSTRAINT subscription_plans_code_check CHECK (code IN ('basic','standard','pro','premium'));
+EXCEPTION WHEN OTHERS THEN RAISE NOTICE 'code check: %', SQLERRM;
+END $$;
 
 -- code is the join key used by platform_onboard_school and the dashboard
 -- views; make it unique so the upsert below is safe.
@@ -37,17 +58,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS subscription_plans_code_key
   ON public.subscription_plans (code);
 
 -- ── 2. Seed the three tiers ──────────────────────────────────
--- features is a jsonb array of module keys. Pro inherits Basic, Premium
--- inherits Pro, so each tier lists the full cumulative feature set.
+-- features is a jsonb object { "module": true }. Pro inherits Basic,
+-- Premium inherits Pro, so each tier lists the full cumulative feature set.
 INSERT INTO public.subscription_plans
   (code, name, price_per_student_per_term, currency, is_available, display_order, features)
 VALUES
   ('basic', 'Basic', 2500, 'NGN', true, 1,
-    '["people","classes","subjects","timetable","attendance","grades","report_cards","promotion","student_portal","parent_portal"]'::jsonb),
+    '{"people":true,"classes":true,"subjects":true,"timetable":true,"attendance":true,"grades":true,"report_cards":true,"promotion":true,"student_portal":true,"parent_portal":true}'::jsonb),
   ('pro', 'Pro', 3000, 'NGN', true, 2,
-    '["people","classes","subjects","timetable","attendance","grades","report_cards","promotion","student_portal","parent_portal","assignments","lms","analytics","leaderboards","parent_attendance","push"]'::jsonb),
+    '{"people":true,"classes":true,"subjects":true,"timetable":true,"attendance":true,"grades":true,"report_cards":true,"promotion":true,"student_portal":true,"parent_portal":true,"assignments":true,"lms":true,"analytics":true,"leaderboards":true,"parent_attendance":true,"push":true}'::jsonb),
   ('premium', 'Premium', 5000, 'NGN', true, 3,
-    '["people","classes","subjects","timetable","attendance","grades","report_cards","promotion","student_portal","parent_portal","assignments","lms","analytics","leaderboards","parent_attendance","push","campus_gate","security_guard","pickup_alerts","hostel","priority_support"]'::jsonb)
+    '{"people":true,"classes":true,"subjects":true,"timetable":true,"attendance":true,"grades":true,"report_cards":true,"promotion":true,"student_portal":true,"parent_portal":true,"assignments":true,"lms":true,"analytics":true,"leaderboards":true,"parent_attendance":true,"push":true,"campus_gate":true,"security_guard":true,"pickup_alerts":true,"hostel":true,"priority_support":true}'::jsonb)
 ON CONFLICT (code) DO UPDATE SET
   name = EXCLUDED.name,
   price_per_student_per_term = EXCLUDED.price_per_student_per_term,
@@ -85,7 +106,7 @@ AS $function$
       JOIN public.subscription_plans AS p ON p.code = ss.plan_code
       WHERE ss.school_id = p_school_id
         AND ss.status = 'active'
-        AND p.features @> jsonb_build_array(p_feature)
+        AND (p.features ->> p_feature) = 'true'
     );
 $function$;
 REVOKE ALL ON FUNCTION private.school_has_feature(uuid, text)

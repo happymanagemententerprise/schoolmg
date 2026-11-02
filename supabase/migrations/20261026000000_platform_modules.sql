@@ -36,7 +36,10 @@ ALTER TABLE public.students ADD COLUMN IF NOT EXISTS school_level text
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS logo_url text;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS primary_color text;
 ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS additional_colors jsonb NOT NULL DEFAULT '[]'::jsonb;
-ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS enabled_features jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE public.schools ADD COLUMN IF NOT EXISTS enabled_features jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE public.schools ALTER COLUMN enabled_features SET DEFAULT '{}'::jsonb;
+-- normalize any array-typed defaults from an earlier run to an empty object
+UPDATE public.schools SET enabled_features = '{}'::jsonb WHERE jsonb_typeof(enabled_features) = 'array';
 
 -- ── 3. Staff roles: Bursar + Librarian ───────────────────────
 -- Roles are modeled on users.role (+ staff_role / admin_tier hierarchy),
@@ -390,11 +393,11 @@ AS $function$
       FROM public.school_subscriptions AS ss
       JOIN public.subscription_plans AS p ON p.code = ss.plan_code
       WHERE ss.school_id = p_school_id AND ss.status = 'active'
-        AND p.features @> jsonb_build_array(p_feature)
+        AND (p.features ->> p_feature) = 'true'
     )
     OR EXISTS (
       SELECT 1 FROM public.schools AS s
-      WHERE s.id = p_school_id AND s.enabled_features @> jsonb_build_array(p_feature)
+      WHERE s.id = p_school_id AND (s.enabled_features ->> p_feature) = 'true'
     );
 $function$;
 REVOKE ALL ON FUNCTION private.school_has_feature(uuid, text) FROM PUBLIC, anon;
@@ -415,7 +418,7 @@ SELECT s.id AS id,
        s.logo_url AS logo_url,
        s.primary_color AS primary_color,
        s.additional_colors AS additional_colors,
-       COALESCE(p.features, '[]'::jsonb) || COALESCE(s.enabled_features, '[]'::jsonb) AS features
+       COALESCE(p.features, '{}'::jsonb) || COALESCE(s.enabled_features, '{}'::jsonb) AS features
 FROM public.schools AS s
 LEFT JOIN LATERAL (
   SELECT ss.plan_code
