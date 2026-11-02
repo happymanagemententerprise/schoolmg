@@ -835,15 +835,32 @@ async function loadFromSupabase() {
   }
 
   // RLS limits this list to schools linked to the authenticated account.
-  const { data: accessibleSchools, error: schoolsError } = await _supabaseFrom('schools')
-    .select('id,name,status').eq('status', 'active').order('name');
+  // Prefer the school_entitlements view (carries the active plan + feature
+  // set) so the app can gate Pro/Premium features per tier; fall back to the
+  // plain schools table when the plan_tiers migration has not been applied
+  // yet, treating every school as legacy/full-access so the app keeps working.
+  let accessibleSchools = null, schoolsError = null;
+  try {
+    const r = await _supabaseFrom('school_entitlements')
+      .select('id,name,status,plan_code,plan_name,features').eq('status', 'active').order('name');
+    accessibleSchools = r.data; schoolsError = r.error;
+  } catch (e) { schoolsError = e; }
+  if (schoolsError || !accessibleSchools?.length) {
+    const r2 = await _supabaseFrom('schools')
+      .select('id,name,status').eq('status', 'active').order('name');
+    accessibleSchools = r2.data; schoolsError = r2.error;
+  }
   if (schoolsError || !accessibleSchools?.length) {
     _cache.failed = ['schools'];
     _cache.schools = [];
     _activeSchoolId = null;
     return { ready: false, authenticated: true, missing: ['schools'], error: schoolsError?.message || 'No active school access is linked to this account.' };
   }
-  _cache.schools = accessibleSchools;
+  _cache.schools = accessibleSchools.map(s => ({
+    id: String(s.id), name: s.name, status: s.status,
+    planCode: s.plan_code || null, planName: s.plan_name || null,
+    features: Array.isArray(s.features) ? s.features : null
+  }));
   const savedSchoolId = localStorage.getItem(ACTIVE_SCHOOL_KEY);
   _activeSchoolId = accessibleSchools.some(school => String(school.id) === String(savedSchoolId)) ? String(savedSchoolId) : String(accessibleSchools[0].id);
   localStorage.setItem(ACTIVE_SCHOOL_KEY, _activeSchoolId);
@@ -1563,6 +1580,14 @@ const Data = {
     return result;
   },
   activeSchool() { return _cache.schools.find(school => String(school.id) === String(_activeSchoolId)) || null; },
+  hasFeature(feature) {
+    // Platform owners and legacy/no-plan schools (no subscription yet) get
+    // full access so the bootstrap school is never locked out. Schools
+    // onboarded through platform_onboard_school carry a plan and are gated.
+    const school = this.activeSchool();
+    if (!school || !school.features) return true;
+    return school.features.includes(feature);
+  },
   setActiveSchool(schoolId) {
     const school = _cache.schools.find(item => String(item.id) === String(schoolId));
     if (!school) return false;

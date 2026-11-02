@@ -1,0 +1,809 @@
+{
+  "units": [
+    {
+      "coverage_id": "Dockerfile%23Docker%20image%20build%20CMD%3Dnpm%20no%20start%20script::compose.yaml%23NODE_ENV%3Dproduction%20port%208000%20exposed::Dockerfile%23Docker%20deployment%20configuration::CLOUD-AND-DEPLOYMENT.md%23Security-control%20precedence%20drift",
+      "disposition": "covered",
+      "reviewed_paths": ["Dockerfile", "compose.yaml", "server/package.json"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["Dockerfile", "compose.yaml", "server/package.json"],
+          "invariant": "Docker CMD must launch the server process; NODE_ENV=production must not widen secrets exposure",
+          "method": "source",
+          "result": "Dockerfile CMD is `npm` with no subcommand argument. `npm` with no argument prints help and exits 1; the container will not start. server/package.json defines `start: node index.js`. compose.yaml sets NODE_ENV=production and exposes port 8000:8000 but passes no secrets. No security-control drift found beyond the broken CMD.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": ["docker-cmd-no-start-arg"],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app.js%23downloadCsv%28%29%20%2F%20downloadXlsx%28%29%20export%20of%20school%20data::app.js%23no%20per-item%20authorization%20on%20export%20path::app.js%23CSV%20XLSX%20data%20export%20flows::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+      "disposition": "covered",
+      "reviewed_paths": ["app.js", "data.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["app.js", "data.js"],
+          "invariant": "Export operates only on data already authorized by the caller's role; no cross-tenant or cross-role data included",
+          "method": "source",
+          "result": "downloadCsv()/downloadXlsx() operate on in-memory _cache, which is populated by Supabase queries subject to RLS for the authenticated user. The export converts already-fetched cache rows to CSV/XLSX. No additional authorization check is needed at export time because the cache already reflects the user's RLS-filtered view. No cross-tenant leak path found: the scopeSchoolQuery() proxy stamps school_id on all writes/reads, and the export only touches the in-memory cache loaded for the active session. Hardening note: teacher role exports all grades in their loaded cache which may include more data than expected, but this is within the authenticated teacher's RLS scope.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app.js%23innerHTML%20rendering%20of%20user%20data%20via%20esc%28%29::app.js%23esc%28%29%20HTML%20entity%20escaping%20helper::app.js%23SPA%20DOM%20rendering%20%28admin%20people%20view%29::CLIENT-SIDE.md%23DOM-based%20XSS",
+      "disposition": "covered",
+      "reviewed_paths": ["app.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["app.js"],
+          "invariant": "User-controlled content rendered into innerHTML must be HTML-entity-escaped to prevent stored XSS",
+          "method": "source",
+          "result": "app.js defines esc() which escapes &, <, >, \", and '. All database field values (name, email, role, scores) inserted into innerHTML template literals use esc(). Surveyed renderAdmin*() functions, school table rendering, class/student table rendering: all user-supplied strings go through esc() before innerHTML insertion. No direct, unescaped concatenation of DB-origin strings into innerHTML was found in app.js. The auth.js buildNav() uses data-page attributes with known static page names, not user data. No confirmed XSS path found.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app.js%23printReportPdf%28%29%20%2F%20report%20drawer%20student%20data%20rendering::app.js%23openDrawer%28%29%20report%20drawer%20open%20to%20all%20roles::app.js%23Student%20report%20card%20export%20authorization::ATTACK-CLASSES.md%23Access%20control",
+      "disposition": "covered",
+      "reviewed_paths": ["app.js", "src/auth.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["app.js", "src/auth.js"],
+          "invariant": "Report card PDF export should only be accessible to authorized roles (admin, class teacher, parent of student)",
+          "method": "source",
+          "result": "Report cards are rendered from in-memory cache (already RLS-filtered) and printed as browser DOM. The SPA navigation restricts view access by role via navForUser() in auth.js. Authorized roles for report-related views include Administrator, Class Teacher (via view-class-report), and student/parent (via view-student-results/view-parent-dashboard). Unauthorized roles receive no navigation items for report views. Client-side enforcement is defense-in-depth only; the authoritative control is the RLS-filtered Supabase cache the user loaded. Since client-side controls can be bypassed by direct DOM manipulation, this is a hardening note, but the underlying data is still RLS-protected at Supabase layer.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app.js%23student%20soft-delete%20archive%20status::supabase%2Fmigrations%2F20261002_end_of_session.sql%23students.status%3D%27archived%27::data.js%23Student%20archive%20lifecycle::DATA-ISOLATION-AND-LIFECYCLE.md%23Soft-delete%20and%20tombstone%20bypass",
+      "disposition": "covered",
+      "reviewed_paths": ["supabase/migrations/20261002_end_of_session.sql", "supabase/migrations/20261006_rls_lockdown.sql", "data.js", "supabase/migrations/20261005_supabase_auth.sql"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["supabase/migrations/20261002_end_of_session.sql", "supabase/migrations/20261006_rls_lockdown.sql", "data.js", "supabase/migrations/20261005_supabase_auth.sql"],
+          "invariant": "Archived students (status='archived') should not be readable by other students or parents via Supabase REST",
+          "method": "source",
+          "result": "20261005_supabase_auth.sql students_select policy: USING(id = current_student_id() OR class_id = ANY(teacher_class_ids()) OR id = ANY(parent_student_ids()) OR is_admin_user()). This policy allows a teacher to see ALL students in their class_id, including archived ones, because it checks class_id membership without an is_active/status filter. An archived student remains readable by their former teacher and parent (parent_student_ids() also has no status filter). The server/index.js campus roster uses .neq('status','archived') on its query but that is an application-layer filter; the RLS itself does not exclude archived students. This is a data lifecycle gap but the impact is limited: archived students' data remains visible to principals who previously had legitimate access (teacher, parent). No unauthorized principal can read archived students. Hardening note.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "data.js%23POST%20%2Frest%2Fv1%2Fusers%20%28Supabase%20REST%20anon%29::supabase%2Fmigrations%2F20261004_rls_policies.sql%23users_update%20USING%28true%29%20WITH%20CHECK%28true%29::data.js%23Data%20layer%20%28users%20table%29::ATTACK-CLASSES.md%23Access%20control",
+      "disposition": "candidate",
+      "reviewed_paths": ["supabase/migrations/20261004_rls_policies.sql", "supabase/migrations/20261005_supabase_auth.sql", "supabase/migrations/20261006_rls_lockdown.sql", "supabase/migrations/20261019091035_security_hardening.sql", "data.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["supabase/migrations/20261004_rls_policies.sql", "supabase/migrations/20261005_supabase_auth.sql", "supabase/migrations/20261006_rls_lockdown.sql", "supabase/migrations/20261019091035_security_hardening.sql"],
+          "invariant": "Unauthenticated (anon) callers must not be able to UPDATE any column of any user row",
+          "method": "source",
+          "result": "20261004_rls_policies.sql creates: CREATE POLICY users_update ON public.users FOR UPDATE TO anon USING (true) WITH CHECK (true). This grants any anon caller UPDATE on every row with no restriction. 20261005_supabase_auth.sql (line: DROP POLICY IF EXISTS users_update; CREATE POLICY users_update ... TO authenticated USING (id = public_user_id() OR is_admin_user())) drops and replaces this. 20261019091035_security_hardening.sql further restricts UPDATE to specific columns (name, phone, initials, tone, mentor_subject, mentor_bio) and revokes role/password columns. HOWEVER: architecture.md states 'Migration pending' for 20261006_rls_lockdown and related migrations. If 20261004 is applied and 20261005+ are NOT yet applied, the users_update anon policy remains active. The architecture doc explicitly notes: 'users_update RLS policy: USING (true) WITH CHECK (true) — any anon caller can overwrite any user row including role and password_hash' and 'Migration 20261004_rls_policies.sql not yet applied to live DB (PROJECT-STATUS.md: Migration pending)'. Source evidence is confirmed for the 20261004 policy text. Live migration status is not source-visible.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": ["rls-users-update-anon-unrestricted"],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "data.js%23SCHOOL_SCOPED_TABLES%20Set%20application-level%20allow-list::data.js%23tables%20not%20in%20SCHOOL_SCOPED_TABLES%20bypass%20school%20scoping::data.js%23Unclassified%20table%20school%20scoping%20bypass::ATTACK-CLASSES.md%23Wildcard",
+      "disposition": "covered",
+      "reviewed_paths": ["data.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["data.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "All tables accessed via the data layer must have school_id scoping applied; tables not in SCHOOL_SCOPED_TABLES must not hold multi-tenant data",
+          "method": "source",
+          "result": "data.js SCHOOL_SCOPED_TABLES covers 47 tables. Tables excluded from the set are expected to be single-tenant infrastructure tables. The edge function (index.ts) adds a stricter guard: createSchoolDb() throws 'Refusing an unclassified service-role query' for any table not in SCHOOL_SCOPED_TABLES. Multi-tenant tables (organizations, schools, school_memberships, organization_memberships) are intentionally excluded from scopeSchoolQuery since they are accessed directly for auth checks using rawFrom(). The platform_memberships table is accessed via rawFrom() in auth and is also excluded from school scoping by design. No unclassified table with multi-school data was identified that bypasses scoping. The school_memberships table is accessed via rawFrom() specifically for auth membership lookups before schoolDb is set up — this is correct and necessary.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "data.js%23Supabase%20REST%20anon%20SELECT%20on%20all%20school%20tables::supabase%2Fmigrations%2F20261006_rls_lockdown.sql%23RLS%20authenticated-only%20policies::data.js%23Data%20layer%20%28broadcast%20cache%29::ATTACK-CLASSES.md%23Access%20control",
+      "disposition": "candidate",
+      "reviewed_paths": ["data.js", "supabase/migrations/20261005_supabase_auth.sql", "supabase/migrations/20261006_rls_lockdown.sql", "supabase/migrations/20261019091035_security_hardening.sql"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["data.js", "supabase/migrations/20261005_supabase_auth.sql", "supabase/migrations/20261006_rls_lockdown.sql", "supabase/migrations/20261019091035_security_hardening.sql"],
+          "invariant": "Unauthenticated (anon) callers must not be able to SELECT from any sensitive school data table",
+          "method": "source",
+          "result": "20261004_rls_policies.sql creates grades_select/students_select/users_select/promotions_select policies FOR SELECT TO anon USING (true). 20261005_supabase_auth.sql drops all anon policies and replaces with authenticated-only policies. 20261006_rls_lockdown.sql extends coverage to all remaining tables. Architecture.md explicitly states migration status as pending. If only 20261004 is applied, all anon callers can SELECT all grades, students, users, and promotions without authentication. Confirmed source evidence of anon-permissive policies in 20261004; confirmed replacement in 20261005+. Migration application status is not source-visible.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": ["rls-anon-select-school-tables"],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "data.js%23Supabase%20REST%20anon%20key%20hardcoded%20and%20committed::data.js%23supabaseAnonKey%20fallback%20hardcoded%20at%20line%2023::.env.production%23VITE_SUPABASE_ANON_KEY%20committed::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+      "disposition": "covered",
+      "reviewed_paths": ["data.js", ".env.production", ".gitignore"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["data.js", ".env.production", ".gitignore"],
+          "invariant": "The Supabase anon key is a public credential by design; its presence in committed source is expected but the production .env file should not be tracked",
+          "method": "source",
+          "result": "data.js line 23 has hardcoded fallback for supabaseAnonKey. .env.production contains VITE_SUPABASE_ANON_KEY. .gitignore has '.env.*' but includes '!.env.production' exception — meaning .env.production IS committed intentionally. The Supabase anon key is a public, non-secret credential by Supabase design (it is embedded in every SPA deployment); its exposure in source is the intended deployment model. The key only grants access subject to RLS. No service role key was found in any committed file. The hardcoded fallback in data.js and the committed .env.production expose the anon key and Supabase project URL, which is not a security vulnerability given Supabase's architecture. Hardening note: removing the hardcoded fallback forces env var configuration, reducing risk of misconfiguration. Supabase project ID (erlhyrswcqpqpqzbgmgb) is now public in the committed file.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "data.js%23Supabase%20Realtime%20channel%20postgres_changes%20subscription::data.js%23anon%20role%20realtime%20subscription%20authorization::data.js%23SPA%20Realtime%20subscriptions::DATA-ISOLATION-AND-LIFECYCLE.md%23Search%20cache%20and%20index%20ACL%20drift",
+      "disposition": "blocked",
+      "reviewed_paths": ["data.js", "supabase/config.toml", "supabase/migrations/20261006_rls_lockdown.sql"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["data.js", "supabase/config.toml"],
+          "invariant": "Supabase Realtime postgres_changes subscriptions must respect the same RLS policies as REST; anon subscribers must not receive events for sensitive rows",
+          "method": "source",
+          "result": "data.js subscribes to postgres_changes events using the _sb client (anon or authenticated depending on session state). Supabase Realtime channels respect RLS for postgres_changes events when using the authenticated role. The live authorization enforcement depends on Supabase's Realtime service configuration, which is not fully observable from source alone. supabase/config.toml shows realtime.enabled=true but no channel-specific auth configuration. The question of whether pre-auth Realtime subscriptions using the anon key receive events before RLS migration 20261005 is applied requires Supabase-hosted behavior verification.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": ["Supabase Realtime channel authorization behavior for anon role with pre-20261005 migration state cannot be confirmed from source alone. Requires live Supabase project inspection."]
+    },
+    {
+      "coverage_id": "data.js%23_demoMode%20flag%20and%20demoQuery%28%29%20stub::data.js%23Data.startDemoMode%28%29%20no-live-DB%20bypass::data.js%23Demo%20mode%20%2F%20test%20credential%20bypass::ATTACK-CLASSES.md%23Obvious%20things",
+      "disposition": "covered",
+      "reviewed_paths": ["data.js", "index.html", "src/auth.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["data.js", "src/auth.js"],
+          "invariant": "Demo mode must not bypass authentication to live Supabase data; demo emails must not grant access to production data",
+          "method": "source",
+          "result": "Data.startDemoMode() calls _sb.auth.signOut() to clear any real session, sets _demoMode=true, and loads bundled fixture data via _loadDemoSchool(). demoQuery() returns a no-op Proxy that never sends queries to Supabase. _sb.from is overridden to return demoQuery() when _demoMode=true. Demo session key stored in localStorage (DEMO_SESSION_KEY). Demo mode users cannot reach real Supabase data. The demo email addresses are visible in index.html data-email attributes and in the bundled school fixture but they are for the local fixture only. No production credentials or test accounts that work in production were found. Demo mode is properly isolated from live DB.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "data.js%23loginWithPassword%28%29%20SELECT%20password_hash%20password_salt%20in%20browser::data.js%23client-side%20hash%20comparison::data.js%23Auth%20login%20flow::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+      "disposition": "covered",
+      "reviewed_paths": ["data.js", "src/auth.js", "supabase/migrations/20261019091035_security_hardening.sql"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["data.js", "src/auth.js", "supabase/migrations/20261019091035_security_hardening.sql"],
+          "invariant": "Password credentials must not be fetched to the browser or compared client-side; authentication must use Supabase Auth server-side",
+          "method": "source",
+          "result": "The legacy loginWithPassword() path has been removed: data.js now has `async loginWithPassword() { throw new Error('[HMA] loginWithPassword() has been removed. Call Data.signIn(...)'); }`. Data.signIn() uses _sb.auth.signInWithPassword() which performs server-side auth via Supabase GoTrue. 20261019091035_security_hardening.sql drops password_hash and password_salt columns entirely from public.users. The prior-run finding is resolved in current source.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "data.js%23scopeSchoolQuery%28%29%20Proxy%20stamps%20school_id::data.js%23_activeSchoolId%20null%20check%20throws%20Error::data.js%23Client-side%20school%20scoping%20proxy::ATTACK-CLASSES.md%23Injection",
+      "disposition": "candidate",
+      "reviewed_paths": ["data.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["data.js"],
+          "invariant": "Client-side scopeSchoolQuery() Proxy must not be bypassable; school_id must be stamped on every write and every read for scoped tables",
+          "method": "source",
+          "result": "scopeSchoolQuery() in data.js is a client-side Proxy that stamps school_id on insert/upsert and appends .eq('school_id', _activeSchoolId) on select/update/delete. The proxy intercepts method calls by name. Critical: the proxy intercepts 'insert' and 'upsert' for writes, and 'select', 'update', 'delete' for reads. However, it does NOT intercept the Supabase query builder's chainable filter methods (e.g. .eq(), .in(), .neq(), .filter()). A caller invoking _sb.from('students').select('*') gets the proxy, which appends .eq('school_id', _activeSchoolId), but this is the ONLY cross-tenant protection for data reads from client-side code. Since this is a client-side control, a sophisticated attacker who can inject JavaScript into the page could replace _activeSchoolId or bypass the proxy. The real protection must come from server-side RLS. The RLS policies in 20261005/20261006 do NOT include school_id predicates — they only use public_user_id()-based controls. Thus any authenticated user can issue a direct Supabase REST API call with their valid JWT (bypassing the client Proxy) and read all rows for all schools from any table, since the RLS policies lack school_id filters.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": ["rls-missing-school-id-predicate"],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "package.json%23npm%20dependency%20resolution%20%28Vite%2C%20React%2C%20Supabase-js%2C%20Playwright%29::package-lock.json%23lockfile%20pinning%20and%20integrity::package.json%23Frontend%20supply%20chain::SUPPLY-CHAIN-AND-RELEASE.md%23Dependency%20source%20and%20namespace%20confusion",
+      "disposition": "covered",
+      "reviewed_paths": ["package.json", "server/package.json"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["package.json", "server/package.json"],
+          "invariant": "Dependencies must use exact or pinned versions; no known-vulnerable package versions in direct dependencies",
+          "method": "source",
+          "result": "package.json uses caret ranges for most dependencies (^1.48.2 for playwright, ^2.119.0 for supabase CLI) but exact pins for runtime: @supabase/supabase-js@2.46.2, alpinejs@3.14.9, react@18.3.1, react-dom@18.3.1, vite@5.4.11. server/package.json uses exact pins: @supabase/supabase-js@2.46.2, dotenv@16.4.7, express@5.1.0, web-push@3.6.7. Express 5.1.0 is a recent stable release. No known CVEs were identified in these pinned versions from source review alone. The supabase CLI dev dependency uses ^2.119.0 (range) which could resolve to a different version on fresh install; this is a hardening note. No namespace confusion found.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "server%2Findex.js%23CORS%20allowedOrigins%20Set%20from%20FRONTEND_ORIGINS%20env::server%2Findex.js%23Vary%3A%20Origin%20%2B%20explicit%20allowlist::server%2Findex.js%23Campus%20API%20CORS%20policy::WEB-PROTOCOL-AND-AUTH.md%23Credentialed%20CORS%20trust",
+      "disposition": "covered",
+      "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "CORS policy must not reflect arbitrary origins or allow credentials from untrusted origins",
+          "method": "source",
+          "result": "server/index.js CORS: allowedOrigins is a Set built from FRONTEND_ORIGINS env var split by comma. Only exact-match origins receive ACAO header. Vary: Origin is set. No wildcard ACAO. Access-Control-Allow-Credentials is NOT set in either server/index.js or the Edge Function — the API uses Bearer token auth, not cookies, so CORS credential reflection is not needed or present. Both implementations are equivalent. No CORS trust issue found. If FRONTEND_ORIGINS env is empty, no origin receives CORS headers (non-browser requests work fine). Hardening note: if FRONTEND_ORIGINS is misconfigured to include a broad origin, the API would reflect it, but this is a deployment configuration concern.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "server%2Findex.js%23GET%20%2Fapi%2Fcampus%2Fevents%20SSE%20stream::server%2Findex.js%23campusEventClients%20Set%20unbounded::server%2Findex.js%23Campus%20API%20SSE%20realtime%20feed::RESOURCE-EXHAUSTION-AND-AVAILABILITY.md%23Unbounded%20buffering%20and%20cardinality",
+      "disposition": "candidate",
+      "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "SSE connection pool must have a bounded maximum to prevent resource exhaustion by repeated connections",
+          "method": "source",
+          "result": "server/index.js: `const campusEventClients = new Set()`. GET /api/campus/events adds client to Set on connect, removes on 'close'. No maximum size check exists. An authenticated user (any role: admin, teacher, security_guard, hostel_staff) can open many concurrent SSE connections. Each connection holds a response object, heartbeat interval (setInterval every 25s), and a Supabase Realtime subscription slice. The Set grows without bound until the Node.js process runs out of file descriptors or memory. The Edge Function version has the same pattern with campusEventClients as a module-level Set. Authentication (authenticate() middleware) is required before adding to the Set, so unauthenticated callers cannot reach this path.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": ["sse-campuseventclients-unbounded"],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "server%2Findex.js%23GET%20%2Fapi%2Fhealth%20unauthenticated%20endpoint::server%2Findex.js%23no%20auth%20middleware%20on%20%2Fapi%2Fhealth::server%2Findex.js%23Health%20endpoint%20information%20disclosure::ATTACK-CLASSES.md%23Obvious%20things",
+      "disposition": "covered",
+      "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "Unauthenticated /api/health endpoint must not disclose sensitive operational state",
+          "method": "source",
+          "result": "app.get('/api/health', ...) returns { ok: true, pushEnabled: vapidReady, smsEnabled: !!(...) }. This reveals whether VAPID and Twilio env vars are configured. This is low-sensitivity operational metadata — it reveals feature enablement but not credentials. No stack traces, internal paths, secrets, or database state are returned. The endpoint is intentionally unauthenticated for health-check purposes. Hardening note: a security-conscious deployment might prefer to gate this on an internal-network check, but the disclosed information has no concrete exploit path.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "server%2Findex.js%23POST%20%2Fapi%2Fgate%2Fevents%20pickup%20PIN%20verification::server%2Findex.js%23verifyPickupPin%28%29%20scrypt%20%2B%20lockout::server%2Findex.js%23Campus%20API%20gate%20events::ATTACK-CLASSES.md%23Business%20logic",
+      "disposition": "covered",
+      "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "Pickup PIN verification must resist brute force; lockout must be tied to the correct parentId/IP key; timing-safe comparison must be used",
+          "method": "source",
+          "result": "verifyPickupPin() uses scrypt (server/index.js: scryptAsync(pin, salt, 64)) with a 32-char hex salt, timingSafeEqual for comparison. Lockout is a dual-layer: in-memory Map keyed by parentId:IP and DB table parent_pickup_pins (failed_attempts, locked_until). Threshold is 5 attempts, lockout 15 min. DB counter updated on each failure. Edge case found: the in-memory attempts counter (attempt.count) and DB failed_attempts can diverge: failures = Math.max(attempt.count, Number(pinRecord?.failed_attempts||0)+1). This means a restart resets in-memory count, but DB count persists — the lockout logic then uses the DB count correctly after restart via Math.max. PIN format validated: /^\\d{6}$/ required. IP used from req.ip (Express). The gate endpoint requires requireRoles('admin','security_guard') and authenticate() before PIN verification. No bypass path found.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "server%2Findex.js%23POST%20%2Fapi%2Fpush%2Fsubscribe%20WebPush%20subscription%20storage::server%2Findex.js%23user_id%20bound%20to%20endpoint%20upsert::server%2Findex.js%23Push%20notification%20subscription%20lifecycle::DATA-ISOLATION-AND-LIFECYCLE.md%23Blob%20and%20signed-reference%20overreach",
+      "disposition": "covered",
+      "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "Push subscriptions must be bound to the authenticated user; a user must not be able to register a subscription belonging to another user",
+          "method": "source",
+          "result": "server/index.js POST /api/push/subscribe: checks existing subscription by endpoint, returns 409 if endpoint already registered to a different user (Number(existing.user_id) !== Number(req.schoolUser.id)). Upsert uses req.schoolUser.id as user_id. DELETE uses req.schoolUser.id filter. No cross-user registration or theft possible via this path. Edge function version has an equivalent check but uses update vs upsert when record exists. Both implementations bind subscription to authenticated user.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "server%2Findex.js%23POST%20%2Fapi%2Fusers%20admin%20creates%20school%20users::server%2Findex.js%23requireRoles%28%27admin%27%29%20only::server%2Findex.js%23Campus%20API%20user%20provisioning::ATTACK-CLASSES.md%23Business%20logic",
+      "disposition": "candidate",
+      "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "Admin-created users in server/index.js must be isolated to the admin's school; the Node.js server does not enforce school scoping",
+          "method": "source",
+          "result": "server/index.js POST /api/users: uses requireRoles('admin') and authenticate(). The authenticate() in server/index.js does NOT process X-School-ID or check school_memberships — it only resolves req.schoolUser by auth_user_id. All DB operations use the service-role db client with NO school_id filter. The users.insert() call does not include school_id. The Edge Function version (index.ts) uses req.db (createSchoolDb(req.schoolId)) which stamps school_id on every insert, and also calls createSchoolMembership(). The Node server version inserts users without school_id and without creating school_memberships entries. This is a cross-school isolation gap in the Node server: users created via the Node server are not associated with any school. Furthermore, POST /api/users/:id/password in server/index.js queries db.from('users').select(...).eq('id', userId) without a school_id filter, allowing an admin from School A to reset the password of a user from School B if they know the target's numeric user ID.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": ["server-nodejs-missing-school-scope"],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "server%2Findex.js%23POST%20%2Fapi%2Fusers%2F%3Aid%2Fpassword::server%2Findex.js%23requireRoles%28%27admin%27%2C%20%27teacher%27%29%20%2B%20class%20membership%20check::server%2Findex.js%23Campus%20API%20user%20management::ATTACK-CLASSES.md%23Access%20control",
+      "disposition": "candidate",
+      "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "Password reset must be scoped to users belonging to the requesting admin's school; admin must not reset passwords for users at other schools",
+          "method": "source",
+          "result": "server/index.js POST /api/users/:id/password: queries db.from('users').select('id,auth_user_id,role').eq('id', userId) — this is an unscoped service-role query. The Edge Function version uses req.db.from('users') which adds .eq('school_id', schoolId). server/index.js authenticate() does not set req.schoolId; all db queries are unscoped. An admin authenticated to School A can supply any numeric userId belonging to a user in School B, and the password reset will succeed. The teacher path has the same cross-school exposure: teacher_classes lookup also uses unscoped db. This is the same root cause as the user provisioning gap (server-nodejs-missing-school-scope).",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": ["server-nodejs-missing-school-scope"],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "server%2Findex.js%23express.json%28%7B%20limit%3A%20%2764kb%27%20%7D%29%20body%20size%20cap::server%2Findex.js%23no%20per-route%20rate%20limiting%20middleware::server%2Findex.js%23Campus%20API%20request%20rate%20limiting::RESOURCE-EXHAUSTION-AND-AVAILABILITY.md%23Pre-authentication%20work%20imbalance",
+      "disposition": "candidate",
+      "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "Authentication work (db.auth.getUser() + db.from('users')) should not be unbounded before a rate limit gate",
+          "method": "source",
+          "result": "server/index.js: express.json({ limit: '64kb' }) limits body size. authenticate() calls db.auth.getUser(token) (one Supabase HTTP call) then db.from('users').select(...).eq('auth_user_id',...) (one DB query). There is no rate limiter in server/index.js source. Any IP can send repeated requests with arbitrary JWT-shaped tokens, triggering two Supabase API calls per request before 401/403 is returned. Supabase's hosted auth rate limits apply externally but are not visible in source. Node.js itself has no per-IP limit. For the Edge Function version, Supabase's infrastructure provides rate limiting not in source. This is a source-visible gap: no rate limiting middleware (e.g. express-rate-limit) exists in server/index.js. Whether Supabase platform or Cloudflare provides upstream rate limiting is not source-visible.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": ["campus-api-no-rate-limit"],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "server%2Findex.js%23sendSms%28%29%20Twilio%20webhook%20outbound%20call::server%2Findex.js%23no%20SSRF%20validation%20on%20internal%20Twilio%20URL::server%2Findex.js%23Twilio%20SMS%20integration::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+      "disposition": "covered",
+      "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["server/index.js", "supabase/functions/campus-api/index.ts"],
+          "invariant": "sendSms() must not allow user-controlled URLs or destinations that could cause SSRF",
+          "method": "source",
+          "result": "sendSms(to, message) uses a hardcoded Twilio API URL template: `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`. The `to` (phone number) and `message` (notification text) are the only variable parts. The `to` value comes from parent.phone, which is a DB field — it is validated as a phone number via the application, not user-supplied in the HTTP request body. The Twilio URL is not user-controllable. No SSRF path exists. The `sid` in the URL template is the Twilio Account SID from env, not user-controlled.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "src%2Fauth.js%23Data.signIn%28%29%20Supabase%20Auth%20login%20flow::src%2Fauth.js%23session%20stored%20in%20localStorage%20via%20Supabase%20client::src%2Fauth.js%23Browser%20session%20%2F%20auth%20state::ATTACK-CLASSES.md%23Access%20control",
+      "disposition": "covered",
+      "reviewed_paths": ["src/auth.js", "data.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["src/auth.js", "data.js"],
+          "invariant": "Session tokens in localStorage must be cleared on logout; session fixation must not be possible across role transitions",
+          "method": "source",
+          "result": "Data.signOut() calls _sb.auth.signOut() which Supabase client implements by clearing localStorage. data.js also clears _cache.platformAccount and _cache.platformSchools on signOut(). src/auth.js logout() calls Data.signOut() and clears UI state. Supabase client stores JWT+refresh token in localStorage under 'sb-' prefixed keys. Refresh token rotation is enabled (supabase/config.toml: enable_refresh_token_rotation=true). Session fixation: no explicit session ID rotation on login is visible (Supabase GoTrue handles this server-side). Demo mode session stored as DEMO_SESSION_KEY in localStorage; Data.startDemoMode() calls _sb.auth.signOut() before setting demo mode. No session fixation path found in source. Hardening note: localStorage tokens are accessible to any same-origin script; no XSS vectors found in source that would exfiltrate them.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "src%2Fauth.js%23openPasswordRecovery%28%29%20password%20reset%20link::supabase%2Fconfig.toml%23auth.email.enable_confirmations%3Dfalse::src%2Fauth.js%23Password%20recovery%20flow::WEB-PROTOCOL-AND-AUTH.md%23Password%20reset%20and%20broader%20recovery",
+      "disposition": "covered",
+      "reviewed_paths": ["src/auth.js", "supabase/config.toml", "data.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["src/auth.js", "supabase/config.toml", "data.js"],
+          "invariant": "Password reset flow must use secure tokens, single-use, and bound to the requesting user/email",
+          "method": "source",
+          "result": "Data.requestPasswordReset() calls _sb.auth.resetPasswordForEmail() with redirectTo pointing to /?auth=password-recovery. Supabase Auth handles token generation, one-time use, and expiry (otp_expiry=3600 seconds per config.toml). enable_confirmations=false means email signups don't need confirmation, but password reset tokens are still single-use via GoTrue. Data.updateOwnPassword() calls _sb.auth.updateUser() which requires an active auth session (the PASSWORD_RECOVERY session from the reset link). The PASSWORD_RECOVERY event is handled in initLogin() which calls openPasswordRecovery() — this is the correct flow. No account enumeration leak: Data.requestPasswordReset() returns success regardless of whether the email exists (standard Supabase behavior). secure_password_change=false in config — this is a hardening note meaning users don't need to re-authenticate to change password (PASSWORD_RECOVERY session is sufficient, which is the standard flow). No bypass found.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "supabase%2Fconfig.toml%23functions.campus-api.verify_jwt%3Dfalse::supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23authenticate%28%29%20self-validates%20JWT::supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23Edge%20Function%20JWT%20bypass%20config::CLOUD-AND-DEPLOYMENT.md%23Edge%2Fruntime%20boundary%20mismatch",
+      "disposition": "covered",
+      "reviewed_paths": ["supabase/config.toml", "supabase/functions/campus-api/index.ts"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["supabase/config.toml", "supabase/functions/campus-api/index.ts"],
+          "invariant": "verify_jwt=false must not create a JWT bypass; the function must validate JWTs itself before granting any access",
+          "method": "source",
+          "result": "supabase/config.toml: [functions.campus-api] verify_jwt = false. The comment explains this is intentional: 'The campus API validates user JWTs itself to preserve its public /api/* route paths.' The Edge Function's authenticate() calls db.auth.getUser(token) which performs server-side JWT validation against Supabase GoTrue. db is created with the service role key and auth.persistSession=false. db.auth.getUser() validates the bearer token server-side — it is NOT a client-side decode. A request with no token, an invalid token, or an expired token returns 401. verify_jwt=false only disables the Supabase gateway-level JWT check; the application-level check in authenticate() is equivalent and runs on every protected route. The /api/health route is intentionally public. No bypass path found.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23authenticate%28%29%20X-School-ID%20header%20trust::supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23school_memberships%20lookup%20for%20x-school-id::supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23Edge%20Function%20campus%20API%20auth::WEB-PROTOCOL-AND-AUTH.md%23Host%20and%20forwarded-header%20trust",
+      "disposition": "covered",
+      "reviewed_paths": ["supabase/functions/campus-api/index.ts", "supabase/migrations/20261021103948_multi_school_tenancy.sql"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["supabase/functions/campus-api/index.ts", "supabase/migrations/20261021103948_multi_school_tenancy.sql"],
+          "invariant": "X-School-ID header value must be verified against the authenticated user's school membership before use as a trust anchor",
+          "method": "source",
+          "result": "authenticate() in index.ts: extracts requestedSchoolId = String(req.headers['x-school-id']).trim(), validates length 1-64. Then queries rawFrom('school_memberships').select('school_id,role').eq('school_id', requestedSchoolId).eq('user_id', user.id).eq('is_active', true). This verifies the requesting user is an active member of the claimed school. Then queries schools.eq('id', membership.school_id).eq('status','active') to verify the school is active. req.schoolId is set to the verified membership.school_id (not the raw header value). The header value drives a lookup but the result is the DB-verified school_id. Note: school_memberships was created in 20261021103948 WITHOUT an is_active column; however 20261021163930 adds is_active to the has_school_access function (implying the column exists). The Edge Function auth query uses .eq('is_active', true) on school_memberships — this is consistent with the column existing post-migration.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "supabase%2Fmigrations%2F20261021103948_multi_school_tenancy.sql%23school_memberships%20table::supabase%2Fmigrations%2F20261006_rls_lockdown.sql%23RLS%20policies%20no%20school_id%20scope::data.js%23Multi-tenant%20data%20isolation%20%28school%20scoping%29::DATA-ISOLATION-AND-LIFECYCLE.md%23Missing%20tenant%20or%20owner%20enforcement",
+      "disposition": "candidate",
+      "reviewed_paths": ["supabase/migrations/20261021103948_multi_school_tenancy.sql", "supabase/migrations/20261021163930_active_school_membership_access.sql", "supabase/migrations/20261006_rls_lockdown.sql", "supabase/migrations/20261005_supabase_auth.sql", "supabase/functions/campus-api/index.ts", "data.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["supabase/migrations/20261021103948_multi_school_tenancy.sql", "supabase/migrations/20261006_rls_lockdown.sql", "supabase/migrations/20261005_supabase_auth.sql"],
+          "invariant": "RLS policies must enforce school_id scoping so an authenticated user from School A cannot read School B's data via direct Supabase REST API calls",
+          "method": "source",
+          "result": "The multi-school tenancy migration (20261021103948) adds school_id columns to all tables and creates private.has_school_access(). However, the RLS policies for all data tables (grades, students, users, attendance, etc.) defined in 20261005 and 20261006 use ONLY auth.uid()-based predicates (public_user_id(), current_student_id(), teacher_class_ids(), parent_student_ids(), is_admin_user()). NONE of these policies include a school_id predicate. The follow-up migration 20261021163930 only updates the has_school_access() helper function — it does NOT update the per-table RLS policies. The client-side scopeSchoolQuery() in data.js stamps school_id on queries, but direct Supabase REST API calls with a valid JWT bypass this client-side proxy entirely. An authenticated user with a valid JWT can issue: `GET /rest/v1/grades?student_id=eq.<other_school_student_id>` and receive results because the grades_select policy is: USING (student_id = current_student_id() OR class_id = ANY(teacher_class_ids()) OR student_id = ANY(parent_student_ids()) OR is_admin_user()). An admin from School A with is_admin_user() = true (since is_admin_user() checks users.role = 'admin' for the current uid without school scoping) would satisfy this policy for School B's data. Furthermore, any authenticated teacher can enumerate all students whose class_id matches any class they teach — including students in the same class ID at a different school, since class_id is a numeric key shared across schools without school scoping in the RLS predicate.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": ["rls-missing-school-id-predicate"],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "supabase%2Fmigrations%2F20261021120000_service_role_api_grants.sql%23service_role%20GRANT%20SELECT%20UPDATE%20on%20users::supabase%2Fmigrations%2F20261021120000_service_role_api_grants.sql%23narrow%20service_role%20grants::supabase%2Fmigrations%2F20261021120000_service_role_api_grants.sql%23Service%20role%20DB%20grants::CLOUD-AND-DEPLOYMENT.md%23Workload%20identity%20and%20IAM%20attack%20classes",
+      "disposition": "covered",
+      "reviewed_paths": ["supabase/migrations/20261021120000_service_role_api_grants.sql", "server/index.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["supabase/migrations/20261021120000_service_role_api_grants.sql", "server/index.js"],
+          "invariant": "Service role grants must be narrowly scoped to only the operations required",
+          "method": "source",
+          "result": "20261021120000 grants service_role: USAGE on public schema, SELECT on public.users, UPDATE(auth_user_id) on public.users. This is intentionally narrow for the staging provisioning script. However, server/index.js uses a service-role Supabase client (db) which bypasses RLS entirely and can access ALL tables. The narrow grants in this migration apply to PostgREST/Data API access by the service role, NOT to the server-side Supabase JS client which uses pg directly. The campus API server legitimately needs service-role access to perform admin operations. The service role key must not be exposed to clients. No hardcoded service role key was found in any committed file (server/.env is gitignored). The narrow Grant migration is for the staging setup script, not the production API. No IAM overreach was confirmed.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "supabase%2Fmigrations%2F20261023230532_platform_owner_console.sql%23platform_memberships%20RLS::supabase%2Fmigrations%2F20261024011813_secure_platform_school_dashboard.sql%23private.platform_school_dashboard_rows%28%29%20SECURITY%20DEFINER::supabase%2Fmigrations%2F20261023230532_platform_owner_console.sql%23Platform%20owner%20console%20access%20control::DATA-ISOLATION-AND-LIFECYCLE.md%23Missing%20tenant%20or%20owner%20enforcement",
+      "disposition": "covered",
+      "reviewed_paths": ["supabase/migrations/20261023230532_platform_owner_console.sql", "supabase/migrations/20261024011813_secure_platform_school_dashboard.sql", "supabase/migrations/20261024044308_platform_school_onboarding.sql"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["supabase/migrations/20261023230532_platform_owner_console.sql", "supabase/migrations/20261024011813_secure_platform_school_dashboard.sql", "supabase/migrations/20261024044308_platform_school_onboarding.sql"],
+          "invariant": "Platform owner console must only be accessible to authenticated users with an active saas_owner membership; cross-school data must not leak to school-level users",
+          "method": "source",
+          "result": "platform_memberships RLS: SELECT only WHERE auth_user_id = auth.uid(). platform_school_dashboard_rows() SECURITY DEFINER checks EXISTS(SELECT 1 FROM platform_memberships WHERE auth_user_id=auth.uid() AND platform_role='saas_owner' AND is_active). The view uses security_invoker=true and security_barrier=true. platform_onboard_school() SECURITY DEFINER checks active saas_owner membership before any write. REVOKE ALL on private schema functions from PUBLIC, anon, authenticated + GRANT EXECUTE to authenticated. School-level authenticated users who are not in platform_memberships get empty results from the dashboard function. No horizontal privilege escalation path found — an authenticated school admin cannot access the platform console.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "supabase%2Fmigrations%2F20261024044308_platform_school_onboarding.sql%23private.platform_onboard_school%28%29%20SECURITY%20DEFINER::supabase%2Fmigrations%2F20261024044308_platform_school_onboarding.sql%23saas_owner%20membership%20check%20inside%20function::supabase%2Fmigrations%2F20261024044308_platform_school_onboarding.sql%23Platform%20school%20onboarding%20function::ATTACK-CLASSES.md%23Business%20logic",
+      "disposition": "covered",
+      "reviewed_paths": ["supabase/migrations/20261024044308_platform_school_onboarding.sql"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["supabase/migrations/20261024044308_platform_school_onboarding.sql"],
+          "invariant": "platform_onboard_school() must only succeed for active saas_owner; input validation must prevent injection",
+          "method": "source",
+          "result": "platform_onboard_school() SECURITY DEFINER: first check is active saas_owner membership in platform_memberships (raises ERRCODE=42501 if not). Input validation: organization_name and school_name 2-120 chars, admin_name 2-120 chars, email regex validated, prepaid_terms 1-3, discount_percent 0-100. Email uniqueness check against public.users. plan_code validated against subscription_plans.is_available with FOR SHARE lock to prevent race. All inserts use parameterized values (no string concatenation). No SQL injection path. The admin profile is created with auth_user_id=NULL (auth invite is a separate step) — this is by design. No state machine bypass found.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "sw.js%23Service%20worker%20cache%20strategy::sw.js%23Precache%20%2F%20runtime%20cache%20identity%20handling::src%2Fpwa.js%23PWA%20service%20worker%20registration::CLIENT-SIDE.md%23Service-worker%20cache%20and%20identity%20confusion",
+      "disposition": "covered",
+      "reviewed_paths": ["public/sw.js", "src/auth.js"],
+      "checks": [
+        {
+          "agent_id": "hunter-wave-1",
+          "reviewed_paths": ["public/sw.js"],
+          "invariant": "Service worker must not cache authenticated API responses or serve another user's cached data after logout/account switch",
+          "method": "source",
+          "result": "public/sw.js caches: (1) SHELL resources ('/', '/manifest.webmanifest', '/icons/hma.svg') — static public assets. (2) Navigation requests: fetches fresh, updates '/' cache. (3) script/style/font/image assets: cache-first with network update. The service worker explicitly DOES NOT cache /api/* paths (line: `if (new URL(request.url).pathname.startsWith('/api/')) return;`). No authenticated API responses are cached. The cached '/' is the SPA shell (unauthenticated HTML), not user data. After logout, the service worker cache contains no user-specific data. Account switch does not leak cached data since no personalized responses are cached. No identity confusion path found. Hardening note: the VERSION constant 'hma-shell-v4' must be incremented when the shell changes.",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [
+    {
+      "proposed_verdict": "confirmed",
+      "fingerprint": "docker-cmd-no-start-arg",
+      "title": "Dockerfile CMD has no argument — container fails to start",
+      "description": "The Dockerfile CMD instruction is `CMD npm` with no subcommand. Running `npm` with no arguments prints help and exits with code 1. The server/package.json defines a `start` script (`node index.js`), so the correct CMD is `npm start` or `node index.js`. The container will never start the Express API server, making the deployment inoperable.",
+      "root_cause": "Dockerfile line `CMD npm` passes no argument to npm. npm requires a subcommand (e.g., `start`, `run`). Without one, it exits immediately instead of launching the server.",
+      "intended_behavior": "The Docker container should start the Express API server on port 8000 by running `node index.js` (or `npm start`).",
+      "trace": [
+        {
+          "step": "entrypoint",
+          "location": "Dockerfile:CMD npm",
+          "detail": "Docker container startup executes CMD instruction"
+        },
+        {
+          "step": "sink",
+          "location": "server/index.js (never reached)",
+          "detail": "npm exits with no-argument help output; Express server never binds to port 8000; all /api/* routes are unreachable"
+        }
+      ],
+      "evidence": "Dockerfile contains `CMD npm` on the last line. server/package.json defines `\"start\": \"node index.js\"`. Running `npm` with no argument produces 'Usage: npm <command>' and exits 1.",
+      "conditions": "Any Docker-based deployment using the provided Dockerfile and compose.yaml.",
+      "execution": {
+        "description": "Source-only review. CMD npm with no argument is a standard npm CLI error observable by reading npm documentation. No sandbox execution required.",
+        "payloads": ["CMD npm"],
+        "observed_result": "npm prints help and exits 1; container stops immediately"
+      },
+      "remediation": "Change Dockerfile CMD to `CMD [\"node\", \"index.js\"]` or `CMD [\"npm\", \"start\"]`. The preferred production form is `CMD [\"node\", \"index.js\"]` to avoid npm process overhead.",
+      "severity": "high",
+      "confidence": "high"
+    },
+    {
+      "proposed_verdict": "needs_validation",
+      "fingerprint": "rls-users-update-anon-unrestricted",
+      "title": "RLS policy users_update allows any anon caller to overwrite any user row (pre-lockdown migration state)",
+      "description": "Migration 20261004_rls_policies.sql creates a users_update policy with USING(true) WITH CHECK(true) for the anon role, permitting any unauthenticated caller to UPDATE any user row including the role field. Migration 20261005_supabase_auth.sql replaces this with an authenticated-only policy. If only 20261004 has been applied to the live database (as indicated by PROJECT-STATUS.md referenced in architecture.md), any unauthenticated Supabase REST call can escalate any user's role to 'admin' or overwrite any profile field.",
+      "claimed_root_cause": "Migration 20261004_rls_policies.sql applies a permissive anon UPDATE policy on public.users. Migration 20261005_supabase_auth.sql, which closes this gap, has not been applied to the live database.",
+      "trace": [
+        {
+          "step": "entrypoint",
+          "location": "supabase/migrations/20261004_rls_policies.sql:CREATE POLICY users_update",
+          "detail": "CREATE POLICY users_update ON public.users FOR UPDATE TO anon USING (true) WITH CHECK (true)"
+        },
+        {
+          "step": "propagation",
+          "location": "Supabase REST API: PATCH /rest/v1/users?id=eq.<any_user_id>",
+          "detail": "Anon-keyed request with JSON body {\"role\":\"admin\"} passes the USING(true) and WITH CHECK(true) predicates"
+        },
+        {
+          "step": "sink",
+          "location": "public.users row update",
+          "detail": "role, email, and other columns updated without authentication"
+        }
+      ],
+      "evidence": "supabase/migrations/20261004_rls_policies.sql line 62: CREATE POLICY users_update ON public.users FOR UPDATE TO anon USING (true) WITH CHECK (true). supabase/migrations/20261005_supabase_auth.sql drops and replaces this policy with authenticated-only scoped policy. Architecture.md section 7 explicitly notes this finding and states 'Migration pending'.",
+      "blockers": ["Live migration application status cannot be confirmed from source. The architecture document references PROJECT-STATUS.md ('Migration pending') but this file was not directly read. Requires checking which migrations are applied to the live Supabase project."],
+      "validation_plan": [
+        {
+          "type": "deployment",
+          "description": "Owner can run `SELECT schemaname, tablename, policyname, roles, cmd, qual, with_check FROM pg_policies WHERE tablename='users' AND cmd='UPDATE'` on the live Supabase database to confirm whether the anon policy from 20261004 or the authenticated policy from 20261005 is currently active."
+        }
+      ]
+    },
+    {
+      "proposed_verdict": "needs_validation",
+      "fingerprint": "rls-anon-select-school-tables",
+      "title": "RLS policies allow any anon caller to SELECT all school data (pre-lockdown migration state)",
+      "description": "Migration 20261004_rls_policies.sql creates grades_select, students_select, users_select, and promotions_select policies FOR SELECT TO anon USING(true). If only 20261004 has been applied to the live database, all student grades, personal details, and user profiles are readable by any unauthenticated Supabase REST caller using only the public anon key (which is committed in source).",
+      "claimed_root_cause": "Migration 20261004 creates permissive anon SELECT policies on sensitive tables. Migration 20261005 replaces them with authenticated-only policies. Architecture.md indicates migration 20261005+ may be pending.",
+      "trace": [
+        {
+          "step": "entrypoint",
+          "location": "supabase/migrations/20261004_rls_policies.sql:CREATE POLICY grades_select",
+          "detail": "CREATE POLICY grades_select ON public.grades FOR SELECT TO anon USING (true)"
+        },
+        {
+          "step": "propagation",
+          "location": "Supabase REST API: GET /rest/v1/grades (with anon key)",
+          "detail": "Request with anon key in Authorization header passes USING(true) predicate"
+        },
+        {
+          "step": "sink",
+          "location": "public.grades, public.students, public.users, public.promotions",
+          "detail": "All rows returned to unauthenticated caller; includes student names, academic scores, user emails, and roles"
+        }
+      ],
+      "evidence": "supabase/migrations/20261004_rls_policies.sql: grades_select, students_select, users_select TO anon USING (true). supabase/migrations/20261005_supabase_auth.sql drops all anon policies and replaces with authenticated-role policies. The anon key is publicly available in committed source (data.js, .env.production).",
+      "blockers": ["Live migration application status cannot be confirmed from source. Requires checking which migrations are applied to the live Supabase project."],
+      "validation_plan": [
+        {
+          "type": "deployment",
+          "description": "Owner can run `SELECT schemaname, tablename, policyname, roles, cmd FROM pg_policies WHERE tablename IN ('grades','students','users','promotions') AND 'anon'=ANY(roles)` on the live Supabase database to confirm whether anon policies from 20261004 remain active."
+        }
+      ]
+    },
+    {
+      "proposed_verdict": "confirmed",
+      "fingerprint": "rls-missing-school-id-predicate",
+      "title": "RLS policies lack school_id predicate — authenticated users can read cross-school data via direct Supabase REST calls",
+      "description": "The multi-school tenancy migration (20261021) adds school_id columns to all tables, but the RLS policies for data tables (grades, students, attendance, users, etc.) defined in 20261005 and 20261006 use only auth.uid()-based predicates without any school_id filter. An authenticated user from School A can bypass the client-side scopeSchoolQuery() Proxy and issue direct Supabase REST API calls to read any row from School B's tables where their principal predicate is satisfied. Most critically, is_admin_user() returns true based only on role='admin' with no school scope, allowing School A's admin to read all rows passing the admin predicate in any school.",
+      "root_cause": "Migration 20261021103948 adds school_id columns but does not update existing RLS policies to include school_id scope predicates. The client-side scopeSchoolQuery() Proxy in data.js provides isolation only for SPA-originated queries. Direct Supabase REST API calls with a valid JWT bypass the client Proxy and are subject only to the RLS policies, which lack school_id constraints.",
+      "intended_behavior": "Each authenticated user should be able to read only rows belonging to their active school. The school_id column should be included in every per-table RLS policy USING predicate as a binding constraint, referencing private.has_school_access() or an equivalent school-scoped identity function.",
+      "trace": [
+        {
+          "step": "entrypoint",
+          "location": "Direct HTTP call: GET /rest/v1/grades (with valid JWT from School A admin)",
+          "detail": "Authenticated user from School A issues REST call with Bearer token; school_id not enforced by RLS"
+        },
+        {
+          "step": "propagation",
+          "location": "supabase/migrations/20261005_supabase_auth.sql:grades_select policy",
+          "detail": "USING (student_id=current_student_id() OR class_id=ANY(teacher_class_ids()) OR student_id=ANY(parent_student_ids()) OR is_admin_user()). is_admin_user() returns true for any user with role='admin', regardless of school."
+        },
+        {
+          "step": "sink",
+          "location": "public.grades (School B rows)",
+          "detail": "School B grade rows returned to School A admin because is_admin_user() returns true; no school boundary enforced in RLS"
+        }
+      ],
+      "evidence": "supabase/migrations/20261005_supabase_auth.sql: grades_select USING(... OR is_admin_user()); is_admin_user() defined as SELECT EXISTS(SELECT 1 FROM public.users WHERE id=public_user_id() AND role='admin') — no school_id check. supabase/migrations/20261021103948_multi_school_tenancy.sql: adds school_id columns and private.has_school_access() function but does NOT update any per-table RLS policy. supabase/migrations/20261021163930_active_school_membership_access.sql: only updates has_school_access() function, not per-table policies. No subsequent migration adds school_id predicates to grades, students, attendance, or any other data table RLS policies.",
+      "conditions": "Multi-school deployment with at least two schools. Attacker has a valid authenticated JWT for any school (any role). Can issue direct Supabase REST API calls (bypassing SPA client Proxy). Admin role: can read all rows in all tables across all schools. Teacher role: can read all rows for any class_id that matches numeric IDs in their school's class range (partial cross-school exposure).",
+      "execution": {
+        "description": "Source-only review. The RLS policy text is directly readable and no school_id predicate exists in any policy clause. No sandbox execution needed to confirm the source gap. Live validation would require checking two-school data isolation, which requires a live Supabase instance.",
+        "payloads": [],
+        "observed_result": "Source establishes: is_admin_user() has no school_id check; no RLS policy for data tables includes school_id in USING clause; migrations after 20261021 do not add school_id predicates to existing policies."
+      },
+      "remediation": "For each data table RLS SELECT policy, add a school_id predicate: `AND (school_id IS NULL OR private.has_school_access(school_id))` or equivalently use `AND school_id = (SELECT school_id FROM school_memberships WHERE user_id = public_user_id() AND is_active LIMIT 1)`. The is_admin_user() function should also be made school-scoped. The scopeSchoolQuery() client Proxy is not a sufficient security control since it can be bypassed by direct API access.",
+      "severity": "high",
+      "confidence": "high"
+    },
+    {
+      "proposed_verdict": "confirmed",
+      "fingerprint": "server-nodejs-missing-school-scope",
+      "title": "Express Node.js server lacks school scoping — cross-school data access via service-role queries",
+      "description": "server/index.js (Node.js/Express version of the campus API) has an authenticate() function that resolves the calling user but does not validate X-School-ID or enforce school membership. All db queries use a single service-role Supabase client with no school_id filter. An admin from School A can reset passwords of users from School B, create users without school association, read roster data across schools, and perform all other campus API operations without school boundary enforcement. The Edge Function version (supabase/functions/campus-api/index.ts) correctly implements school scoping via req.schoolId and createSchoolDb(), but the Node.js version does not.",
+      "root_cause": "server/index.js authenticate() function does not extract or validate X-School-ID. The shared service-role db client has no school_id filter applied. Route handlers use db directly rather than a school-scoped client, unlike the Edge Function version which uses req.db.",
+      "intended_behavior": "The campus API should enforce school isolation equivalent to the Edge Function version: parse and verify X-School-ID against school_memberships, create a school-scoped DB client for each request, and apply school_id filters to all queries.",
+      "trace": [
+        {
+          "step": "entrypoint",
+          "location": "server/index.js:authenticate()",
+          "detail": "Bearer JWT validated; user resolved by auth_user_id; NO X-School-ID parsing; NO school membership check"
+        },
+        {
+          "step": "propagation",
+          "location": "server/index.js:POST /api/users/:id/password",
+          "detail": "db.from('users').select('id,auth_user_id,role').eq('id', userId) — service role query, no school_id filter; userId is attacker-controlled path parameter"
+        },
+        {
+          "step": "sink",
+          "location": "db.auth.admin.updateUserById(user.auth_user_id, { password })",
+          "detail": "Supabase Admin Auth password update; targets any auth user across any school"
+        }
+      ],
+      "evidence": "server/index.js authenticate(): only sets req.schoolUser = { ...user, role: roleMap[user.role] || user.role }; no req.schoolId set; no school_memberships query. All route handlers use global db (service role). Compare with supabase/functions/campus-api/index.ts authenticate() which queries school_memberships, sets req.schoolId and req.db = createSchoolDb(req.schoolId). Select-String for 'school_id|schoolId' in server/index.js returns zero matches.",
+      "conditions": "Docker/Node.js deployment (compose.yaml port 8000). Attacker has a valid JWT for any school admin role. Supplies a numeric userId belonging to a user in a different school.",
+      "execution": {
+        "description": "Source-only review. The absence of school membership checks in server/index.js authenticate() and the absence of school_id filters on db queries is confirmed by direct source inspection.",
+        "payloads": [],
+        "observed_result": "Source confirms: no X-School-ID processing in server/index.js authenticate(); db queries are unscoped service-role calls on all tables."
+      },
+      "remediation": "Mirror the Edge Function authenticate() logic in server/index.js: (1) parse X-School-ID header, (2) verify against school_memberships table with is_active check, (3) verify school.status='active', (4) set req.schoolId and create a school-scoped client (equivalent to createSchoolDb). Update all route handlers to use req.db instead of the global db for school-scoped tables. The service-role db should only be used for auth operations (db.auth.admin.*) and cross-school infra queries.",
+      "severity": "high",
+      "confidence": "high"
+    },
+    {
+      "proposed_verdict": "confirmed",
+      "fingerprint": "sse-campuseventclients-unbounded",
+      "title": "Unbounded campusEventClients Set enables resource exhaustion by authenticated users",
+      "description": "The campus API maintains an in-process Set (campusEventClients) for SSE connections with no maximum size. Any authenticated user with admin, teacher, security_guard, or hostel_staff role can open an arbitrary number of concurrent SSE connections. Each connection holds a response object with a heartbeat interval (setInterval every 25s) and is tracked in the Set. There is no per-user, per-IP, or total connection limit. An authenticated user can exhaust Node.js file descriptors, event loop timers, and memory, causing the shared server to become unavailable for all users.",
+      "root_cause": "campusEventClients = new Set() at module scope with no capacity cap. GET /api/campus/events adds clients unconditionally after authentication.",
+      "intended_behavior": "SSE connections should be subject to a per-user and total connection limit. New connections beyond the limit should be rejected with 429 or redirect the client to close the oldest connection.",
+      "trace": [
+        {
+          "step": "entrypoint",
+          "location": "server/index.js:GET /api/campus/events",
+          "detail": "Authenticated request passes auth and requireRoles middleware"
+        },
+        {
+          "step": "propagation",
+          "location": "server/index.js:campusEventClients.add(client)",
+          "detail": "No size check; Set grows without bound"
+        },
+        {
+          "step": "sink",
+          "location": "server/index.js:setInterval(heartbeat, 25_000)",
+          "detail": "Each connection registers a 25-second heartbeat timer; timer accumulation exhausts Node.js timer resources and memory"
+        }
+      ],
+      "evidence": "server/index.js: `const campusEventClients = new Set();` (no capacity). `campusEventClients.add(client)` inside GET /api/campus/events with no size check. `const heartbeat = setInterval(() => res.write(': keep-alive\\n\\n'), 25_000)` per connection. `res.on('close', () => { clearInterval(heartbeat); campusEventClients.delete(client); })` — cleanup only on disconnect.",
+      "conditions": "Attacker has valid credentials for any user with admin, teacher, security_guard, or hostel_staff role. Makes repeated GET /api/campus/events requests without closing previous connections (or uses connection pooling). Node.js server deployment (not Edge Function).",
+      "execution": {
+        "description": "Source-only review. No maximum Set size enforcement exists in source. Asymptotic analysis: N connections hold N heartbeat timers, N response streams, N Set entries. Memory and file descriptors grow linearly with N.",
+        "payloads": [],
+        "observed_result": "Source confirms: unbounded Set, one setInterval per connection, no cleanup until disconnect."
+      },
+      "remediation": "Add a per-user and total connection limit before campusEventClients.add(). Example: check campusEventClients.size < MAX_SSE_CLIENTS and count connections per userId. Also set a maximum SSE connection duration (e.g., httpServer.requestTimeout or a per-connection timeout).",
+      "severity": "medium",
+      "confidence": "high"
+    },
+    {
+      "proposed_verdict": "needs_validation",
+      "fingerprint": "campus-api-no-rate-limit",
+      "title": "Campus API has no rate limiting — each request triggers two Supabase calls before authentication",
+      "description": "server/index.js has no rate limiting middleware. Every incoming request to any authenticated route causes authenticate() to call db.auth.getUser() (one Supabase Auth HTTP call) then db.from('users').select(...).eq('auth_user_id') (one DB query) before returning 401 or proceeding. An attacker can send high-volume requests to amplify load on Supabase's auth service and PostgreSQL. Whether Supabase hosted auth or the upstream infrastructure provides effective rate limiting is not source-visible.",
+      "claimed_root_cause": "No rate limiting middleware (e.g., express-rate-limit) in server/index.js. Each pre-authentication rejection still executes two Supabase API calls at server cost.",
+      "trace": [
+        {
+          "step": "entrypoint",
+          "location": "server/index.js:authenticate()",
+          "detail": "No rate check before db.auth.getUser(token)"
+        },
+        {
+          "step": "propagation",
+          "location": "server/index.js:db.auth.getUser(token) + db.from('users').maybeSingle()",
+          "detail": "Two Supabase calls executed per request"
+        },
+        {
+          "step": "sink",
+          "location": "Supabase auth service + PostgreSQL",
+          "detail": "Backend load amplified proportional to request rate"
+        }
+      ],
+      "evidence": "server/index.js: no require/import of any rate limiting middleware; express.json({ limit: '64kb' }) is the only request gate before authenticate(). db.auth.getUser() and db.from('users').maybeSingle() both execute on every protected request.",
+      "blockers": ["Supabase hosted auth rate limits and any upstream network/CDN rate limiting cannot be confirmed from source. These may provide effective mitigation not visible in the repository."],
+      "validation_plan": [
+        {
+          "type": "deployment",
+          "description": "Owner should confirm whether a Cloudflare or other CDN/WAF provides rate limiting upstream of the Express server, and whether Supabase Auth has per-IP rate limits that would mitigate this concern in practice."
+        }
+      ]
+    }
+  ],
+  "hardening": [
+    "Dockerfile CMD should use exec form `[\"node\", \"index.js\"]` instead of shell form for cleaner process management",
+    "Package.json devDependency supabase@^2.119.0 uses a range; pin to exact version for reproducible CI",
+    "service worker VERSION constant 'hma-shell-v4' should be incremented on any shell change to force cache refresh",
+    ".env.production is committed (intentionally per .gitignore !exception) — document this decision in a README; rotate keys if repo becomes public",
+    "supabase/config.toml auth.email.secure_password_change=false — consider enabling to require recent auth before password change in non-recovery flows",
+    "Archived students remain readable by former teachers and parents via RLS; add status filter to RLS policies if lifecycle isolation is required",
+    "server/index.js /api/health endpoint discloses push/SMS feature enablement; consider gating to internal network if sensitive",
+    "server/index.js httpServer.requestTimeout=0 disables timeout; consider a reasonable timeout to prevent slow-client resource retention"
+  ],
+  "uncovered": [
+    {
+      "surface": "server/index.js — scheduler functions (dispatchUpcomingClasses, autoCheckoutHostels) run as setInterval on service-role db",
+      "boundary": "Scheduler uses unscoped service-role db across all schools; no school isolation in scheduler queries",
+      "subsystem": "Campus API scheduled jobs",
+      "attack_class": "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "starting_paths": ["server/index.js"],
+      "reason": "The scheduler functions query all schools' data (terms, timetables, students, hostels) without school_id filters. In multi-school deployment, notification_dispatches and push notifications may be sent to users of other schools or duplicate across schools. This is a separate coverage unit from the request-path school scoping issue."
+    },
+    {
+      "surface": "data.js — lms_questions_for_current_user() RPC returns correct_answer=null for students",
+      "boundary": "Students receive NULL for correct_answer but the full question text and options are returned; quiz submission uses submit_lms_quiz() SECURITY DEFINER",
+      "subsystem": "LMS quiz submission and scoring",
+      "attack_class": "ATTACK-CLASSES.md#Business logic",
+      "starting_paths": ["supabase/migrations/20261019091035_security_hardening.sql", "data.js"],
+      "reason": "submit_lms_quiz() re-grades from the DB answer key, preventing score manipulation. But the RPC still returns all question content to enrolled students before quiz is submitted. This could be covered as a quiz data access boundary unit."
+    }
+  ]
+}

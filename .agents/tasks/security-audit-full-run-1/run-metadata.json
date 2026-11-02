@@ -1,0 +1,43 @@
+{
+  "run_id": "security-audit-full-run-1",
+  "repo": "schoolmg",
+  "target": "c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg",
+  "source_ref": "4eac11e7b02cd5821c62328553a10368aa345a8a",
+  "profile": "standard",
+  "scope_paths": ["."],
+  "budget": null,
+  "execution_policy": "sandboxed-source-and-local-only",
+  "selected_companion_files": [
+    "WEB-PROTOCOL-AND-AUTH.md",
+    "CLIENT-SIDE.md",
+    "DATA-ISOLATION-AND-LIFECYCLE.md",
+    "CLOUD-AND-DEPLOYMENT.md",
+    "SUPPLY-CHAIN-AND-RELEASE.md",
+    "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md"
+  ],
+  "companion_selection_rationale": {
+    "WEB-PROTOCOL-AND-AUTH.md": "Supabase Auth JWT flows (signIn, password recovery, session invalidation), campus API Bearer token verification, CORS policy, cookie-less SPA auth",
+    "CLIENT-SIDE.md": "React + Alpine.js SPA with innerHTML rendering via esc(), browser localStorage session storage, service worker (sw.js), Alpine store state",
+    "DATA-ISOLATION-AND-LIFECYCLE.md": "Multi-tenant RLS (school_id scoping), cross-student grade access, CSV/XLSX bulk export, student soft-delete/archive lifecycle",
+    "CLOUD-AND-DEPLOYMENT.md": "Edge Function with verify_jwt=false, Cloudflare Pages deployment, Docker container, service-role key in server env, Supabase Realtime channel authorization",
+    "SUPPLY-CHAIN-AND-RELEASE.md": "npm dependency resolution (package-lock.json), Vite build pipeline, Cloudflare Pages CI via wrangler.toml",
+    "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md": "Unbounded SSE client Set, in-memory pickup-PIN rate-limit Map, unauthenticated /api/health, no per-route rate limiting in campus API"
+  },
+  "validator_status": "POSIX-only validator cannot run on Windows (O_NOFOLLOW/O_NONBLOCK unavailable); inline structural validation passed all 32 units with no errors",
+  "coverage_unit_count": 32,
+  "prior_run_paths": [
+    "c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg\\.agents\\tasks\\security-plan.md",
+    "c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg\\.agents\\tasks\\security-review.json",
+    "c:\\Users\\Happy\\Documents\\Happy Management\\schoolmg\\schoolmg\\.agents\\tasks\\security-review.md"
+  ],
+  "shared_file_owners": {
+    "run-metadata.json": "parent",
+    "architecture.md": "parent",
+    "coverage-ledger.json": "parent",
+    "findings.json": "parent",
+    "REPORT.md": "parent",
+    "FINDINGS-DETAIL.md": "parent",
+    "NEEDS-VALIDATION.md": "parent"
+  },
+  "run_status": "in_progress"
+}

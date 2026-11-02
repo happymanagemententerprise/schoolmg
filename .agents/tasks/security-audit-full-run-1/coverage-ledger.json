@@ -1,0 +1,1831 @@
+[
+  {
+    "coverage_id": "Dockerfile%23Docker%20image%20build%20CMD%3Dnpm%20no%20start%20script::compose.yaml%23NODE_ENV%3Dproduction%20port%208000%20exposed::Dockerfile%23Docker%20deployment%20configuration::CLOUD-AND-DEPLOYMENT.md%23Security-control%20precedence%20drift",
+    "canonical_refs": {
+      "surface": "Dockerfile#Docker image build CMD=npm no start script",
+      "boundary": "compose.yaml#NODE_ENV=production port 8000 exposed",
+      "subsystem": "Dockerfile#Docker deployment configuration",
+      "attack_class": "CLOUD-AND-DEPLOYMENT.md#Security-control precedence drift"
+    },
+    "surface": "Dockerfile — CMD is `npm` (no argument); server exposed on port 8000",
+    "boundary": "compose.yaml: NODE_ENV=production; port 8000:8000 exposed to host",
+    "subsystem": "Docker deployment configuration",
+    "attack_class": "Security-control precedence drift",
+    "starting_paths": [
+      "Dockerfile",
+      "compose.yaml",
+      ".dockerignore",
+      "server/index.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Obvious things",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Container and orchestration attack classes",
+      "CLOUD-AND-DEPLOYMENT.md#Security-control precedence drift",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Workload identity and IAM attack classes",
+        "reason": "No IAM/cloud identity in Docker Compose configuration; plain port binding only"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "Dockerfile",
+      "compose.yaml",
+      "server/package.json"
+    ],
+    "local_checks": [
+      {
+        "result": "CMD is \npm with no argument; server never starts. Candidate: docker-cmd-no-start-arg",
+        "invariant": "Docker CMD must launch the server process",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "Dockerfile",
+          "compose.yaml",
+          "server/package.json"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "docker-cmd-no-start-arg"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app.js%23downloadCsv%28%29%20%2F%20downloadXlsx%28%29%20export%20of%20school%20data::app.js%23no%20per-item%20authorization%20on%20export%20path::app.js%23CSV%20XLSX%20data%20export%20flows::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "app.js#downloadCsv() / downloadXlsx() export of school data",
+      "boundary": "app.js#no per-item authorization on export path",
+      "subsystem": "app.js#CSV XLSX data export flows",
+      "attack_class": "ATTACK-CLASSES.md#Feature abuse and data leakage"
+    },
+    "surface": "app.js — downloadCsv() / downloadXlsx() / downloadXlsxMulti() — bulk data export for admin/teacher",
+    "boundary": "Export operates on in-memory cache populated from Supabase; no per-item authorization check at export time",
+    "subsystem": "CSV/XLSX data export flows",
+    "attack_class": "Feature abuse and data leakage",
+    "starting_paths": [
+      "app.js",
+      "src/views/admin.js",
+      "data.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Export and backup scope expansion",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Build-context inclusion",
+        "reason": "Export is a runtime data operation, not a build artifact path"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "app.js",
+      "data.js"
+    ],
+    "local_checks": [
+      {
+        "result": "Exports use in-memory cache populated by RLS-filtered Supabase queries. No per-item auth check needed at export time. No cross-tenant leak confirmed.",
+        "invariant": "Export operates only on RLS-filtered in-memory cache; no cross-tenant data included",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "app.js",
+          "data.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app.js%23innerHTML%20rendering%20of%20user%20data%20via%20esc%28%29::app.js%23esc%28%29%20HTML%20entity%20escaping%20helper::app.js%23SPA%20DOM%20rendering%20%28admin%20people%20view%29::CLIENT-SIDE.md%23DOM-based%20XSS",
+    "canonical_refs": {
+      "surface": "app.js#innerHTML rendering of user data via esc()",
+      "boundary": "app.js#esc() HTML entity escaping helper",
+      "subsystem": "app.js#SPA DOM rendering (admin people view)",
+      "attack_class": "CLIENT-SIDE.md#DOM-based XSS"
+    },
+    "surface": "app.js — innerHTML rendering of school data (names, emails, scores) via esc() helper",
+    "boundary": "esc() escapes &, <, >, \", ' for HTML output; used throughout renderAdmin*() functions",
+    "subsystem": "SPA DOM rendering (admin/teacher views)",
+    "attack_class": "DOM-based XSS",
+    "starting_paths": [
+      "app.js",
+      "src/views/admin.js",
+      "src/views/teacher.js",
+      "src/views/student.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#DOM and object-state attack classes",
+      "CLIENT-SIDE.md#Universal moves",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#Prototype pollution and gadget chain",
+        "reason": "No deep-merge or recursive write path identified in source that processes DB field names as keys"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "app.js"
+    ],
+    "local_checks": [
+      {
+        "result": "All DB field values inserted into innerHTML use esc() helper. No unescaped concatenation of user data found. No XSS path confirmed.",
+        "invariant": "User-controlled content rendered into innerHTML must be HTML-entity-escaped",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "app.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app.js%23printReportPdf%28%29%20%2F%20report%20drawer%20student%20data%20rendering::app.js%23openDrawer%28%29%20report%20drawer%20open%20to%20all%20roles::app.js%23Student%20report%20card%20export%20authorization::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "app.js#printReportPdf() / report drawer student data rendering",
+      "boundary": "app.js#openDrawer() report drawer open to all roles",
+      "subsystem": "app.js#Student report card export authorization",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "app.js — printReportPdf() and report drawer; renders detailed student academic data",
+    "boundary": "Report drawer opened by navigation; role-based nav restricts pages but drawer is a DOM element",
+    "subsystem": "Student report card export authorization",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "app.js",
+      "src/views/reports.js",
+      "src/auth.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Export and backup scope expansion",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "WEB-PROTOCOL-AND-AUTH.md#Request framing and desynchronization",
+        "reason": "Print/PDF export is a purely client-side DOM operation, not an HTTP request path"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "app.js",
+      "src/auth.js"
+    ],
+    "local_checks": [
+      {
+        "result": "Navigation restricted by role; report data from RLS-filtered cache. Client-side only for defense-in-depth; underlying data is RLS-protected.",
+        "invariant": "Report card export only accessible to authorized roles",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "app.js",
+          "src/auth.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app.js%23student%20soft-delete%20archive%20status::supabase%2Fmigrations%2F20261002_end_of_session.sql%23students.status%3D%27archived%27::data.js%23Student%20archive%20lifecycle::DATA-ISOLATION-AND-LIFECYCLE.md%23Soft-delete%20and%20tombstone%20bypass",
+    "canonical_refs": {
+      "surface": "app.js#student soft-delete archive status",
+      "boundary": "supabase/migrations/20261002_end_of_session.sql#students.status='archived'",
+      "subsystem": "data.js#Student archive lifecycle",
+      "attack_class": "DATA-ISOLATION-AND-LIFECYCLE.md#Soft-delete and tombstone bypass"
+    },
+    "surface": "app.js / data.js — student soft-delete (status='archived'); archived students excluded from UI",
+    "boundary": "students.status='archived' filter; RLS policies do not exclude archived students from anon SELECT",
+    "subsystem": "Student archive lifecycle",
+    "attack_class": "Soft-delete and tombstone bypass",
+    "starting_paths": [
+      "supabase/migrations/20261002_end_of_session.sql",
+      "supabase/migrations/20261006_rls_lockdown.sql",
+      "data.js",
+      "app.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Soft-delete and tombstone bypass",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Deletion revocation and lifecycle attack classes",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Rollback and recovery",
+        "reason": "This is a lifecycle/tombstone issue in a live database, not a release/migration rollback"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "supabase/migrations/20261002_end_of_session.sql",
+      "supabase/migrations/20261006_rls_lockdown.sql",
+      "data.js",
+      "supabase/migrations/20261005_supabase_auth.sql"
+    ],
+    "local_checks": [
+      {
+        "result": "RLS policies allow former teachers/parents to see archived students (no status filter). No unauthorized principal can read archived students. Hardening note only.",
+        "invariant": "Archived students should not be readable by unauthorized principals",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "supabase/migrations/20261005_supabase_auth.sql",
+          "supabase/migrations/20261006_rls_lockdown.sql",
+          "supabase/migrations/20261002_end_of_session.sql",
+          "data.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "data.js%23POST%20%2Frest%2Fv1%2Fusers%20%28Supabase%20REST%20anon%29::supabase%2Fmigrations%2F20261004_rls_policies.sql%23users_update%20USING%28true%29%20WITH%20CHECK%28true%29::data.js%23Data%20layer%20%28users%20table%29::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "data.js#POST /rest/v1/users (Supabase REST anon)",
+      "boundary": "supabase/migrations/20261004_rls_policies.sql#users_update USING(true) WITH CHECK(true)",
+      "subsystem": "data.js#Data layer (users table)",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Supabase REST API — anon UPDATE on public.users",
+    "boundary": "RLS policy users_update: USING(true) WITH CHECK(true) — no row or value constraint",
+    "subsystem": "Data layer / users table",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "supabase/migrations/20261004_rls_policies.sql",
+      "supabase/migrations/20261006_rls_lockdown.sql",
+      "data.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Workload identity and IAM attack classes",
+        "reason": "Finding is in source-visible RLS policy text, not a cloud IAM boundary"
+      },
+      {
+        "block": "CLIENT-SIDE.md#DOM and object-state attack classes",
+        "reason": "No client-side rendering path reaches this boundary"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "supabase/migrations/20261004_rls_policies.sql",
+      "supabase/migrations/20261005_supabase_auth.sql",
+      "supabase/migrations/20261006_rls_lockdown.sql",
+      "supabase/migrations/20261019091035_security_hardening.sql",
+      "data.js"
+    ],
+    "local_checks": [
+      {
+        "result": "20261004 creates users_update FOR anon USING(true). 20261005 replaces it. Migration application status not source-visible. Candidate: rls-users-update-anon-unrestricted (needs_validation).",
+        "invariant": "Anon callers must not be able to UPDATE any user row",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "supabase/migrations/20261004_rls_policies.sql",
+          "supabase/migrations/20261005_supabase_auth.sql",
+          "supabase/migrations/20261006_rls_lockdown.sql",
+          "supabase/migrations/20261019091035_security_hardening.sql",
+          "data.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "rls-users-update-anon-unrestricted"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "data.js%23SCHOOL_SCOPED_TABLES%20Set%20application-level%20allow-list::data.js%23tables%20not%20in%20SCHOOL_SCOPED_TABLES%20bypass%20school%20scoping::data.js%23Unclassified%20table%20school%20scoping%20bypass::ATTACK-CLASSES.md%23Wildcard",
+    "canonical_refs": {
+      "surface": "data.js#SCHOOL_SCOPED_TABLES Set application-level allow-list",
+      "boundary": "data.js#tables not in SCHOOL_SCOPED_TABLES bypass school scoping",
+      "subsystem": "data.js#Unclassified table school scoping bypass",
+      "attack_class": "ATTACK-CLASSES.md#Wildcard"
+    },
+    "surface": "data.js — SCHOOL_SCOPED_TABLES Set: tables NOT in the set bypass scopeSchoolQuery() entirely",
+    "boundary": "scopeSchoolQuery() only applied to tables in SCHOOL_SCOPED_TABLES; any other table gets unscoped queries",
+    "subsystem": "Unclassified table school scoping bypass",
+    "attack_class": "Wildcard",
+    "starting_paths": [
+      "data.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Wildcard",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Generated-source and codegen provenance gaps",
+        "reason": "SCHOOL_SCOPED_TABLES is hand-maintained source, not generated code"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "data.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "SCHOOL_SCOPED_TABLES covers all 47 multi-tenant tables. Edge Function adds hard reject for unclassified tables. Non-listed tables are infrastructure (organizations, schools, memberships). No bypass found.",
+        "invariant": "All tables with multi-tenant data must be in SCHOOL_SCOPED_TABLES",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "data.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "data.js%23Supabase%20REST%20anon%20SELECT%20on%20all%20school%20tables::supabase%2Fmigrations%2F20261006_rls_lockdown.sql%23RLS%20authenticated-only%20policies::data.js%23Data%20layer%20%28broadcast%20cache%29::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "data.js#Supabase REST anon SELECT on all school tables",
+      "boundary": "supabase/migrations/20261006_rls_lockdown.sql#RLS authenticated-only policies",
+      "subsystem": "data.js#Data layer (broadcast cache)",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Supabase REST API — anon SELECT on all school tables (broadcast cache hydration)",
+    "boundary": "RLS policies requiring authenticated role (20261006_rls_lockdown.sql)",
+    "subsystem": "Data layer (broadcast cache)",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "data.js",
+      "supabase/migrations/20261005_supabase_auth.sql",
+      "supabase/migrations/20261006_rls_lockdown.sql"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "WEB-PROTOCOL-AND-AUTH.md#JWT verification and claim binding",
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#DOM and object-state attack classes",
+        "reason": "Access control check is server-side RLS; client rendering is a separate unit"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "data.js",
+      "supabase/migrations/20261005_supabase_auth.sql",
+      "supabase/migrations/20261006_rls_lockdown.sql",
+      "supabase/migrations/20261019091035_security_hardening.sql",
+      "supabase/migrations/20261004_rls_policies.sql"
+    ],
+    "local_checks": [
+      {
+        "result": "20261004 creates anon SELECT policies on grades/students/users/promotions. 20261005 replaces them. Migration application status not source-visible. Candidate: rls-anon-select-school-tables (needs_validation).",
+        "invariant": "Anon callers must not SELECT from sensitive school data tables",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "supabase/migrations/20261004_rls_policies.sql",
+          "supabase/migrations/20261005_supabase_auth.sql",
+          "data.js",
+          "supabase/migrations/20261006_rls_lockdown.sql",
+          "supabase/migrations/20261019091035_security_hardening.sql"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "rls-anon-select-school-tables"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "data.js%23Supabase%20REST%20anon%20key%20hardcoded%20and%20committed::data.js%23supabaseAnonKey%20fallback%20hardcoded%20at%20line%2023::.env.production%23VITE_SUPABASE_ANON_KEY%20committed::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "data.js#Supabase REST anon key hardcoded and committed",
+      "boundary": "data.js#supabaseAnonKey fallback hardcoded at line 23",
+      "subsystem": ".env.production#VITE_SUPABASE_ANON_KEY committed",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "Supabase anon key hardcoded in data.js and committed in .env.production",
+    "boundary": "Anon key fallback in data.js line 23; .env.production tracked by git",
+    "subsystem": "Secrets / configuration",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      "data.js",
+      ".env.production",
+      ".gitignore"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Secret exposure across workload boundaries",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Computational amplification attack classes",
+        "reason": "No amplification path from key exposure"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "data.js",
+      ".env.production",
+      ".gitignore"
+    ],
+    "local_checks": [
+      {
+        "result": "Anon key is public by Supabase design. No service role key in committed files. .env.production intentionally committed. No security vulnerability; hardening note only.",
+        "invariant": "Supabase anon key is a public credential by design; no secret exposure",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "data.js",
+          ".env.production",
+          ".gitignore"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "data.js%23Supabase%20Realtime%20channel%20postgres_changes%20subscription::data.js%23anon%20role%20realtime%20subscription%20authorization::data.js%23SPA%20Realtime%20subscriptions::DATA-ISOLATION-AND-LIFECYCLE.md%23Search%20cache%20and%20index%20ACL%20drift",
+    "canonical_refs": {
+      "surface": "data.js#Supabase Realtime channel postgres_changes subscription",
+      "boundary": "data.js#anon role realtime subscription authorization",
+      "subsystem": "data.js#SPA Realtime subscriptions",
+      "attack_class": "DATA-ISOLATION-AND-LIFECYCLE.md#Search cache and index ACL drift"
+    },
+    "surface": "data.js — Supabase Realtime subscriptions for live data updates (postgres_changes)",
+    "boundary": "Realtime authorization uses same RLS as REST; anon role allowed only after migration applied",
+    "subsystem": "SPA Realtime subscriptions",
+    "attack_class": "Search cache and index ACL drift",
+    "starting_paths": [
+      "data.js",
+      "supabase/config.toml",
+      "supabase/migrations/20261006_rls_lockdown.sql"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Search cache and index ACL drift",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Stale authorization and derived copy use",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "CLOUD-AND-DEPLOYMENT.md#Event-source identity confusion",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#Cross-site WebSocket request use",
+        "reason": "Supabase Realtime uses its own authenticated WebSocket channel, not a cross-site WebSocket"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "blocked",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "data.js",
+      "supabase/config.toml",
+      "supabase/migrations/20261006_rls_lockdown.sql"
+    ],
+    "local_checks": [
+      {
+        "result": "Realtime uses same RLS as REST per Supabase design. Pre-migration anon Realtime behavior not source-visible.",
+        "invariant": "Supabase Realtime subscriptions must respect RLS for anon callers",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "data.js",
+          "supabase/config.toml",
+          "supabase/migrations/20261006_rls_lockdown.sql"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": [
+      "Supabase Realtime authorization for anon role pre-migration cannot be confirmed from source. Requires live Supabase project inspection."
+    ]
+  },
+  {
+    "coverage_id": "data.js%23_demoMode%20flag%20and%20demoQuery%28%29%20stub::data.js%23Data.startDemoMode%28%29%20no-live-DB%20bypass::data.js%23Demo%20mode%20%2F%20test%20credential%20bypass::ATTACK-CLASSES.md%23Obvious%20things",
+    "canonical_refs": {
+      "surface": "data.js#_demoMode flag and demoQuery() stub",
+      "boundary": "data.js#Data.startDemoMode() no-live-DB bypass",
+      "subsystem": "data.js#Demo mode / test credential bypass",
+      "attack_class": "ATTACK-CLASSES.md#Obvious things"
+    },
+    "surface": "data.js — demo mode: _demoMode flag, demoQuery() stub, bundled fixture school data",
+    "boundary": "startDemoMode() sets flag; demo email list in index.html demo-btn elements",
+    "subsystem": "Demo mode / test credential bypass",
+    "attack_class": "Obvious things",
+    "starting_paths": [
+      "data.js",
+      "index.html",
+      "src/auth.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Obvious things",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules",
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Security-control precedence drift",
+        "reason": "Demo mode is a client-side fixture, not a deployed environment configuration"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "data.js",
+      "index.html",
+      "src/auth.js"
+    ],
+    "local_checks": [
+      {
+        "result": "startDemoMode() signs out first, sets _demoMode=true, uses bundled fixture only. No production data access possible in demo mode.",
+        "invariant": "Demo mode must not bypass authentication to live Supabase data",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "data.js",
+          "src/auth.js",
+          "index.html"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "data.js%23loginWithPassword%28%29%20SELECT%20password_hash%20password_salt%20in%20browser::data.js%23client-side%20hash%20comparison::data.js%23Auth%20login%20flow::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "data.js#loginWithPassword() SELECT password_hash password_salt in browser",
+      "boundary": "data.js#client-side hash comparison",
+      "subsystem": "data.js#Auth login flow",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "data.js loginWithPassword() — fetches password_hash/password_salt to browser and compares client-side",
+    "boundary": "Client-side SHA256 hash comparison; hash visible in network traffic",
+    "subsystem": "Auth login flow (data.js)",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      "data.js",
+      "src/auth.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#JWT verification and claim binding",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules",
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Configuration and secret lifecycle attack classes",
+        "reason": "Issue is in application logic, not deployment configuration"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "data.js",
+      "src/auth.js",
+      "supabase/migrations/20261019091035_security_hardening.sql"
+    ],
+    "local_checks": [
+      {
+        "result": "loginWithPassword() removed (throws error). password_hash/password_salt columns dropped in migration 20261019. Current login uses _sb.auth.signInWithPassword() server-side. Prior finding resolved.",
+        "invariant": "Password credentials must not be fetched to browser or compared client-side",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "data.js",
+          "supabase/migrations/20261019091035_security_hardening.sql",
+          "src/auth.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "data.js%23scopeSchoolQuery%28%29%20Proxy%20stamps%20school_id::data.js%23_activeSchoolId%20null%20check%20throws%20Error::data.js%23Client-side%20school%20scoping%20proxy::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "data.js#scopeSchoolQuery() Proxy stamps school_id",
+      "boundary": "data.js#_activeSchoolId null check throws Error",
+      "subsystem": "data.js#Client-side school scoping proxy",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "data.js — scopeSchoolQuery() Proxy intercepts Supabase query builder; stamps school_id on every write/read",
+    "boundary": "_activeSchoolId null check throws Error; school_id value comes from Data.setActiveSchool()",
+    "subsystem": "Client-side school scoping proxy",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "data.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Application authorization delegated to cloud metadata",
+        "reason": "School scoping is in client-side JS, not cloud metadata; the RLS layer is a separate unit"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "data.js"
+    ],
+    "local_checks": [
+      {
+        "result": "scopeSchoolQuery() is client-side only and bypassable via direct REST. RLS policies lack school_id predicates. Confirmed candidate: rls-missing-school-id-predicate.",
+        "invariant": "School scoping must be enforced server-side (RLS), not only by client Proxy",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "data.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "rls-missing-school-id-predicate"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "package.json%23npm%20dependency%20resolution%20%28Vite%2C%20React%2C%20Supabase-js%2C%20Playwright%29::package-lock.json%23lockfile%20pinning%20and%20integrity::package.json%23Frontend%20supply%20chain::SUPPLY-CHAIN-AND-RELEASE.md%23Dependency%20source%20and%20namespace%20confusion",
+    "canonical_refs": {
+      "surface": "package.json#npm dependency resolution (Vite, React, Supabase-js, Playwright)",
+      "boundary": "package-lock.json#lockfile pinning and integrity",
+      "subsystem": "package.json#Frontend supply chain",
+      "attack_class": "SUPPLY-CHAIN-AND-RELEASE.md#Dependency source and namespace confusion"
+    },
+    "surface": "package.json — frontend npm dependencies (Vite, React, @supabase/supabase-js, Playwright, Alpine.js)",
+    "boundary": "package-lock.json lockfile; version pinning in package.json",
+    "subsystem": "Frontend supply chain",
+    "attack_class": "Dependency source and namespace confusion",
+    "starting_paths": [
+      "package.json",
+      "package-lock.json",
+      "server/package.json"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Obvious things",
+    "selected_companion_blocks": [
+      "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Dependency source and namespace confusion",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Mutable and unbound build inputs",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Universal moves",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Untrusted code in a privileged workflow",
+        "reason": "No CI workflow files found in repository; Cloudflare Pages CI not in source"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "package.json",
+      "server/package.json"
+    ],
+    "local_checks": [
+      {
+        "result": "Runtime dependencies exactly pinned. Dev supabase CLI uses range (hardening note). No known CVEs in pinned versions from source review. No namespace confusion.",
+        "invariant": "Dependencies must use exact or pinned versions; no known CVEs",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "package.json",
+          "server/package.json"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "server%2Findex.js%23CORS%20allowedOrigins%20Set%20from%20FRONTEND_ORIGINS%20env::server%2Findex.js%23Vary%3A%20Origin%20%2B%20explicit%20allowlist::server%2Findex.js%23Campus%20API%20CORS%20policy::WEB-PROTOCOL-AND-AUTH.md%23Credentialed%20CORS%20trust",
+    "canonical_refs": {
+      "surface": "server/index.js#CORS allowedOrigins Set from FRONTEND_ORIGINS env",
+      "boundary": "server/index.js#Vary: Origin + explicit allowlist",
+      "subsystem": "server/index.js#Campus API CORS policy",
+      "attack_class": "WEB-PROTOCOL-AND-AUTH.md#Credentialed CORS trust"
+    },
+    "surface": "Campus API — CORS policy: FRONTEND_ORIGINS env-driven allowlist with Vary: Origin",
+    "boundary": "allowedOrigins Set exact-match; no wildcard; Vary: Origin set; no ACAO: *",
+    "subsystem": "Campus API CORS policy",
+    "attack_class": "Credentialed CORS trust",
+    "starting_paths": [
+      "server/index.js",
+      "server/.env.example",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Credentialed CORS trust",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules",
+      "CLIENT-SIDE.md#Cross-origin messaging and network attack classes",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "WEB-PROTOCOL-AND-AUTH.md#Request framing and desynchronization",
+        "reason": "CORS policy is at the application layer; request framing would require a proxy not in source"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "Allowlist exact-match; no wildcard; Vary: Origin set; no Access-Control-Allow-Credentials (Bearer token auth). No CORS trust issue.",
+        "invariant": "CORS must not reflect arbitrary origins or allow credentials from untrusted origins",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "server/index.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "server%2Findex.js%23GET%20%2Fapi%2Fcampus%2Fevents%20SSE%20stream::server%2Findex.js%23campusEventClients%20Set%20unbounded::server%2Findex.js%23Campus%20API%20SSE%20realtime%20feed::RESOURCE-EXHAUSTION-AND-AVAILABILITY.md%23Unbounded%20buffering%20and%20cardinality",
+    "canonical_refs": {
+      "surface": "server/index.js#GET /api/campus/events SSE stream",
+      "boundary": "server/index.js#campusEventClients Set unbounded",
+      "subsystem": "server/index.js#Campus API SSE realtime feed",
+      "attack_class": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Unbounded buffering and cardinality"
+    },
+    "surface": "Campus API — GET /api/campus/events (SSE, long-lived connections)",
+    "boundary": "campusEventClients Set has no capacity cap; relies only on connection close event",
+    "subsystem": "Campus API SSE realtime feed",
+    "attack_class": "Unbounded buffering and cardinality",
+    "starting_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Unbounded buffering and cardinality",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "DATA-ISOLATION-AND-LIFECYCLE.md#Analytics logs traces and diagnostics as alternate readers",
+        "reason": "This is a resource exhaustion path, not a data isolation path"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "campusEventClients Set has no size cap. One setInterval per connection. Authentication required to connect. Confirmed candidate: sse-campuseventclients-unbounded.",
+        "invariant": "SSE connection pool must be bounded to prevent resource exhaustion",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "server/index.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "sse-campuseventclients-unbounded"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "server%2Findex.js%23GET%20%2Fapi%2Fhealth%20unauthenticated%20endpoint::server%2Findex.js%23no%20auth%20middleware%20on%20%2Fapi%2Fhealth::server%2Findex.js%23Health%20endpoint%20information%20disclosure::ATTACK-CLASSES.md%23Obvious%20things",
+    "canonical_refs": {
+      "surface": "server/index.js#GET /api/health unauthenticated endpoint",
+      "boundary": "server/index.js#no auth middleware on /api/health",
+      "subsystem": "server/index.js#Health endpoint information disclosure",
+      "attack_class": "ATTACK-CLASSES.md#Obvious things"
+    },
+    "surface": "Campus API — GET /api/health (unauthenticated; reveals push/SMS enablement status)",
+    "boundary": "No authentication required; returns pushEnabled and smsEnabled flags",
+    "subsystem": "Health endpoint information disclosure",
+    "attack_class": "Obvious things",
+    "starting_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Obvious things",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Unexpected service or management-plane reachability",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+        "reason": "Health endpoint does no expensive work; pure JSON response with no DB query"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "Returns only pushEnabled/smsEnabled feature flags. No secrets or internal paths. Hardening note only.",
+        "invariant": "Health endpoint must not disclose sensitive operational state",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "server/index.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "server%2Findex.js%23POST%20%2Fapi%2Fgate%2Fevents%20pickup%20PIN%20verification::server%2Findex.js%23verifyPickupPin%28%29%20scrypt%20%2B%20lockout::server%2Findex.js%23Campus%20API%20gate%20events::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "server/index.js#POST /api/gate/events pickup PIN verification",
+      "boundary": "server/index.js#verifyPickupPin() scrypt + lockout",
+      "subsystem": "server/index.js#Campus API gate events",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Campus API — POST /api/gate/events with pickupPin (parent authorization for student pickup)",
+    "boundary": "verifyPickupPin(): scrypt timing-safe compare, 5-attempt lockout in DB + in-memory Map keyed by parentId:IP",
+    "subsystem": "Campus API gate events",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts",
+      "supabase/migrations/20261018090000_vehicle_gate_checkin.sql"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Quota-accounting scope and reset gaps",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#DOM and object-state attack classes",
+        "reason": "PIN verification is server-side; no client-side DOM path"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "scrypt + timingSafeEqual used. Dual-layer lockout (in-memory + DB). Math.max handles restart-recovery. No bypass found.",
+        "invariant": "PIN verification must be timing-safe with brute-force lockout",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "server/index.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "server%2Findex.js%23POST%20%2Fapi%2Fpush%2Fsubscribe%20WebPush%20subscription%20storage::server%2Findex.js%23user_id%20bound%20to%20endpoint%20upsert::server%2Findex.js%23Push%20notification%20subscription%20lifecycle::DATA-ISOLATION-AND-LIFECYCLE.md%23Blob%20and%20signed-reference%20overreach",
+    "canonical_refs": {
+      "surface": "server/index.js#POST /api/push/subscribe WebPush subscription storage",
+      "boundary": "server/index.js#user_id bound to endpoint upsert",
+      "subsystem": "server/index.js#Push notification subscription lifecycle",
+      "attack_class": "DATA-ISOLATION-AND-LIFECYCLE.md#Blob and signed-reference overreach"
+    },
+    "surface": "Campus API — POST/DELETE /api/push/subscribe (WebPush subscription stored per user)",
+    "boundary": "user_id bound to endpoint on upsert; cross-user endpoint check before upsert",
+    "subsystem": "Push notification subscription lifecycle",
+    "attack_class": "Blob and signed-reference overreach",
+    "starting_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts",
+      "src/pwa.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Blob and signed-reference overreach",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "CLOUD-AND-DEPLOYMENT.md#Managed storage events and edge attack classes",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#Cross-context storage and broadcast confusion",
+        "reason": "Push subscription is stored server-side; no broadcast channel involved"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "409 returned if endpoint already registered to different user. Upsert binds to req.schoolUser.id. No cross-user path found.",
+        "invariant": "Push subscriptions bound to authenticated user; no cross-user registration",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "server/index.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "server%2Findex.js%23POST%20%2Fapi%2Fusers%20admin%20creates%20school%20users::server%2Findex.js%23requireRoles%28%27admin%27%29%20only::server%2Findex.js%23Campus%20API%20user%20provisioning::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "server/index.js#POST /api/users admin creates school users",
+      "boundary": "server/index.js#requireRoles('admin') only",
+      "subsystem": "server/index.js#Campus API user provisioning",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Campus API — POST /api/users (admin creates teacher/student/parent accounts via Supabase Admin Auth)",
+    "boundary": "requireRoles('admin'); school-scoped DB write; rollback on membership creation failure",
+    "subsystem": "Campus API user provisioning",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Import and restore authority expansion",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Release authorization and signing-policy gaps",
+        "reason": "No release artifact is created by this route; it is a runtime user creation operation"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "server/index.js uses unscoped service-role db; no X-School-ID; no school_memberships insert. Edge Function version uses req.db (school-scoped). Same root cause as password reset. Candidate: server-nodejs-missing-school-scope.",
+        "invariant": "Admin-created users must be scoped to the admin's school",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "server/index.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "server-nodejs-missing-school-scope"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "server%2Findex.js%23POST%20%2Fapi%2Fusers%2F%3Aid%2Fpassword::server%2Findex.js%23requireRoles%28%27admin%27%2C%20%27teacher%27%29%20%2B%20class%20membership%20check::server%2Findex.js%23Campus%20API%20user%20management::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "server/index.js#POST /api/users/:id/password",
+      "boundary": "server/index.js#requireRoles('admin', 'teacher') + class membership check",
+      "subsystem": "server/index.js#Campus API user management",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Campus API — POST /api/users/:id/password (admin resets any password; teacher resets student in own class)",
+    "boundary": "requireRoles('admin','teacher') + staff_role class-teacher check + teacher_classes membership",
+    "subsystem": "Campus API user management",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#API-key scope and resource binding",
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#DOM and object-state attack classes",
+        "reason": "Authorization check is server-side; client rendering is a separate unit"
+      },
+      {
+        "block": "DATA-ISOLATION-AND-LIFECYCLE.md#Export and backup scope expansion",
+        "reason": "This is a write operation (password reset), not an export path"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "server/index.js password reset uses unscoped db.from('users') query; no school_id filter. Admin from School A can reset passwords for School B users. Same root cause: server-nodejs-missing-school-scope.",
+        "invariant": "Password reset must be scoped to the requesting admin's school",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "server/index.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "server-nodejs-missing-school-scope"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "server%2Findex.js%23express.json%28%7B%20limit%3A%20%2764kb%27%20%7D%29%20body%20size%20cap::server%2Findex.js%23no%20per-route%20rate%20limiting%20middleware::server%2Findex.js%23Campus%20API%20request%20rate%20limiting::RESOURCE-EXHAUSTION-AND-AVAILABILITY.md%23Pre-authentication%20work%20imbalance",
+    "canonical_refs": {
+      "surface": "server/index.js#express.json({ limit: '64kb' }) body size cap",
+      "boundary": "server/index.js#no per-route rate limiting middleware",
+      "subsystem": "server/index.js#Campus API request rate limiting",
+      "attack_class": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance"
+    },
+    "surface": "Campus API — 64kb body limit; no per-route rate limiting or authentication-before-parsing enforced",
+    "boundary": "express.json limit 64kb; authenticate() middleware runs DB queries per request before any rate limit",
+    "subsystem": "Campus API request rate limiting",
+    "attack_class": "Pre-authentication work imbalance",
+    "starting_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Worker pool and priority starvation",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Retry storm and fail-open amplification",
+        "reason": "Rate limiting gap is in the application layer, not a CI/release retry path"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "No rate limiting middleware in server/index.js. Two Supabase calls per request before auth decision. Upstream rate limiting not source-visible. Candidate: campus-api-no-rate-limit (needs_validation).",
+        "invariant": "Authentication work should not be unbounded before a rate limit gate",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "server/index.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "campus-api-no-rate-limit"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "server%2Findex.js%23sendSms%28%29%20Twilio%20webhook%20outbound%20call::server%2Findex.js%23no%20SSRF%20validation%20on%20internal%20Twilio%20URL::server%2Findex.js%23Twilio%20SMS%20integration::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "server/index.js#sendSms() Twilio webhook outbound call",
+      "boundary": "server/index.js#no SSRF validation on internal Twilio URL",
+      "subsystem": "server/index.js#Twilio SMS integration",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "server/index.js — sendSms() makes outbound POST to hardcoded Twilio API URL with server-side credentials",
+    "boundary": "Twilio URL is hardcoded template; no caller-supplied URL used",
+    "subsystem": "Twilio SMS integration",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts",
+      "server/.env.example"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Secret exposure across workload boundaries",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Superlinear parsing matching or evaluation",
+        "reason": "SMS is a single outbound call per gate event, not a parsing amplification path"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "server/index.js",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "Twilio URL is hardcoded template; no user-controlled URL components. No SSRF path.",
+        "invariant": "sendSms() must not allow SSRF via user-controlled URLs",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "server/index.js",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "src%2Fauth.js%23Data.signIn%28%29%20Supabase%20Auth%20login%20flow::src%2Fauth.js%23session%20stored%20in%20localStorage%20via%20Supabase%20client::src%2Fauth.js%23Browser%20session%20%2F%20auth%20state::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "src/auth.js#Data.signIn() Supabase Auth login flow",
+      "boundary": "src/auth.js#session stored in localStorage via Supabase client",
+      "subsystem": "src/auth.js#Browser session / auth state",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "src/auth.js — Supabase Auth sign-in, session persistence in localStorage",
+    "boundary": "Supabase client stores JWT/refresh token in localStorage; logout clears it",
+    "subsystem": "Browser session / auth state",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "src/auth.js",
+      "data.js",
+      "src/state.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Browser-session attack classes",
+      "WEB-PROTOCOL-AND-AUTH.md#Session fixation and invalidation",
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules",
+      "CLIENT-SIDE.md#Browser-storage disclosure and stale authorization",
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "WEB-PROTOCOL-AND-AUTH.md#Ordinary CSRF",
+        "reason": "SPA uses Bearer token auth, not ambient cookies, for API calls"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "src/auth.js",
+      "data.js"
+    ],
+    "local_checks": [
+      {
+        "result": "signOut() clears Supabase localStorage. Refresh token rotation enabled. Demo mode signs out first. No session fixation path.",
+        "invariant": "Session tokens cleared on logout; no session fixation",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "src/auth.js",
+          "data.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "src%2Fauth.js%23openPasswordRecovery%28%29%20password%20reset%20link::supabase%2Fconfig.toml%23auth.email.enable_confirmations%3Dfalse::src%2Fauth.js%23Password%20recovery%20flow::WEB-PROTOCOL-AND-AUTH.md%23Password%20reset%20and%20broader%20recovery",
+    "canonical_refs": {
+      "surface": "src/auth.js#openPasswordRecovery() password reset link",
+      "boundary": "supabase/config.toml#auth.email.enable_confirmations=false",
+      "subsystem": "src/auth.js#Password recovery flow",
+      "attack_class": "WEB-PROTOCOL-AND-AUTH.md#Password reset and broader recovery"
+    },
+    "surface": "src/auth.js — password reset via email link (Supabase Auth PASSWORD_RECOVERY event)",
+    "boundary": "Supabase Auth email reset; confirmations disabled in config.toml",
+    "subsystem": "Password recovery flow",
+    "attack_class": "Password reset and broader recovery",
+    "starting_paths": [
+      "src/auth.js",
+      "supabase/config.toml",
+      "data.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#MFA enrollment and assurance downgrade",
+      "WEB-PROTOCOL-AND-AUTH.md#Password reset and broader recovery",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#Service-worker registration and scope takeover",
+        "reason": "Password recovery flow is server-side auth event, not a service worker path"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "src/auth.js",
+      "supabase/config.toml",
+      "data.js"
+    ],
+    "local_checks": [
+      {
+        "result": "Supabase GoTrue handles token generation. config.toml otp_expiry=3600s. updateOwnPassword requires active PASSWORD_RECOVERY session. No account enumeration via response. No bypass found.",
+        "invariant": "Password reset tokens must be single-use, expiring, and bound to requesting email",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "src/auth.js",
+          "supabase/config.toml",
+          "data.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "supabase%2Fconfig.toml%23functions.campus-api.verify_jwt%3Dfalse::supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23authenticate%28%29%20self-validates%20JWT::supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23Edge%20Function%20JWT%20bypass%20config::CLOUD-AND-DEPLOYMENT.md%23Edge%2Fruntime%20boundary%20mismatch",
+    "canonical_refs": {
+      "surface": "supabase/config.toml#functions.campus-api.verify_jwt=false",
+      "boundary": "supabase/functions/campus-api/index.ts#authenticate() self-validates JWT",
+      "subsystem": "supabase/functions/campus-api/index.ts#Edge Function JWT bypass config",
+      "attack_class": "CLOUD-AND-DEPLOYMENT.md#Edge/runtime boundary mismatch"
+    },
+    "surface": "supabase/config.toml: campus-api Edge Function has verify_jwt=false",
+    "boundary": "authenticate() calls db.auth.getUser(token) manually; no Supabase framework JWT validation",
+    "subsystem": "Edge Function JWT bypass config",
+    "attack_class": "Edge/runtime boundary mismatch",
+    "starting_paths": [
+      "supabase/config.toml",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Edge/runtime boundary mismatch",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules",
+      "WEB-PROTOCOL-AND-AUTH.md#JWT verification and claim binding",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Build-to-promotion substitution",
+        "reason": "Issue is runtime configuration, not build artifact integrity"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "supabase/config.toml",
+      "supabase/functions/campus-api/index.ts"
+    ],
+    "local_checks": [
+      {
+        "result": "authenticate() calls db.auth.getUser(token) for server-side JWT validation. verify_jwt=false only disables gateway-level check. /api/health is intentionally public. No bypass.",
+        "invariant": "verify_jwt=false must not create JWT bypass; function must validate JWTs itself",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "supabase/config.toml",
+          "supabase/functions/campus-api/index.ts"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23authenticate%28%29%20X-School-ID%20header%20trust::supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23school_memberships%20lookup%20for%20x-school-id::supabase%2Ffunctions%2Fcampus-api%2Findex.ts%23Edge%20Function%20campus%20API%20auth::WEB-PROTOCOL-AND-AUTH.md%23Host%20and%20forwarded-header%20trust",
+    "canonical_refs": {
+      "surface": "supabase/functions/campus-api/index.ts#authenticate() X-School-ID header trust",
+      "boundary": "supabase/functions/campus-api/index.ts#school_memberships lookup for x-school-id",
+      "subsystem": "supabase/functions/campus-api/index.ts#Edge Function campus API auth",
+      "attack_class": "WEB-PROTOCOL-AND-AUTH.md#Host and forwarded-header trust"
+    },
+    "surface": "Edge Function campus API — authenticate() trusts X-School-ID request header",
+    "boundary": "X-School-ID value is verified against school_memberships (with is_active check) before use",
+    "subsystem": "Edge Function campus API auth",
+    "attack_class": "Host and forwarded-header trust",
+    "starting_paths": [
+      "supabase/functions/campus-api/index.ts",
+      "supabase/migrations/20261021103948_multi_school_tenancy.sql"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Host and forwarded-header trust",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "WEB-PROTOCOL-AND-AUTH.md#Request framing and desynchronization",
+        "reason": "Edge Function sits behind Supabase ingress, not a custom proxy; no source-visible desync path"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "supabase/functions/campus-api/index.ts",
+      "supabase/migrations/20261021103948_multi_school_tenancy.sql"
+    ],
+    "local_checks": [
+      {
+        "result": "authenticate() verifies X-School-ID against school_memberships(user_id, is_active) and schools(status=active). req.schoolId set from DB-verified value. No trust issue.",
+        "invariant": "X-School-ID must be verified against authenticated user's school membership",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "supabase/functions/campus-api/index.ts",
+          "supabase/migrations/20261021103948_multi_school_tenancy.sql"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "supabase%2Fmigrations%2F20261021103948_multi_school_tenancy.sql%23school_memberships%20table::supabase%2Fmigrations%2F20261006_rls_lockdown.sql%23RLS%20policies%20no%20school_id%20scope::data.js%23Multi-tenant%20data%20isolation%20%28school%20scoping%29::DATA-ISOLATION-AND-LIFECYCLE.md%23Missing%20tenant%20or%20owner%20enforcement",
+    "canonical_refs": {
+      "surface": "supabase/migrations/20261021103948_multi_school_tenancy.sql#school_memberships table",
+      "boundary": "supabase/migrations/20261006_rls_lockdown.sql#RLS policies no school_id scope",
+      "subsystem": "data.js#Multi-tenant data isolation (school scoping)",
+      "attack_class": "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement"
+    },
+    "surface": "Multi-tenancy migration: school_memberships introduced but most RLS policies lack school_id predicate",
+    "boundary": "RLS policies from 20261006 and earlier use only auth.uid() — no school_id filter on most tables",
+    "subsystem": "Multi-tenant data isolation (school scoping)",
+    "attack_class": "Missing tenant or owner enforcement",
+    "starting_paths": [
+      "supabase/migrations/20261021103948_multi_school_tenancy.sql",
+      "supabase/migrations/20261021163930_active_school_membership_access.sql",
+      "supabase/migrations/20261006_rls_lockdown.sql",
+      "supabase/functions/campus-api/index.ts",
+      "data.js"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Dependency source and namespace confusion",
+        "reason": "No supply chain path to this tenant boundary"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "supabase/migrations/20261021103948_multi_school_tenancy.sql",
+      "supabase/migrations/20261021163930_active_school_membership_access.sql",
+      "supabase/migrations/20261006_rls_lockdown.sql",
+      "supabase/migrations/20261005_supabase_auth.sql",
+      "supabase/functions/campus-api/index.ts",
+      "data.js"
+    ],
+    "local_checks": [
+      {
+        "result": "20261021 adds school_id columns but does NOT update any per-table RLS policy. Policies still use only uid-based predicates without school_id. is_admin_user() has no school scope. Direct REST bypasses client Proxy. Confirmed candidate: rls-missing-school-id-predicate.",
+        "invariant": "RLS policies must enforce school_id scoping for all data tables",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "supabase/migrations/20261021103948_multi_school_tenancy.sql",
+          "supabase/migrations/20261006_rls_lockdown.sql",
+          "supabase/migrations/20261005_supabase_auth.sql",
+          "supabase/migrations/20261021163930_active_school_membership_access.sql",
+          "supabase/functions/campus-api/index.ts",
+          "data.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [
+      "rls-missing-school-id-predicate"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "supabase%2Fmigrations%2F20261021120000_service_role_api_grants.sql%23service_role%20GRANT%20SELECT%20UPDATE%20on%20users::supabase%2Fmigrations%2F20261021120000_service_role_api_grants.sql%23narrow%20service_role%20grants::supabase%2Fmigrations%2F20261021120000_service_role_api_grants.sql%23Service%20role%20DB%20grants::CLOUD-AND-DEPLOYMENT.md%23Workload%20identity%20and%20IAM%20attack%20classes",
+    "canonical_refs": {
+      "surface": "supabase/migrations/20261021120000_service_role_api_grants.sql#service_role GRANT SELECT UPDATE on users",
+      "boundary": "supabase/migrations/20261021120000_service_role_api_grants.sql#narrow service_role grants",
+      "subsystem": "supabase/migrations/20261021120000_service_role_api_grants.sql#Service role DB grants",
+      "attack_class": "CLOUD-AND-DEPLOYMENT.md#Workload identity and IAM attack classes"
+    },
+    "surface": "Supabase service_role: narrow GRANT (SELECT + UPDATE auth_user_id on users only)",
+    "boundary": "Explicit GRANT USAGE + SELECT + UPDATE(auth_user_id) only; no broad ALL TABLES",
+    "subsystem": "Service role DB grants",
+    "attack_class": "Workload identity and IAM attack classes",
+    "starting_paths": [
+      "supabase/migrations/20261021120000_service_role_api_grants.sql",
+      "server/index.js",
+      "server/.env.example"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Workload identity and IAM attack classes",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "DATA-ISOLATION-AND-LIFECYCLE.md#Export and backup scope expansion",
+        "reason": "This is a privilege/IAM unit; no export flow involved"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "supabase/migrations/20261021120000_service_role_api_grants.sql",
+      "server/index.js"
+    ],
+    "local_checks": [
+      {
+        "result": "Narrow grants for staging provisioning only. Service-role JS client bypasses RLS legitimately for admin operations. No service role key committed. No IAM overreach.",
+        "invariant": "Service role grants must be narrow; no service role key in committed files",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "supabase/migrations/20261021120000_service_role_api_grants.sql",
+          "server/index.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "supabase%2Fmigrations%2F20261023230532_platform_owner_console.sql%23platform_memberships%20RLS::supabase%2Fmigrations%2F20261024011813_secure_platform_school_dashboard.sql%23private.platform_school_dashboard_rows%28%29%20SECURITY%20DEFINER::supabase%2Fmigrations%2F20261023230532_platform_owner_console.sql%23Platform%20owner%20console%20access%20control::DATA-ISOLATION-AND-LIFECYCLE.md%23Missing%20tenant%20or%20owner%20enforcement",
+    "canonical_refs": {
+      "surface": "supabase/migrations/20261023230532_platform_owner_console.sql#platform_memberships RLS",
+      "boundary": "supabase/migrations/20261024011813_secure_platform_school_dashboard.sql#private.platform_school_dashboard_rows() SECURITY DEFINER",
+      "subsystem": "supabase/migrations/20261023230532_platform_owner_console.sql#Platform owner console access control",
+      "attack_class": "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement"
+    },
+    "surface": "Platform owner console — cross-school dashboard via private.platform_school_dashboard_rows() SECURITY DEFINER function",
+    "boundary": "platform_memberships RLS: SELECT only for authenticated matching auth_user_id; function checks active saas_owner membership",
+    "subsystem": "Platform owner console access control",
+    "attack_class": "Missing tenant or owner enforcement",
+    "starting_paths": [
+      "supabase/migrations/20261023230532_platform_owner_console.sql",
+      "supabase/migrations/20261024011813_secure_platform_school_dashboard.sql",
+      "supabase/migrations/20261024044308_platform_school_onboarding.sql"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Cross-account or cross-tenant role confusion",
+        "reason": "Platform role confusion is at RLS/SQL function level, covered by DATA-ISOLATION companion"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "supabase/migrations/20261023230532_platform_owner_console.sql",
+      "supabase/migrations/20261024011813_secure_platform_school_dashboard.sql",
+      "supabase/migrations/20261024044308_platform_school_onboarding.sql"
+    ],
+    "local_checks": [
+      {
+        "result": "SECURITY DEFINER function checks active saas_owner membership. View uses security_invoker + security_barrier. No privilege escalation from school user to platform console.",
+        "invariant": "Platform console only accessible to active saas_owner members",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "supabase/migrations/20261023230532_platform_owner_console.sql",
+          "supabase/migrations/20261024011813_secure_platform_school_dashboard.sql",
+          "supabase/migrations/20261024044308_platform_school_onboarding.sql"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "supabase%2Fmigrations%2F20261024044308_platform_school_onboarding.sql%23private.platform_onboard_school%28%29%20SECURITY%20DEFINER::supabase%2Fmigrations%2F20261024044308_platform_school_onboarding.sql%23saas_owner%20membership%20check%20inside%20function::supabase%2Fmigrations%2F20261024044308_platform_school_onboarding.sql%23Platform%20school%20onboarding%20function::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "supabase/migrations/20261024044308_platform_school_onboarding.sql#private.platform_onboard_school() SECURITY DEFINER",
+      "boundary": "supabase/migrations/20261024044308_platform_school_onboarding.sql#saas_owner membership check inside function",
+      "subsystem": "supabase/migrations/20261024044308_platform_school_onboarding.sql#Platform school onboarding function",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Supabase — private.platform_onboard_school() SECURITY DEFINER function; creates org, school, admin, memberships",
+    "boundary": "Caller must have active saas_owner membership in platform_memberships; checked inside function",
+    "subsystem": "Platform school onboarding function",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "supabase/migrations/20261024044308_platform_school_onboarding.sql"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Import and restore authority expansion",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "SUPPLY-CHAIN-AND-RELEASE.md#Release authorization and signing-policy gaps",
+        "reason": "Onboarding function is a runtime SQL operation, not a release artifact"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "supabase/migrations/20261024044308_platform_school_onboarding.sql"
+    ],
+    "local_checks": [
+      {
+        "result": "Active saas_owner check as first statement. All inputs validated with ranges and regex. Parameterized SQL only. No SQL injection or business logic bypass.",
+        "invariant": "platform_onboard_school() only succeeds for active saas_owner; inputs validated",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "supabase/migrations/20261024044308_platform_school_onboarding.sql"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "sw.js%23Service%20worker%20cache%20strategy::sw.js%23Precache%20%2F%20runtime%20cache%20identity%20handling::src%2Fpwa.js%23PWA%20service%20worker%20registration::CLIENT-SIDE.md%23Service-worker%20cache%20and%20identity%20confusion",
+    "canonical_refs": {
+      "surface": "sw.js#Service worker cache strategy",
+      "boundary": "sw.js#Precache / runtime cache identity handling",
+      "subsystem": "src/pwa.js#PWA service worker registration",
+      "attack_class": "CLIENT-SIDE.md#Service-worker cache and identity confusion"
+    },
+    "surface": "sw.js — service worker caching of SPA assets and API responses",
+    "boundary": "Service worker cache key and identity/auth-state handling on account switch/logout",
+    "subsystem": "PWA / service worker",
+    "attack_class": "Service-worker cache and identity confusion",
+    "starting_paths": [
+      "sw.js",
+      "src/pwa.js",
+      "manifest.webmanifest"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#Service-worker and browser-storage attack classes",
+      "CLIENT-SIDE.md#Service-worker cache and identity confusion",
+      "CLIENT-SIDE.md#Universal moves",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Object and signed-URL policy confusion",
+        "reason": "Service worker caching is a client-side browser boundary, not a cloud storage boundary"
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-wave-1",
+    "reviewed_paths": [
+      "public/sw.js",
+      "src/auth.js"
+    ],
+    "local_checks": [
+      {
+        "result": "SW explicitly skips /api/* paths. Only caches static SPA shell assets. No personalized responses cached. No identity confusion after logout.",
+        "invariant": "Service worker must not cache authenticated API responses or serve stale user data after logout",
+        "method": "source",
+        "artifact": null,
+        "agent_id": "hunter-wave-1",
+        "reviewed_paths": [
+          "public/sw.js",
+          "src/auth.js"
+        ]
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  }
+]

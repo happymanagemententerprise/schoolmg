@@ -1,0 +1,71 @@
+{
+  "missing_units": [
+    {
+      "surface": "server/index.js — dispatchUpcomingClasses() / autoCheckoutHostels() scheduler functions (setInterval)",
+      "boundary": "Scheduler uses unscoped service-role db across all schools; push notifications may be sent cross-school or duplicated",
+      "subsystem": "Campus API scheduled jobs",
+      "attack_class": "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "starting_paths": ["server/index.js"],
+      "selected_companion_blocks": [
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+      ],
+      "excluded_blocks": [
+        {
+          "block": "CLOUD-AND-DEPLOYMENT.md#Workload identity and IAM attack classes",
+          "reason": "No IAM policy controls scheduler; gap is in application-level school scoping, not cloud identity"
+        }
+      ],
+      "reason": "server/index.js lines 581-655: dispatchUpcomingClasses() queries db.from('terms') and db.from('timetables') using the unscoped service-role db with no school_id filter. autoCheckoutHostels() queries db.from('hostels'), db.from('students'), db.from('hostel_presence_events') with no school_id filter. In a multi-school deployment, these scheduler jobs run across all schools simultaneously using the same global db client, which is the same root cause as server-nodejs-missing-school-scope but on a background code path not reachable by a user request. This is a separate unit because the entry point (setInterval background job, not an authenticated HTTP request) and the attack surface (timing-based cross-school notification blast, not direct API exploitation) are distinct from the request-path school-scoping gap already covered."
+    },
+    {
+      "surface": "supabase/migrations/20261019091035_security_hardening.sql — submit_lms_quiz() SECURITY DEFINER / lms_questions_for_current_user() RPC",
+      "boundary": "submit_lms_quiz() is callable by any authenticated user; it reads question correct_answer values for any quiz_id; no school_id or class enrollment check prevents cross-quiz or cross-school submission",
+      "subsystem": "LMS quiz submission and scoring",
+      "attack_class": "ATTACK-CLASSES.md#Business logic",
+      "starting_paths": [
+        "supabase/migrations/20261019091035_security_hardening.sql",
+        "data.js"
+      ],
+      "selected_companion_blocks": [
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+        "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+      ],
+      "excluded_blocks": [
+        {
+          "block": "SUPPLY-CHAIN-AND-RELEASE.md#Dependency source and namespace confusion",
+          "reason": "No supply-chain path to quiz submission; this is a runtime SECURITY DEFINER SQL function"
+        }
+      ],
+      "reason": "submit_lms_quiz(p_quiz_id bigint, p_answers jsonb) at migration line 152 is a SECURITY DEFINER function granted to authenticated. The function selects FROM public.lms_questions WHERE q.quiz_id = p_quiz_id with no class_id or school_id filter on the quiz lookup. An authenticated user from any school can call RPC submit_lms_quiz with any p_quiz_id — including quizzes belonging to other schools or classes the user is not enrolled in — and the function grades it. The hunter flagged this as uncovered and noted the correct_answer redaction in lms_questions_for_current_user(), but the submission function itself was not reviewed. lms_questions_for_current_user() also lacks a school_id predicate in its JOIN, returning questions for any quiz whose quiz class_id matches the user's class regardless of school. These are distinct from the RLS school-scoping gap already covered because the attack surface is a SECURITY DEFINER RPC callable directly, not Supabase REST table access."
+    },
+    {
+      "surface": "server/index.js — GET /api/push/vapid-public-key unauthenticated endpoint",
+      "boundary": "No authentication middleware on this route; VAPID public key returned to any caller",
+      "subsystem": "Campus API push notification configuration",
+      "attack_class": "ATTACK-CLASSES.md#Obvious things",
+      "starting_paths": ["server/index.js"],
+      "selected_companion_blocks": [
+        "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+        "CLOUD-AND-DEPLOYMENT.md#Unexpected service or management-plane reachability",
+        "CLOUD-AND-DEPLOYMENT.md#Validation rules"
+      ],
+      "excluded_blocks": [
+        {
+          "block": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+          "reason": "Endpoint performs no DB queries; purely reads an environment variable and returns JSON"
+        }
+      ],
+      "reason": "server/index.js line 222: app.get('/api/push/vapid-public-key', (_req, res) => vapidReady ? res.json({ publicKey: process.env.VAPID_PUBLIC_KEY }) : res.status(503)...). No authentication or authorization middleware. The VAPID public key is designed to be public in the Web Push specification, so disclosure is not a vulnerability, but this endpoint was never explicitly reviewed as a coverage unit. The existing health-endpoint coverage unit covers /api/health only. The vapid-public-key route is a second unauthenticated endpoint that needs explicit coverage to confirm whether the disclosed key value or any additional info could enable subscription forgery or notification spam. This is a bounded, low-risk unit that is quick to settle."
+    }
+  ],
+  "reassign_ids": [
+    "data.js%23Supabase%20Realtime%20channel%20postgres_changes%20subscription::data.js%23anon%20role%20realtime%20subscription%20authorization::data.js%23SPA%20Realtime%20subscriptions::DATA-ISOLATION-AND-LIFECYCLE.md%23Search%20cache%20and%20index%20ACL%20drift"
+  ],
+  "resolved_prior_leads": [],
+  "stop": false
+}

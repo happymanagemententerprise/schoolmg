@@ -113,6 +113,35 @@ export function navForUser(user) {
   return STATIC_NAV[user.role] || [];
 }
 
+// ── Tier gating ──────────────────────────────────────────────
+// Hide nav items whose page needs a Pro/Premium feature the active school's
+// plan does not include. UX only — RLS is the real gate (see
+// supabase/migrations/20261025000000_plan_tiers.sql). Pages not listed here
+// are available on every tier.
+export const FEATURE_FOR_PAGE = {
+  'view-admin-analytics':     'analytics',
+  'view-admin-leaderboard':  'leaderboards',
+  'view-campus':             'campus_gate',
+  'view-student-lessons':    'lms',
+  'view-student-quizzes':    'lms',
+  'view-student-discussions':'lms',
+  'view-teacher-lessons':    'lms',
+  'view-teacher-quizzes':    'lms',
+  'view-teacher-discussions':'lms',
+  'view-student-assignments':'assignments',
+  'view-parent-assignments': 'assignments',
+  'view-parent-attendance':  'parent_attendance'
+};
+
+export function gatedNavForUser(user) {
+  const items = navForUser(user);
+  if (typeof Data?.hasFeature !== 'function') return items;
+  return items.filter(item => {
+    const feature = FEATURE_FOR_PAGE[item.page];
+    return !feature || Data.hasFeature(feature);
+  });
+}
+
 // ── Login / logout ───────────────────────────────────────────
 export function initLogin() {
   const emailI = $('login-email'), pwI = $('login-password');
@@ -270,7 +299,7 @@ export async function logout() {
 }
 
 export function buildNav(user) {
-  const items = navForUser(user);
+  const items = gatedNavForUser(user);
   const groups = navGroupsForUser(user, items);
   const iconPaths = {
     Today: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
@@ -376,15 +405,17 @@ export function updateSidebarUser(user) {
   $('topbar-avatar').textContent  = avatarInitials(user.name);
   $('topbar-avatar').className    = `avatar sm-avatar ${user.tone}`;
   const sess = Data.session();
+  const school = Data.activeSchool();
+  const planLabel = school?.planName ? ` · ${school.planName}` : '';
   $('sidebar-session').textContent = user.platformOwner
     ? 'SaaS platform owner'
-    : sess ? `${sess.name} · Term ${sess.currentTerm}` : 'School account';
+    : sess ? `${sess.name} · Term ${sess.currentTerm}${planLabel}` : `School account${planLabel}`;
   const notices = $('notif-btn');
   if (notices) notices.hidden = !!user.platformOwner;
 }
 
 export function routeToDefaultView(user) {
-  const first = navForUser(user)[0];
+  const first = gatedNavForUser(user)[0];
   if (first) {
     import('./router.js').then(({ showView, renderView }) => {
       showView(first.page);

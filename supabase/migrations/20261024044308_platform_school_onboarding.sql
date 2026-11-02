@@ -1,4 +1,4 @@
--- SaaS-owner-only onboarding for a new customer school.
+ -- SaaS-owner-only onboarding for a new customer school.
 -- This creates the organization, school, first school-admin profile/memberships,
 -- and subscription as one transaction. Auth invitation is a separate step.
 
