@@ -36,6 +36,7 @@ import { renderCampus } from './views/campus.js';
 import { renderPlatformSchools, renderPlatformOnboarding } from './views/platform.js';
 import { renderAdminGrading } from './views/grading.js';
 import { renderAdminApprovals } from './views/approvals.js';
+import { renderAdminFeeSetup } from './views/fee-setup.js';
 import { renderParentFees } from './views/fees.js';
 import { renderTeacherDevices } from './views/push-devices.js';
 
@@ -98,6 +99,7 @@ export function renderView(pageId) {
     'view-admin-setup':       renderAdminSetup,
     'view-admin-grading':      renderAdminGrading,
     'view-admin-approvals':    renderAdminApprovals,
+    'view-admin-fees':         renderAdminFeeSetup,
     'view-parent-fees':        renderParentFees,
     'view-teacher-devices':    renderTeacherDevices,
     'view-subject-dashboard': renderSubjectDashboard,

@@ -44,6 +44,7 @@ export const STATIC_NAV = {
     { page: 'view-admin-leaderboard', label: 'Leaderboard', icon: '🏆' },
     { page: 'view-admin-recognition', label: 'Recognition', icon: '★' },
     { page: 'view-admin-grading',    label: 'Grading',    icon: 'G' },
+    { page: 'view-admin-fees',       label: 'Fees',       icon: '₦' },
     { page: 'view-admin-setup',      label: 'Setup',      icon: '◎' }
   ],
   'Student': [
@@ -377,7 +378,7 @@ function navGroupsForUser(user, items) {
     Administrator: [
       ['Today', ['view-admin-overview']],
       ['People', ['view-admin-people', 'view-campus', 'view-admin-recognition']],
-      ['Academics', ['view-admin-classes', 'view-admin-subjects', 'view-admin-progression', 'view-admin-grading']],
+      ['Academics', ['view-admin-classes', 'view-admin-subjects', 'view-admin-progression', 'view-admin-grading', 'view-admin-fees']],
       ['Planning', ['view-admin-timetable', 'view-admin-analytics', 'view-admin-leaderboard']],
       ['Settings', ['view-admin-setup', 'view-admin-approvals']]
     ],

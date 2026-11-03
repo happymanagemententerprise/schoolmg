@@ -904,6 +904,18 @@ async function loadFromSupabase() {
   if (empty.length) console.warn('[HMA] authenticated data sources are empty:', empty.join(', '));
   await applyQueuedAttendanceToCache();
   console.log('[HMA] Supabase data loaded ✓');
+
+  // Load grading structures so _computeScore uses the school's configured
+  // rules from the first render. Silent on failure — legacy model is fallback.
+  try {
+    const { data: gs } = await _supabaseFrom('grading_structures')
+      .select('school_level,components').eq('is_active', true);
+    if (gs?.length) {
+      _cache.gradingStructuresCache = {};
+      gs.forEach(row => { _cache.gradingStructuresCache[row.school_level] = row; });
+    }
+  } catch { /* grading_structures table may not exist yet — silent */ }
+
   return { ready: true, authenticated: true, empty, failed: _cache.failed.slice() };
 }
 
@@ -2745,6 +2757,8 @@ const Data = {
               { onConflict: 'school_id,school_level' })
       .select('id,school_level,components,is_active').single();
     if (error) throw new Error(error.message);
+    // Update the live cache so _computeScore picks up the new rules immediately.
+    _cache.gradingStructuresCache[schoolLevel] = data;
     return data;
   },
   async computeFinalScore(componentsMax, scores) {
@@ -2775,7 +2789,58 @@ const Data = {
     if (error) throw new Error(error.message);
     return data;
   },
-  // ── Fees + payments (parent portal) ─────────────────────────
+  // ── Admin fee management ─────────────────────────────────────
+  async fetchFeeStructures() {
+    const { data, error } = await _sb.from('fee_structures')
+      .select('id,label,level,class_id,amount,is_termly,is_active')
+      .order('label');
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+  async saveFeeStructure({ id, label, level, classId, amount, isTermly }) {
+    const school = this.activeSchool();
+    if (!school) throw new Error('Select an active school first.');
+    const row = {
+      school_id: school.id, label: String(label).trim(),
+      level: level || null, class_id: classId ? Number(classId) : null,
+      amount: Number(amount), is_termly: !!isTermly, is_active: true
+    };
+    if (id) {
+      const { error } = await _sb.from('fee_structures').update(row).eq('id', Number(id));
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await _sb.from('fee_structures').insert(row);
+      if (error) throw new Error(error.message);
+    }
+  },
+  async deleteFeeStructure(id) {
+    const { error } = await _sb.from('fee_structures').delete().eq('id', Number(id));
+    if (error) throw new Error(error.message);
+  },
+  async billClassFees(classId, termId, feeStructureIds) {
+    // Insert student_fees rows for every student in the class for the chosen fees.
+    // ON CONFLICT DO NOTHING so re-running is safe.
+    const school = this.activeSchool();
+    if (!school) throw new Error('Select an active school first.');
+    const students = this.students().filter(s => String(s.classId) === String(classId));
+    if (!students.length) throw new Error('No active students found in that class.');
+    const feeRows = [];
+    for (const s of students) {
+      for (const fid of feeStructureIds) {
+        const fs = await _sb.from('fee_structures').select('amount').eq('id', Number(fid)).single();
+        feeRows.push({
+          school_id: school.id, student_id: Number(s.id),
+          fee_structure_id: Number(fid),
+          term_id: termId ? Number(termId) : null,
+          amount_due: fs.data?.amount || 0, amount_paid: 0, status: 'unpaid'
+        });
+      }
+    }
+    const { error } = await _sb.from('student_fees').upsert(feeRows,
+      { onConflict: 'student_id,fee_structure_id,term_id', ignoreDuplicates: true });
+    if (error) throw new Error(error.message);
+    return feeRows.length;
+  },
   async childFees(studentId) {
     const sid = Number(studentId);
     const [feesRes, plansRes] = await Promise.all([

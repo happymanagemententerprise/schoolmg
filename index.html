@@ -1335,6 +1335,47 @@
       </div>
     </div>
 
+    <!-- Admin: Fee setup -->
+    <div class="page-wrap" id="view-admin-fees" data-role="Administrator" hidden>
+      <section class="welcome-row">
+        <div><p class="eyebrow">Billing</p><h1>Fee setup</h1><p class="subcopy">Define fee line items then bulk-bill entire classes for a term.</p></div>
+      </section>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Add item</p><h2>New fee</h2></div></div>
+        <div class="setup-form">
+          <div class="form-row mt16">
+            <div class="form-group" style="flex:2"><label for="fs-label">Label</label><input id="fs-label" type="text" placeholder="e.g. Tuition, ICT, Boarding"></div>
+            <div class="form-group"><label for="fs-level">Level</label>
+              <select id="fs-level"><option value="">All</option><option value="JSS">JSS</option><option value="SSS">SSS</option></select></div>
+            <div class="form-group"><label for="fs-class">Class (optional)</label><select id="fs-class"></select></div>
+            <div class="form-group"><label for="fs-amount">Amount (₦)</label><input id="fs-amount" type="number" min="0" placeholder="0"></div>
+            <div class="form-group" style="align-self:flex-end"><label class="dept-check"><input id="fs-termly" type="checkbox" checked><span>Per term</span></label></div>
+            <div class="form-group form-group-action"><label>&nbsp;</label><button class="btn-primary" id="fs-add-btn" type="button">Add fee item</button></div>
+          </div>
+          <div class="form-feedback mt8" id="fs-feedback" hidden></div>
+        </div>
+        <div class="table-wrap mt16">
+          <table>
+            <thead><tr><th>Label</th><th>Level</th><th>Class</th><th>Amount</th><th>Frequency</th><th></th></tr></thead>
+            <tbody id="fs-list"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel mt16">
+        <div class="panel-heading"><div><p class="eyebrow">Billing</p><h2>Bill a class</h2></div></div>
+        <p class="role-muted">Select a class and term, tick the fee items to apply, then click Bill. Existing rows are skipped.</p>
+        <div class="setup-form mt16">
+          <div class="form-row">
+            <div class="form-group"><label for="bill-class">Class</label><select id="bill-class"></select></div>
+            <div class="form-group"><label for="bill-term">Term</label><select id="bill-term"></select></div>
+          </div>
+          <div class="form-group mt16"><label>Fee items to apply</label><div id="bill-fees-wrap" class="mt8"></div></div>
+          <button class="btn-primary mt16" id="bill-run-btn" type="button">Bill this class</button>
+          <div class="form-feedback mt8" id="bill-feedback" hidden></div>
+        </div>
+      </div>
+    </div>
+
   </main><!-- /main-content -->
 </div><!-- /app-shell -->
 
