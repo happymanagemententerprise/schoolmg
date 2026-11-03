@@ -118,6 +118,7 @@ const _cache = {
   commendations:      [],   // teacher/mentor leadership notes
   parentEngagements: [],   // parent logins, acknowledges, PTA, early payments
   teacherRecognitions: [], // educator recognition awards
+  gradingStructuresCache: {},  // school_level -> { components: [{key,label,max}] }
   loaded:         false,
   failed:         [],     // tables that could not be read
   schools:        [],     // schools accessible to the signed-in account
@@ -3331,6 +3332,41 @@ function _unmapRole(appRole) {
 // ============================================================
 //  ACADEMIC LOGIC
 // ============================================================
+// ── Grading engine ────────────────────────────────────────────
+// Reads the active grading_structures for the student's school level and
+// applies the configured rule:
+//   totalMax == 100 → direct sum of scores
+//   totalMax >  100 → average over active component count
+// Falls back to the legacy midterm+CA+exam model when no structure is loaded.
+function _computeScore(entry, schoolLevel) {
+  if (!entry) return null;
+  const level  = (schoolLevel || 'JSS').replace('SS', 'SSS').replace('SSSS', 'SSS');
+  const struct = _cache.gradingStructuresCache?.[level]
+    || _cache.gradingStructuresCache?.['JSS'];
+  if (!struct?.components?.length) {
+    // Legacy fixed model: midterm(20) + CA(20) + exam(60)
+    if (!Number.isFinite(Number(entry.test)) || !Number.isFinite(Number(entry.exam))) return null;
+    return (entry.midterm == null ? Number(entry.test) : Number(entry.midterm) + Number(entry.test))
+      + Number(entry.exam);
+  }
+  const components = struct.components;
+  const totalMax = components.reduce((s, c) => s + (Number(c.max) || 0), 0);
+  if (totalMax === 0) return null;
+
+  // Map component keys to stored entry fields
+  const keyMap = { midterm: entry.midterm, ca1: entry.midterm, ca: entry.test,
+                   ca2: entry.test, exam: entry.exam };
+  const scores = components.map(c => {
+    const raw = keyMap[c.key] ?? keyMap[c.key.replace(/\d+$/, '')] ?? null;
+    return Number.isFinite(Number(raw)) ? Number(raw) : null;
+  });
+  if (scores.some(s => s === null)) return null;
+  const sum = scores.reduce((a, b) => a + b, 0);
+  return totalMax === 100 ? sum
+    : totalMax > 100 ? Math.round((sum / components.length) * 10) / 10
+    : Math.round((sum * 100 / totalMax) * 10) / 10;
+}
+
 const Academic = {
   MAX_MIDTERM: 20,
   MAX_CA:   20,   // second-half continuous assessment
@@ -3339,7 +3375,9 @@ const Academic = {
 
   subjectScore(studentId, subjectId, term) {
     const entry = Data.studentScores(studentId)[String(subjectId)]?.[term];
-    return entry ? (entry.midterm == null ? entry.test : entry.midterm + entry.test) + entry.exam : null;
+    const student = Data.student(studentId);
+    const level = student ? Data.cls(student.classId)?.level : null;
+    return _computeScore(entry, level);
   },
 
   // Subjects a student sits — filtered by the level and stream of their class
@@ -3349,10 +3387,10 @@ const Academic = {
     const student = Data.student(studentId);
     const subs    = student ? this.classSubjects(student.classId) : Data.subjects();
     const sc      = Data.studentScores(studentId);
+    const level   = student ? Data.cls(student.classId)?.level : null;
     return subs.map(sub => {
       const entry = sc[sub.id]?.[term];
-      const hasCompleteTermScore = entry && Number.isFinite(Number(entry.test)) && Number.isFinite(Number(entry.exam)) &&
-        (entry.midterm == null || Number.isFinite(Number(entry.midterm)));
+      const score = _computeScore(entry, level);
       return {
         subjectId: sub.id,
         name:      sub.name,
@@ -3363,7 +3401,7 @@ const Academic = {
         midterm:   entry ? entry.midterm : null,
         ca:        entry ? entry.test : null,
         exam:      entry ? entry.exam : null,
-        score:     hasCompleteTermScore ? (entry.midterm == null ? Number(entry.test) : Number(entry.midterm) + Number(entry.test)) + Number(entry.exam) : null
+        score
       };
     });
   },
@@ -3387,7 +3425,7 @@ const Academic = {
     const termsToCheck = [1, 2, 3].filter(t => t <= term);
     const subjectOveralls = subs.map(sub => {
       const vals = termsToCheck
-        .map(t => { const e = sc[sub.id]?.[t]; return e ? (e.midterm == null ? e.test : e.midterm + e.test) + e.exam : null; })
+        .map(t => { const e = sc[sub.id]?.[t]; return _computeScore(e, level); })
         .filter(v => v !== null);
       return { sub, overall: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null };
     });
@@ -3590,35 +3628,34 @@ const Progression = {
   sessionAverage(studentId) {
     const student = Data.student(studentId);
     if (!student) return null;
-    const subs = Academic.classSubjects(student.classId);
-    const sc   = Data.studentScores(studentId);
+    const subs  = Academic.classSubjects(student.classId);
+    const sc    = Data.studentScores(studentId);
+    const level = Data.cls(student.classId)?.level;
     const allTerms = [1, 2, 3];
     const subjectOveralls = subs.map(sub => {
-      const termScores = allTerms
-        .map(t => { const e = sc[sub.id]?.[t]; return e ? (e.midterm == null ? e.test : e.midterm + e.test) + e.exam : null; })
+      const scores = allTerms
+        .map(t => _computeScore(sc[sub.id]?.[t], level))
         .filter(v => v !== null);
-      if (!termScores.length) return null;
-      return termScores.reduce((a, b) => a + b, 0) / termScores.length;
+      if (!scores.length) return null;
+      return scores.reduce((a, b) => a + b, 0) / scores.length;
     }).filter(v => v !== null);
     if (!subjectOveralls.length) return null;
     return Math.round(subjectOveralls.reduce((a, b) => a + b, 0) / subjectOveralls.length);
   },
 
-  // Subject session score for promotion display (English / Maths check):
-  //   overall = average of that subject's score across all attended terms
   subjectSessionScore(studentId, needle) {
     const student = Data.student(studentId);
     if (!student) return null;
-    const subs = Academic.classSubjects(student.classId);
-    const sc   = Data.studentScores(studentId);
-    const sub  = subs.find(s => s.name.toLowerCase().includes(needle));
+    const subs  = Academic.classSubjects(student.classId);
+    const sc    = Data.studentScores(studentId);
+    const level = Data.cls(student.classId)?.level;
+    const sub   = subs.find(s => s.name.toLowerCase().includes(needle));
     if (!sub) return null;
-    const allTerms = [1, 2, 3];
-    const termScores = allTerms
-        .map(t => { const e = sc[sub.id]?.[t]; return e ? (e.midterm == null ? e.test : e.midterm + e.test) + e.exam : null; })
+    const scores = [1, 2, 3]
+      .map(t => _computeScore(sc[sub.id]?.[t], level))
       .filter(v => v !== null);
-    if (!termScores.length) return null;
-    return Math.round(termScores.reduce((a, b) => a + b, 0) / termScores.length);
+    if (!scores.length) return null;
+    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
   },
 
   // The end-of-session gate: English AT LEAST 50, Maths AT LEAST 50, session
