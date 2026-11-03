@@ -34,6 +34,7 @@ const ACTIVE_SCHOOL_KEY = 'hma_active_school_id';
 let _activeSchoolId = null;
 const SCHOOL_SCOPED_TABLES = new Set([
   'approval_requests', 'assignments', 'attendance', 'attendance_daily', 'attendance_weekly',
+  'school_configuration',
   'class_period_attendance', 'classes', 'commendations', 'departments', 'events', 'gate_events',
   'grades', 'hostel_daily_summaries', 'hostel_presence_events', 'hostel_staff_assignments',
   'hostels', 'lms_attempts', 'lms_discussions', 'lms_lessons', 'lms_posts', 'lms_questions',
@@ -119,6 +120,7 @@ const _cache = {
   parentEngagements: [],   // parent logins, acknowledges, PTA, early payments
   teacherRecognitions: [], // educator recognition awards
   gradingStructuresCache: {},  // school_level -> { components: [{key,label,max}] }
+  schoolConfiguration: null,
   loaded:         false,
   failed:         [],     // tables that could not be read
   schools:        [],     // schools accessible to the signed-in account
@@ -281,6 +283,7 @@ const _sources = {
   commendations: () => _sb.from('commendations').select('*'),
   parentEngagements: () => _sb.from('parent_engagements').select('*'),
   teacherRecognitions: () => _sb.from('teacher_recognitions').select('*'),
+  schoolConfiguration: () => _sb.from('school_configuration').select('*').limit(1),
 };
 
 // ── Map raw database rows into the synchronous cache ─────────
@@ -299,6 +302,7 @@ function _hydrate(raw) {
 
   // ── session + terms
   _cache.session = _mapSession(raw.session, raw.terms);
+  _cache.schoolConfiguration = raw.schoolConfiguration[0]?.configuration || null;
 
   // ── every academic session, newest first (session management screen)
   _cache.sessionsAll = (raw.sessionsAll || [])
@@ -1052,6 +1056,7 @@ function _loadSeedFallback() {
 function _loadDemoSchool() {
   _cache.platformAccount = null;
   _cache.platformSchools = [];
+  _cache.schoolConfiguration = DB.get('school_configuration') || null;
   // Deterministic PRNG
   const rand = seed => { const x = Math.sin(seed * 12.9898) * 43758.5453; return x - Math.floor(x); };
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -1529,6 +1534,33 @@ function _loadDemoSchool() {
 //  SYNCHRONOUS DATA API  (app.js calls these directly)
 // ============================================================
 const Data = {
+
+  configuration() { return _cache.schoolConfiguration || (_demoMode ? DB.get('school_configuration') : null) || {}; },
+  gradingScale() {
+    const configured = this.configuration().gradingScale;
+    return Array.isArray(configured) && configured.length ? configured : [
+      { label: 'A', min: 80 }, { label: 'B', min: 70 }, { label: 'C', min: 60 },
+      { label: 'D', min: 50 }, { label: 'F', min: 0 }
+    ];
+  },
+  feeItems() { return this.configuration().feeItems || []; },
+  async saveConfiguration(configuration) {
+    const previous = this.configuration();
+    _cache.schoolConfiguration = configuration;
+    if (_demoMode) {
+      DB.set('school_configuration', configuration);
+      return true;
+    }
+    try {
+      const { error } = await _sb.from('school_configuration').upsert({ id: 1, configuration }, { onConflict: 'school_id,id' });
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      _cache.schoolConfiguration = previous;
+      console.warn('[HMA] school configuration not saved:', err?.message || err);
+      return false;
+    }
+  },
 
   schools() { return _cache.schools.slice(); },
   isPlatformOwner() { return _cache.platformAccount?.platformRole === 'saas_owner'; },

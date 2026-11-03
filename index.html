@@ -665,6 +665,27 @@
           <div id="sessions-list" class="mt16"></div>
         </article>
 
+        <article class="panel fee-setup-panel">
+          <div class="panel-heading"><div><p class="eyebrow">School finance</p><h2>Fee setup</h2></div></div>
+          <p class="role-muted">Set the standard amount for each term and override it for individual classes when needed.</p>
+          <form id="fee-item-form" class="fee-item-form mt16">
+            <label class="form-group"><span>Fee name</span><input id="fee-name" required maxlength="80" placeholder="e.g. Tuition"></label>
+            <label class="form-group"><span>Term</span><select id="fee-term"><option value="1">Term 1</option><option value="2">Term 2</option><option value="3">Term 3</option></select></label>
+            <label class="form-group"><span>Standard amount (₦)</span><input id="fee-amount" type="number" min="0" step="100" required placeholder="0"></label>
+            <button class="btn-primary" type="submit">Add fee</button>
+          </form>
+          <div id="fee-items-list" class="fee-items-list mt16"></div>
+          <p class="score-save-feedback" id="fee-setup-feedback" role="status" aria-live="polite"></p>
+        </article>
+
+        <article class="panel grading-setup-panel">
+          <div class="panel-heading"><div><p class="eyebrow">Assessment</p><h2>Grade bands</h2></div></div>
+          <p class="role-muted">Set the minimum score for each grade. The highest matching threshold is applied to every score entry and result.</p>
+          <div id="grading-bands-list" class="grading-bands-list mt16"></div>
+          <button class="btn-primary mt16" id="save-grading-scale-btn" type="button">Save grade bands</button>
+          <p class="score-save-feedback" id="grading-setup-feedback" role="status" aria-live="polite"></p>
+        </article>
+
         <article class="panel">
           <div class="panel-heading"><div><p class="eyebrow">School calendar</p><h2>Add event</h2></div></div>
           <div class="setup-form">
