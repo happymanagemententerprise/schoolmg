@@ -402,7 +402,26 @@ export function downloadScoreSheet(asExcel) {
     ? [classId]
     : [...new Set(mine.filter(ts => ts.subjectId === subjectId).map(ts => ts.classId))];
 
-  const header = ['Class', 'Admission No', 'Student Name', 'Mid-term Score (max 20)', 'Second-half CA Score (max 20)', 'Exam Score (max 60)', 'Total', 'Feedback'];
+  // Use the school's configured grading components. Falls back to the legacy
+  // fixed model if grading_structures has not been configured yet.
+  const firstClassId = classIds[0];
+  const classLevel   = firstClassId ? Data.cls(firstClassId)?.level : null;
+  const components   = Data.gradingComponentsForLevel(classLevel);
+  const compHeaders  = components.map(c => `${c.label} (max ${c.max})`);
+  const header = ['Class', 'Admission No', 'Student Name', ...compHeaders, 'Total', 'Feedback'];
+
+  // Map component keys to the stored entry fields.
+  const keyMap = { midterm: 'midterm', ca1: 'midterm', ca: 'test', ca2: 'test', exam: 'exam' };
+  const getVal = (e, comp) => e ? (e[keyMap[comp.key] ?? comp.key] ?? '') : '';
+  const getTotal = (e) => {
+    if (!e) return '';
+    const scores = components.map(c => Number(e[keyMap[c.key] ?? c.key] ?? 0));
+    const maxSum  = components.reduce((s, c) => s + c.max, 0);
+    const sum     = scores.reduce((a, b) => a + b, 0);
+    return maxSum === 100 ? sum
+      : maxSum > 100 ? Math.round(sum / components.length * 10) / 10
+      : Math.round(sum * 100 / maxSum * 10) / 10;
+  };
 
   if (asExcel) {
     const sheets = classIds.map(cid => {
@@ -414,7 +433,7 @@ export function downloadScoreSheet(asExcel) {
         const fb = Data.feedback()[s.id];
         const remark = fb && fb.term === term ? (fb.text || '') : '';
         rows.push([cl?.name || '', s.admissionNo || '', s.name,
-          e?.midterm ?? '', e?.test ?? '', e?.exam ?? '', e ? ((e.midterm == null ? e.test : e.midterm + e.test) + e.exam) : '', remark]);
+          ...components.map(c => getVal(e, c)), getTotal(e), remark]);
       });
       return { name: (cl?.name || cid).slice(0, 31), rows };
     });
@@ -428,7 +447,7 @@ export function downloadScoreSheet(asExcel) {
         const fb = Data.feedback()[s.id];
         const remark = fb && fb.term === term ? (fb.text || '') : '';
         rows.push([cl?.name || '', s.admissionNo || '', s.name,
-          e?.midterm ?? '', e?.test ?? '', e?.exam ?? '', e ? ((e.midterm == null ? e.test : e.midterm + e.test) + e.exam) : '', remark]);
+          ...components.map(c => getVal(e, c)), getTotal(e), remark]);
       });
     });
     downloadCsv(`scores_${subject?.code || 'sub'}_term${term}.csv`, rows);
@@ -472,36 +491,7 @@ export async function processScoreUpload(file) {
 
   // Locate the score header even if a teacher adds a title row. Validate every
   // non-empty sheet before writing any scores, to avoid a partial workbook import.
-  const preparedSheets = sheets.map(sheet => {
-    const headerRow = sheet.rows.findIndex(row => {
-      const headers = row.map(value => String(value ?? '').toLowerCase().trim());
-      const find = name => headers.findIndex(header => header.includes(name));
-      const midterm = find('mid-term') >= 0 || find('midterm') >= 0;
-      const ca = find('second-half ca') >= 0 || find('ca') >= 0 || find('test') >= 0;
-      const exam = find('exam') >= 0;
-      const identity = find('admission') >= 0 || find('student name') >= 0 || find('name') >= 0;
-      return midterm && ca && exam && identity;
-    });
-    if (headerRow < 0) return null;
-
-    const header = sheet.rows[headerRow].map(value => String(value ?? '').toLowerCase().trim());
-    const col = name => header.findIndex(value => value.includes(name));
-    return {
-      ...sheet,
-      headerRow,
-      colAdm: col('admission'),
-      colName: col('student name') >= 0 ? col('student name') : col('name'),
-      colMidterm: col('mid-term') >= 0 ? col('mid-term') : col('midterm'),
-      colCA: col('second-half ca') >= 0 ? col('second-half ca') : (col('ca') >= 0 ? col('ca') : col('test')),
-      colExam: col('exam')
-    };
-  });
-
-  if (preparedSheets.some(sheet => !sheet)) {
-    toast('Missing score columns. Use the downloaded sheet with Mid-term, Second-half CA, Exam, and student identity columns.', 'error');
-    return;
-  }
-
+  // Detect columns by the component labels from grading_structures (or fallback).
   const subjectId = $('st-score-subject')?.value;
   const term      = +($('st-score-term')?.value || currentTerm());
   const mine      = myTeacherSubjects();
@@ -510,6 +500,54 @@ export async function processScoreUpload(file) {
   const allowedClassIds = [...new Set(
     mine.filter(ts => ts.subjectId === subjectId).map(ts => ts.classId)
   )];
+  const firstClassLevel = allowedClassIds[0] ? Data.cls(allowedClassIds[0])?.level : null;
+  const components = Data.gradingComponentsForLevel(firstClassLevel);
+  // Map component key → stored entry field
+  const compKeyMap = { midterm: 'midterm', ca1: 'midterm', ca: 'test', ca2: 'test', exam: 'exam' };
+
+  const preparedSheets = sheets.map(sheet => {
+    const headerRow = sheet.rows.findIndex(row => {
+      const headers = row.map(value => String(value ?? '').toLowerCase().trim());
+      const find = name => headers.findIndex(header => header.includes(name));
+      const hasIdentity = find('admission') >= 0 || find('student name') >= 0 || find('name') >= 0;
+      // Accept if every component label appears, OR if the old fixed columns appear (backward compat).
+      const hasComponents = components.every(c => find(c.label.toLowerCase()) >= 0);
+      const hasLegacy = (find('mid-term') >= 0 || find('midterm') >= 0)
+        && (find('second-half ca') >= 0 || find('ca') >= 0 || find('test') >= 0)
+        && find('exam') >= 0;
+      return hasIdentity && (hasComponents || hasLegacy);
+    });
+    if (headerRow < 0) return null;
+
+    const header = sheet.rows[headerRow].map(value => String(value ?? '').toLowerCase().trim());
+    const col = name => header.findIndex(value => value.includes(name));
+
+    // Build per-component column index map
+    const compCols = components.map(c => ({
+      comp: c,
+      colIndex: col(c.label.toLowerCase()) >= 0 ? col(c.label.toLowerCase())
+        // fallback to legacy names
+        : c.key === 'midterm' || c.key === 'ca1' ? (col('mid-term') >= 0 ? col('mid-term') : col('midterm'))
+        : c.key === 'ca' || c.key === 'ca2' ? (col('second-half ca') >= 0 ? col('second-half ca') : (col('ca') >= 0 ? col('ca') : col('test')))
+        : c.key === 'exam' ? col('exam')
+        : col(c.key)
+    }));
+
+    return {
+      ...sheet,
+      headerRow,
+      colAdm:  col('admission'),
+      colName: col('student name') >= 0 ? col('student name') : col('name'),
+      compCols
+    };
+  });
+
+  if (preparedSheets.some(sheet => !sheet)) {
+    const expected = components.map(c => `"${c.label}"`).join(', ');
+    toast(`Missing score columns. Expected ${expected} plus a student identity column.`, 'error');
+    return;
+  }
+
   const allowedStudents = allowedClassIds.flatMap(cid => Data.studentsByClass(cid));
 
   const byAdm  = new Map(allowedStudents.map(s => [String(s.admissionNo || '').toLowerCase(), s]));
@@ -519,17 +557,30 @@ export async function processScoreUpload(file) {
   for (const sheet of preparedSheets) {
     for (let i = sheet.headerRow + 1; i < sheet.rows.length; i++) {
       const row = sheet.rows[i];
-      const admVal = sheet.colAdm >= 0 ? String(row[sheet.colAdm] ?? '').toLowerCase().trim() : '';
+      const admVal  = sheet.colAdm  >= 0 ? String(row[sheet.colAdm]  ?? '').toLowerCase().trim() : '';
       const nameVal = sheet.colName >= 0 ? String(row[sheet.colName] ?? '').toLowerCase().trim() : '';
-      const midRaw = row[sheet.colMidterm];
-      const caRaw = row[sheet.colCA];
-      const exRaw = row[sheet.colExam];
 
-      if ([midRaw, caRaw, exRaw].every(value => value == null || String(value).trim() === '')) { skipped++; continue; }
+      // Read each component's raw value
+      const compValues = sheet.compCols.map(({ comp, colIndex }) => ({
+        comp,
+        raw: colIndex >= 0 ? row[colIndex] : null
+      }));
 
-      const midterm = Math.min(20, Math.max(0, Number(String(midRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
-      const ca = Math.min(20, Math.max(0, Number(String(caRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
-      const exam = Math.min(60, Math.max(0, Number(String(exRaw ?? '').replace(/[^0-9.]/g, '')) || 0));
+      if (compValues.every(({ raw }) => raw == null || String(raw).trim() === '')) { skipped++; continue; }
+
+      // Clamp each value to its configured max
+      const clamped = compValues.map(({ comp, raw }) =>
+        Math.min(comp.max, Math.max(0, Number(String(raw ?? '').replace(/[^0-9.]/g, '')) || 0))
+      );
+
+      // Map component keys to saveGrade parameters (midterm, ca, exam)
+      let midterm = null, ca = 0, exam = 0;
+      sheet.compCols.forEach(({ comp }, idx) => {
+        const field = compKeyMap[comp.key] ?? comp.key;
+        if (field === 'midterm') midterm = clamped[idx];
+        else if (field === 'test') ca = clamped[idx];
+        else if (field === 'exam') exam = clamped[idx];
+      });
 
       const student = (admVal && byAdm.get(admVal)) || (nameVal && byName.get(nameVal));
       if (!student) {

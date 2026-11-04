@@ -2775,8 +2775,22 @@ const Data = {
   selectionRules()    { return _cache.selectionRules; },
   approvalRequests()  { return _cache.approvalRequests || []; },
   // ── Grading structures + calculation engine ────────────────
-  async gradingStructures() {
-    const { data, error } = await _sb.from('grading_structures')
+  // Returns the configured components for a given school level from the
+  // in-memory cache, falling back to the legacy fixed model so the sheet
+  // always has usable columns even before grading_structures is configured.
+  gradingComponentsForLevel(schoolLevel) {
+    const level = (schoolLevel || 'JSS').replace('SS', 'SSS').replace('SSSS', 'SSS');
+    const struct = _cache.gradingStructuresCache?.[level]
+      || _cache.gradingStructuresCache?.['JSS'];
+    if (struct?.components?.length) return struct.components;
+    // Legacy fixed model
+    return [
+      { key: 'midterm', label: 'Mid-term Score', max: 20 },
+      { key: 'ca',      label: 'Second-half CA Score', max: 20 },
+      { key: 'exam',    label: 'Exam Score', max: 60 }
+    ];
+  },
+  async gradingStructures() {    const { data, error } = await _sb.from('grading_structures')
       .select('id,school_level,components,is_active').order('school_level');
     if (error) throw new Error(error.message);
     return data || [];
