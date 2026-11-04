@@ -4,7 +4,7 @@
 
 import { getCurrentUser } from './state.js';
 import { $, $q, $all, esc } from './utils.js';
-import { navForUser, logout } from './auth.js';
+import { navForUser, logout, FEATURE_FOR_PAGE } from './auth.js';
 import { Data } from './data/index.js';
 
 // Import all view render functions
@@ -83,6 +83,18 @@ function toggleMobileNav() {
 }
 
 export function renderView(pageId) {
+  // Before rendering, check the feature gate. If the page requires a plan
+  // feature the active school doesn't have, show an upgrade notice instead.
+  // This is the last line of defence — the nav already hides these pages.
+  const requiredFeature = FEATURE_FOR_PAGE?.[pageId];
+  if (requiredFeature && typeof Data?.hasFeature === 'function' && !Data.hasFeature(requiredFeature)) {
+    const el = $(pageId);
+    if (el) el.innerHTML = `<div class="panel mt16">
+      <div class="panel-heading"><div><p class="eyebrow">Plan required</p><h2>Feature not included</h2></div></div>
+      <p class="role-muted" style="padding:24px">This feature is not included in your current plan. Contact your school owner to upgrade.</p>
+    </div>`;
+    return;
+  }
   ({
     'view-owner-schools':     renderPlatformSchools,
     'view-owner-onboarding':  renderPlatformOnboarding,

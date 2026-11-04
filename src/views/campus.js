@@ -27,6 +27,15 @@ export async function renderCampus() {
     $('campus-content').innerHTML = '<div class="panel empty-state">Campus operations are available to school administrators and security staff.</div>';
     return;
   }
+  // Gate the whole view behind the campus_gate feature — a Basic or Pro school
+  // should never reach this screen, but guard here too in case of direct navigation.
+  if (!Data.hasFeature('campus_gate')) {
+    $('campus-content').innerHTML = `<div class="panel mt16">
+      <div class="panel-heading"><div><p class="eyebrow">Plan required</p><h2>Campus safety</h2></div></div>
+      <p class="role-muted" style="padding:24px">Campus safety, gate check-in/out, hostel tracking and parent pickup alerts are included in the <strong>Premium</strong> plan. Contact your school owner to upgrade.</p>
+    </div>`;
+    return;
+  }
   if (Data.isDemoMode() && (isGuard() || isHostelStaff())) {
     renderLocalCampusDemo();
     return;
