@@ -134,6 +134,44 @@ const requireRoles = (...roles) => (req, res, next) => roles.includes(req.school
   ? next() : res.status(403).json({ error: 'You do not have permission for this action.' });
 const auth = [authenticate];
 
+// ── Plan / feature guard ─────────────────────────────────────
+// Checks the school's active subscription plan against the required feature.
+// A school with NO active subscription (legacy / bootstrap) is treated as
+// full access so it is never locked out. Only schools onboarded through
+// platform_onboard_school — which always stamp a plan — are gated.
+const PLAN_FEATURES: Record<string, string[]> = {
+  basic:    ['people','classes','subjects','timetable','attendance','grades','report_cards','promotion','student_portal','parent_portal'],
+  pro:      ['people','classes','subjects','timetable','attendance','grades','report_cards','promotion','student_portal','parent_portal','assignments','lms','analytics','leaderboards','parent_attendance','push'],
+  premium:  ['people','classes','subjects','timetable','attendance','grades','report_cards','promotion','student_portal','parent_portal','assignments','lms','analytics','leaderboards','parent_attendance','push','campus_gate','security_guard','pickup_alerts','hostel','priority_support']
+};
+
+async function getSchoolPlanFeatures(schoolId: string): Promise<string[] | null> {
+  const { data: sub } = await rawFrom('school_subscriptions')
+    .select('plan_code, status')
+    .eq('school_id', schoolId)
+    .eq('status', 'active')
+    .order('starts_on', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!sub) return null; // no subscription = full access (legacy school)
+  return PLAN_FEATURES[sub.plan_code] || [];
+}
+
+const requireFeature = (feature: string) => asyncRoute(async (req: any, res: any, next: any) => {
+  // Cache on req so multiple requireFeature calls in one request hit DB once.
+  if (!req._planFeatures) {
+    req._planFeatures = await getSchoolPlanFeatures(req.schoolId);
+  }
+  const features: string[] | null = req._planFeatures;
+  // null = no subscription row = legacy full access
+  if (features === null || features.includes(feature)) return next();
+  return res.status(403).json({
+    error: `This feature requires a higher subscription plan. Contact your school owner to upgrade.`,
+    feature,
+    required_plan: Object.entries(PLAN_FEATURES).find(([, f]) => f.includes(feature))?.[0] || 'premium'
+  });
+});
+
 async function linkedParents(studentId, schoolDb) {
   const { data: links, error } = await schoolDb.from('parent_students').select('parent_id').eq('student_id', studentId);
   if (error) throw error;
@@ -235,7 +273,7 @@ async function deliverPush(userId, payload, schoolDb) {
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, pushEnabled: vapidReady, smsEnabled: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER) }));
 
-app.get('/api/campus/events', ...auth, requireRoles('admin', 'teacher', 'security_guard', 'hostel_staff'), asyncRoute(async (req, res) => {
+app.get('/api/campus/events', ...auth, requireFeature('campus_gate'), requireRoles('admin', 'teacher', 'security_guard', 'hostel_staff'), asyncRoute(async (req, res) => {
   let hostelIds = [];
   let classIds = [];
   if (req.schoolUser.role === 'hostel_staff') {
@@ -318,7 +356,7 @@ app.delete('/api/push/subscribe', ...auth, asyncRoute(async (req, res) => {
   res.status(204).end();
 }));
 
-app.get('/api/campus/roster', ...auth, requireRoles('admin', 'security_guard'), asyncRoute(async (_req, res) => {
+app.get('/api/campus/roster', ...auth, requireFeature('campus_gate'), requireRoles('admin', 'security_guard'), asyncRoute(async (_req, res) => {
   const { data, error } = await req.db.from('students').select('id,admission_no,class_id,residence_status,status,users!students_user_id_fkey(name),classes(class_name)')
     .eq('residence_status', 'DAY_STUDENT').neq('status', 'archived').order('admission_no');
   if (error) throw error;
@@ -350,7 +388,7 @@ app.get('/api/campus/roster', ...auth, requireRoles('admin', 'security_guard'), 
   res.json((data || []).map(student => ({ ...student, guardians: guardiansByStudent.get(String(student.id)) || [], last_gate_event: latest.get(String(student.id)) || null })));
 }));
 
-app.get('/api/hostels', ...auth, requireRoles('admin', 'hostel_staff'), asyncRoute(async (req, res) => {
+app.get('/api/hostels', ...auth, requireFeature('hostel'), requireRoles('admin', 'hostel_staff'), asyncRoute(async (req, res) => {
   const { data, error } = await req.db.from('hostels').select('id,name,active').eq('active', true).order('name');
   if (error) throw error;
   if (req.schoolUser.role === 'admin') return res.json(data || []);
@@ -360,7 +398,7 @@ app.get('/api/hostels', ...auth, requireRoles('admin', 'hostel_staff'), asyncRou
   res.json((data || []).filter(h => ids.includes(h.id)));
 }));
 
-app.post('/api/hostels', ...auth, requireRoles('admin'), asyncRoute(async (req, res) => {
+app.post('/api/hostels', ...auth, requireFeature('hostel'), requireRoles('admin'), asyncRoute(async (req, res) => {
   const name = String(req.body?.name || '').trim();
   if (!name || name.length > 80) return res.status(400).json({ error: 'Enter a hostel name up to 80 characters.' });
   const { data, error } = await req.db.from('hostels').insert({ name }).select().single();
@@ -369,7 +407,7 @@ app.post('/api/hostels', ...auth, requireRoles('admin'), asyncRoute(async (req, 
   res.status(201).json(data);
 }));
 
-app.post('/api/hostels/:id/staff', ...auth, requireRoles('admin'), asyncRoute(async (req, res) => {
+app.post('/api/hostels/:id/staff', ...auth, requireFeature('hostel'), requireRoles('admin'), asyncRoute(async (req, res) => {
   const hostelId = Number(req.params.id), userId = Number(req.body?.userId);
   if (![hostelId, userId].every(Number.isInteger)) return res.status(400).json({ error: 'Choose a hostel and hostel supervisor.' });
   const { data: user, error: userError } = await req.db.from('users').select('id,role').eq('id', userId).maybeSingle();
@@ -503,7 +541,7 @@ app.get('/api/teacher/periods', ...auth, requireRoles('admin', 'teacher'), async
   res.json(results);
 }));
 
-app.post('/api/gate/pickup-pin', ...auth, requireRoles('admin', 'parent'), asyncRoute(async (req, res) => {
+app.post('/api/gate/pickup-pin', ...auth, requireFeature('campus_gate'), requireRoles('admin', 'parent'), asyncRoute(async (req, res) => {
   const userId = req.schoolUser.role === 'parent' ? Number(req.schoolUser.id) : Number(req.body?.userId);
   const pin = String(req.body?.pin || '');
   if (!Number.isInteger(userId) || !/^\d{6}$/.test(pin)) return res.status(400).json({ error: 'Enter a six-digit pickup PIN.' });
@@ -517,7 +555,7 @@ app.post('/api/gate/pickup-pin', ...auth, requireRoles('admin', 'parent'), async
   res.status(204).end();
 }));
 
-app.post('/api/gate/events', ...auth, requireRoles('admin', 'security_guard'), asyncRoute(async (req, res) => {
+app.post('/api/gate/events', ...auth, requireFeature('campus_gate'), requireRoles('admin', 'security_guard'), asyncRoute(async (req, res) => {
   const body = req.body || {};
   const studentId = Number(body.studentId), eventType = body.eventType, method = body.method || 'manual';
   const actorType = body.dropoffByType, parentId = Number(body.parentId);
@@ -577,7 +615,7 @@ app.post('/api/gate/events', ...auth, requireRoles('admin', 'security_guard'), a
   res.status(201).json(gateEventForClient(updated));
 }));
 
-app.get('/api/hostel/dashboard', ...auth, requireRoles('admin', 'hostel_staff'), asyncRoute(async (req, res) => {
+app.get('/api/hostel/dashboard', ...auth, requireFeature('hostel'), requireRoles('admin', 'hostel_staff'), asyncRoute(async (req, res) => {
   const { data: hostels, error: hostelError } = await req.db.from('hostels').select('id,name,active').eq('active', true);
   if (hostelError) throw hostelError;
   let assigned = hostels || [];
@@ -607,7 +645,7 @@ app.get('/api/hostel/dashboard', ...auth, requireRoles('admin', 'hostel_staff'),
   res.json(result);
 }));
 
-app.post('/api/hostel/presence', ...auth, requireRoles('admin', 'hostel_staff'), asyncRoute(async (req, res) => {
+app.post('/api/hostel/presence', ...auth, requireFeature('hostel'), requireRoles('admin', 'hostel_staff'), asyncRoute(async (req, res) => {
   const hostelId = Number(req.body?.hostelId), studentId = Number(req.body?.studentId), eventType = req.body?.eventType;
   if (![hostelId, studentId].every(Number.isInteger) || !['check_in', 'check_out'].includes(eventType)) return res.status(400).json({ error: 'Hostel, student and presence event are required.' });
   if (req.schoolUser.role !== 'admin') {
@@ -670,6 +708,8 @@ async function dispatchUpcomingClasses() {
   const { data: schools, error: schoolError } = await rawFrom('schools').select('id').eq('status', 'active');
   if (schoolError) throw schoolError;
   for (const school of schools || []) {
+    const features = await getSchoolPlanFeatures(String(school.id));
+    if (features !== null && !features.includes('campus_gate')) continue; // skip non-premium
     await dispatchUpcomingClassesForSchool(createSchoolDb(String(school.id)));
   }
 }
@@ -713,6 +753,8 @@ async function autoCheckoutHostels() {
   const { data: schools, error: schoolError } = await rawFrom('schools').select('id').eq('status', 'active');
   if (schoolError) throw schoolError;
   for (const school of schools || []) {
+    const features = await getSchoolPlanFeatures(String(school.id));
+    if (features !== null && !features.includes('hostel')) continue; // skip non-premium
     await autoCheckoutHostelsForSchool(createSchoolDb(String(school.id)));
   }
 }
