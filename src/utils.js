@@ -44,11 +44,8 @@ export function ordinal(n) {
 
 // ── Grade / label helpers ────────────────────────────────────
 export function gradeLabel(score) {
-  if (score >= 80) return 'A';
-  if (score >= 70) return 'B';
-  if (score >= 60) return 'C';
-  if (score >= 50) return 'D';
-  return 'F';
+  const bands = Data.gradingScale().slice().sort((a, b) => Number(b.min) - Number(a.min));
+  return bands.find(band => Number(score) >= Number(band.min))?.label || '—';
 }
 
 export function toneClass(t) {

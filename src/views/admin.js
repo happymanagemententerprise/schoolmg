@@ -1419,6 +1419,80 @@ export function renderAdminSetup() {
   });
 
   renderSessionsList();
+  renderFeeSetup();
+}
+
+function renderFeeSetup() {
+  const list = $('fee-items-list');
+  if (!list) return;
+  const classes = Data.classes();
+  const currency = value => `₦${Number(value || 0).toLocaleString('en-NG')}`;
+  const saveFeeItems = async items => {
+    const ok = await Data.saveConfiguration({ ...Data.configuration(), feeItems: items });
+    const feedback = $('fee-setup-feedback');
+    feedback.className = `score-save-feedback ${ok ? 'success' : 'error'}`;
+    feedback.textContent = ok ? 'Fee setup saved.' : 'Could not save fee setup. Your previous settings are unchanged.';
+    return ok;
+  };
+  const draw = () => {
+    const items = Data.feeItems();
+    list.innerHTML = items.length ? items.map(item => `
+      <article class="fee-item-row" data-fee-id="${esc(item.id)}">
+        <div class="fee-edit-fields"><label>Fee name<input data-fee-name maxlength="80" value="${esc(item.name)}" aria-label="Fee name"></label><label>Term<select data-fee-term aria-label="Fee term">${[1, 2, 3].map(term => `<option value="${term}" ${Number(item.term) === term ? 'selected' : ''}>Term ${term}</option>`).join('')}</select></label><label>Standard amount<input data-fee-amount type="number" min="0" step="100" value="${Number(item.amount || 0)}" aria-label="Standard fee amount in naira"></label></div>
+        <details class="fee-class-rates"><summary>Class amounts <span>${classes.length} classes</span></summary>
+          <div class="fee-class-grid">${classes.map(cl => `<label><span>${esc(cl.name)}</span><span class="fee-class-input"><small>₦</small><input type="number" min="0" step="100" data-class-rate="${esc(cl.id)}" value="${item.classAmounts?.[cl.id] ?? ''}" placeholder="${Number(item.amount || 0)}" aria-label="${esc(item.name)} amount for ${esc(cl.name)}"></span></label>`).join('') || '<p class="muted-cell">Add classes to set class-specific amounts.</p>'}</div>
+          <div class="fee-item-actions"><button type="button" class="outline-button" data-save-fee style="width:auto;margin:0">Save fee</button><button type="button" class="text-button" data-delete-fee>Remove fee</button></div>
+        </details>
+      </article>`).join('') : '<p class="muted-cell">No fees set up yet. Add the first term fee above.</p>';
+    list.querySelectorAll('[data-save-fee]').forEach(button => button.onclick = async () => {
+      const row = button.closest('[data-fee-id]');
+      const amounts = Object.fromEntries([...row.querySelectorAll('[data-class-rate]')].filter(input => input.value !== '').map(input => [input.dataset.classRate, Number(input.value)]));
+      const name = row.querySelector('[data-fee-name]').value.trim();
+      const amount = Number(row.querySelector('[data-fee-amount]').value);
+      if (!name || !Number.isFinite(amount) || amount < 0 || Object.values(amounts).some(value => !Number.isFinite(value) || value < 0)) { toast('Enter a fee name and amounts of zero or more.', 'error'); return; }
+      const current = Data.feeItems();
+      const updated = current.map(item => item.id === row.dataset.feeId ? { ...item, name, amount, term: Number(row.querySelector('[data-fee-term]').value), classAmounts: amounts } : item);
+      if (await saveFeeItems(updated)) draw();
+    });
+    list.querySelectorAll('[data-delete-fee]').forEach(button => button.onclick = async () => {
+      const id = button.closest('[data-fee-id]').dataset.feeId;
+      if (await saveFeeItems(Data.feeItems().filter(item => item.id !== id))) draw();
+    });
+  };
+  draw();
+  const form = $('fee-item-form');
+  if (form && !form.dataset.bound) {
+    form.dataset.bound = '1';
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const name = $('fee-name').value.trim(), amount = Number($('fee-amount').value), term = Number($('fee-term').value);
+      if (!name || !Number.isFinite(amount) || amount < 0) { toast('Enter a fee name and a valid amount.', 'error'); return; }
+      const items = [...Data.feeItems(), { id: `fee-${Date.now()}`, name, amount, term, classAmounts: {} }];
+      if (await saveFeeItems(items)) { form.reset(); draw(); }
+    });
+  }
+
+  const bandsRoot = $('grading-bands-list');
+  if (!bandsRoot) return;
+  const bands = Data.gradingScale();
+  bandsRoot.innerHTML = bands.map((band, index) => `<div class="grading-band-row"><label><span>Grade label</span><input type="text" maxlength="8" data-grade-name="${index}" value="${esc(band.label)}" aria-label="Grade label"></label><label><span>Minimum score</span><div class="fee-class-input"><input type="number" min="0" max="100" step="1" data-grade-min="${index}" value="${Number(band.min)}" aria-label="Minimum score for grade ${esc(band.label)}"><small>/ 100</small></div></label></div>`).join('');
+  const saveButton = $('save-grading-scale-btn');
+  saveButton.onclick = async () => {
+    const labels = [...bandsRoot.querySelectorAll('[data-grade-name]')];
+    const thresholdsInput = [...bandsRoot.querySelectorAll('[data-grade-min]')];
+    const updated = labels.map((input, index) => ({ label: input.value.trim(), min: Number(thresholdsInput[index].value) }));
+    const thresholds = updated.map(band => band.min);
+    const gradeLabels = updated.map(band => band.label.toLocaleLowerCase());
+    const valid = updated.every(band => band.label && Number.isInteger(band.min) && band.min >= 0 && band.min <= 100) &&
+      new Set(gradeLabels).size === gradeLabels.length && new Set(thresholds).size === thresholds.length && updated.some(band => band.min === 0);
+    const feedback = $('grading-setup-feedback');
+    if (!valid) { feedback.className = 'score-save-feedback error'; feedback.textContent = 'Use unique grade labels and whole-number thresholds from 0 to 100, including a grade that starts at 0.'; return; }
+    saveButton.disabled = true;
+    const ok = await Data.saveConfiguration({ ...Data.configuration(), gradingScale: updated });
+    saveButton.disabled = false;
+    feedback.className = `score-save-feedback ${ok ? 'success' : 'error'}`;
+    feedback.textContent = ok ? 'Grade bands saved. Score entry and reports now use these thresholds.' : 'Could not save grade bands. Your previous settings are unchanged.';
+  };
 }
 
 function renderSessionsList() {

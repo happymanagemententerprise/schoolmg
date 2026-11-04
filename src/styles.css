@@ -1648,6 +1648,45 @@ tr.att-focused { background: var(--blue-soft); }
 .score-input[aria-invalid="true"] { border-color: #b84d3c; box-shadow: 0 0 0 2px rgba(184,77,60,.14); }
 .nav-account { margin-top: 12px; }
 
+/* Admin fee setup and shared grading scale */
+.fee-setup-panel, .grading-setup-panel { min-width: 0; }
+.fee-item-form { display: grid; grid-template-columns: minmax(150px, 1.5fr) minmax(100px, .7fr) minmax(150px, 1fr) auto; gap: 12px; align-items: end; }
+.fee-item-form .form-group { margin: 0; }
+.fee-item-form .btn-primary { width: auto; margin: 0; white-space: nowrap; }
+.fee-items-list { display: grid; gap: 10px; }
+.fee-item-row { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.fee-edit-fields { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(90px, .5fr) minmax(140px, .7fr); gap: 12px; padding: 12px 15px; }
+.fee-edit-fields label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.fee-edit-fields input, .fee-edit-fields select { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 8px 9px; color: var(--ink); background: #fff; }
+.fee-item-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 15px; }
+.fee-item-summary > div { display: flex; align-items: baseline; gap: 12px; }
+.fee-item-summary > div span, .fee-class-rates summary span { color: var(--muted); font-size: 12px; }
+.fee-class-rates { border-top: 1px solid var(--line); padding: 10px 15px; }
+.fee-class-rates summary { cursor: pointer; font-weight: 600; }
+.fee-class-rates summary span { margin-left: 6px; font-weight: 400; }
+.fee-class-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; padding: 14px 0; }
+.fee-class-grid label { display: grid; gap: 5px; color: var(--ink); font-size: 12px; }
+.fee-class-input { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 7px; padding: 0 9px; background: #fff; }
+.fee-class-input input { width: 100%; min-width: 0; border: 0; outline: 0; padding: 8px 0; background: transparent; color: var(--ink); }
+.fee-class-input small { color: var(--muted); white-space: nowrap; }
+.fee-item-actions { display: flex; align-items: center; gap: 14px; }
+.grading-bands-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; }
+.grading-band-row { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; }
+.grading-band-row label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+.grading-band-row label > input { width: 100%; border: 1px solid var(--line); border-radius: 7px; padding: 8px 9px; color: var(--ink); background: #fff; }
+.grading-band-row .fee-class-input { max-width: 130px; }
+@media (max-width: 760px) {
+  .fee-item-form { grid-template-columns: 1fr 1fr; }
+  .fee-item-form .form-group:first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 440px) {
+  .fee-item-form { grid-template-columns: 1fr; }
+  .fee-item-form .form-group:first-child { grid-column: auto; }
+  .fee-item-summary, .fee-item-summary > div { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .fee-edit-fields { grid-template-columns: 1fr 1fr; }
+  .fee-edit-fields label:first-child { grid-column: 1 / -1; }
+}
+
 /* Register table — wider layout with heatmap column */
 .att-register-table { width: 100%; }
 .att-status-col { white-space: nowrap; width: 1%; }
