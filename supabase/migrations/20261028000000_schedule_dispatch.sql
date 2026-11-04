@@ -21,15 +21,6 @@ BEGIN
   CREATE EXTENSION IF NOT EXISTS pg_cron;
   CREATE EXTENSION IF NOT EXISTS pg_net;
 
-  PERFORM cron.schedule('hma-email-digest', '5 6 * * *', $job$
-    SELECT net.http_post(
-      url := 'https://erlhyrswcqpqpqzbgmgb.functions.supabase.co/email-digest',
-      headers := '{"Authorization":"Bearer happymanagemententerprise@gmail.com
-","Content-Type":"application/json"}'::jsonb,
-      body := '{}'::jsonb
-    );
-  $job$);
-
   PERFORM cron.schedule('hma-push-dispatch', '* * * * *', $job$
     SELECT net.http_post(
       url := 'https://erlhyrswcqpqpqzbgmgb.functions.supabase.co/push-dispatch',
