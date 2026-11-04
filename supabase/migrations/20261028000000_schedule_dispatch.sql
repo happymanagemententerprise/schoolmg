@@ -24,7 +24,8 @@ BEGIN
   PERFORM cron.schedule('hma-email-digest', '5 6 * * *', $job$
     SELECT net.http_post(
       url := 'https://erlhyrswcqpqpqzbgmgb.functions.supabase.co/email-digest',
-      headers := '{"Authorization":"Bearer <YOUR_EMAIL_DISPATCH_SECRET>","Content-Type":"application/json"}'::jsonb,
+      headers := '{"Authorization":"Bearer happymanagemententerprise@gmail.com
+","Content-Type":"application/json"}'::jsonb,
       body := '{}'::jsonb
     );
   $job$);
@@ -32,7 +33,7 @@ BEGIN
   PERFORM cron.schedule('hma-push-dispatch', '* * * * *', $job$
     SELECT net.http_post(
       url := 'https://erlhyrswcqpqpqzbgmgb.functions.supabase.co/push-dispatch',
-      headers := '{"Authorization":"Bearer df8fab484cbc4e97bacdec40647cdd19","Content-Type":"application/json"}'::jsonb,
+      headers := '{"Authorization":"Bearer aRP9Ia_rpbiL4d-aRWK9cTVCPky5T9sOSkHI_eCf284","Content-Type":"application/json"}'::jsonb,
       body := '{}'::jsonb
     );
   $job$);
