@@ -1650,8 +1650,8 @@ tr.att-focused { background: var(--blue-soft); }
 
 /* Admin fee setup and shared grading scale */
 .fee-setup-panel, .grading-setup-panel { min-width: 0; }
-.fee-item-form { display: grid; grid-template-columns: minmax(150px, 1.5fr) minmax(100px, .7fr) minmax(150px, 1fr) auto; gap: 12px; align-items: end; }
-.fee-item-form .form-group { margin: 0; }
+.fee-item-form { display: grid; grid-template-columns: minmax(120px, 1.5fr) minmax(90px, .6fr) minmax(110px, .9fr) auto; gap: 10px; align-items: end; }
+.fee-item-form .form-group { margin: 0; min-width: 0; }
 .fee-item-form .btn-primary { width: auto; margin: 0; white-space: nowrap; }
 .fee-items-list { display: grid; gap: 10px; }
 .fee-item-row { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
@@ -1675,6 +1675,11 @@ tr.att-focused { background: var(--blue-soft); }
 .grading-band-row label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
 .grading-band-row label > input { width: 100%; border: 1px solid var(--line); border-radius: 7px; padding: 8px 9px; color: var(--ink); background: #fff; }
 .grading-band-row .fee-class-input { max-width: 130px; }
+@media (max-width: 860px) {
+  .fee-item-form { grid-template-columns: 1fr 1fr; }
+  .fee-item-form .form-group:first-child { grid-column: 1 / -1; }
+  .fee-item-form .btn-primary { grid-column: 1 / -1; width: 100%; }
+}
 @media (max-width: 760px) {
   .fee-item-form { grid-template-columns: 1fr 1fr; }
   .fee-item-form .form-group:first-child { grid-column: 1 / -1; }

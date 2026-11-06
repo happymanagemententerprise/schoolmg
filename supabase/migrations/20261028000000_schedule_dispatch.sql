@@ -24,7 +24,7 @@ BEGIN
   PERFORM cron.schedule('hma-push-dispatch', '* * * * *', $job$
     SELECT net.http_post(
       url := 'https://erlhyrswcqpqpqzbgmgb.functions.supabase.co/push-dispatch',
-      headers := '{"Authorization":"Bearer aRP9Ia_rpbiL4d-aRWK9cTVCPky5T9sOSkHI_eCf284","Content-Type":"application/json"}'::jsonb,
+      headers := '{"Authorization":"Bearer <PUSH_DISPATCH_SECRET>","Content-Type":"application/json"}'::jsonb,
       body := '{}'::jsonb
     );
   $job$);

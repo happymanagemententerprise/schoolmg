@@ -1139,32 +1139,32 @@ function _loadDemoSchool() {
   // teach at most 30 periods a week, so the school needs this many staff for
   // a clash-free whole-school timetable.
   const USERS = [
-    ['Amara Mensah','admin@happyman.edu','admin123','admin','08031234567','coral',null,false,null,null],
+    ['Amara Mensah','admin@happyman.edu','demo-only','admin','08031234567','coral',null,false,null,null],
     // general studies
-    ['Adwoa Addo','subject@happyman.edu','subject123','teacher','08031234569','green','Subject Teacher',false,null,null],
-    ['Samuel Ofori','english2@happyman.edu','happyman123','teacher','08031234577','blue','Subject Teacher',false,null,null],
-    ['Daniel Quaye','maths2@happyman.edu','happyman123','teacher','08031234578','coral','Subject Teacher',false,null,null],
-    ['Sandra Kumi','maths3@happyman.edu','happyman123','teacher','08031234579','yellow','Subject Teacher',false,null,null],
-    ['Ibrahim Musa','history@happyman.edu','happyman123','teacher','08031234580','green','Subject Teacher',false,null,null],
-    ['Akosua Frimpong','yoruba@happyman.edu','happyman123','teacher','08031234582','blue','Subject Teacher',false,null,null],
-    ['Kofi Mensah','languages@happyman.edu','happyman123','teacher','08031234575','blue','HOD',true,'Nigerian History','Head of General Studies. Nigerian history and social studies.'],
-    ['Vida Nyarko','crs@happyman.edu','happyman123','teacher','08031234581','coral','Subject Teacher',false,null,null],
-    ['Joseph Aidoo','jss2@happyman.edu','happyman123','teacher','08031234576','green','Subject Teacher',false,null,null],
-    ['Zainab Haruna','islamic@happyman.edu','happyman123','teacher','08031234586','yellow','Subject Teacher',false,null,null],
+    ['Adwoa Addo','subject@happyman.edu','demo-only','teacher','08031234569','green','Subject Teacher',false,null,null],
+    ['Samuel Ofori','english2@happyman.edu','demo-only','teacher','08031234577','blue','Subject Teacher',false,null,null],
+    ['Daniel Quaye','maths2@happyman.edu','demo-only','teacher','08031234578','coral','Subject Teacher',false,null,null],
+    ['Sandra Kumi','maths3@happyman.edu','demo-only','teacher','08031234579','yellow','Subject Teacher',false,null,null],
+    ['Ibrahim Musa','history@happyman.edu','demo-only','teacher','08031234580','green','Subject Teacher',false,null,null],
+    ['Akosua Frimpong','yoruba@happyman.edu','demo-only','teacher','08031234582','blue','Subject Teacher',false,null,null],
+    ['Kofi Mensah','languages@happyman.edu','demo-only','teacher','08031234575','blue','HOD',true,'Nigerian History','Head of General Studies. Nigerian history and social studies.'],
+    ['Vida Nyarko','crs@happyman.edu','demo-only','teacher','08031234581','coral','Subject Teacher',false,null,null],
+    ['Joseph Aidoo','jss2@happyman.edu','demo-only','teacher','08031234576','green','Subject Teacher',false,null,null],
+    ['Zainab Haruna','islamic@happyman.edu','demo-only','teacher','08031234586','yellow','Subject Teacher',false,null,null],
     // junior secondary
-    ['Kwame Owusu','class@happyman.edu','class123','teacher','08031234568','blue','Class Teacher',true,'Digital Technologies','Class teacher of Grade 7. Focused on practical computing and study habits.'],
-    ['Abena Sarpong','jss@happyman.edu','happyman123','teacher','08031234574','yellow','HOD',true,'Intermediate Science','Head of Junior Secondary. Loves practical experiments with the JSS learners.'],
-    ['Michael Tetteh','jss3@happyman.edu','happyman123','teacher','08031234587','coral','Subject Teacher',false,null,null],
+    ['Kwame Owusu','class@happyman.edu','demo-only','teacher','08031234568','blue','Class Teacher',true,'Digital Technologies','Class teacher of Grade 7. Focused on practical computing and study habits.'],
+    ['Abena Sarpong','jss@happyman.edu','demo-only','teacher','08031234574','yellow','HOD',true,'Intermediate Science','Head of Junior Secondary. Loves practical experiments with the JSS learners.'],
+    ['Michael Tetteh','jss3@happyman.edu','demo-only','teacher','08031234587','coral','Subject Teacher',false,null,null],
     // science
-    ['Dr. Yaw Asante','hod@happyman.edu','hod123','teacher','08031234570','yellow','HOD',false,null,null],
-    ['Peter Asare','physics2@happyman.edu','happyman123','teacher','08031234583','green','Subject Teacher',false,null,null],
-    ['Nii Tetteh','science2@happyman.edu','happyman123','teacher','08031234573','green','Class Teacher',true,'Health Education','Class teacher of Grade 10 Science and mentor to senior students.'],
+    ['Dr. Yaw Asante','hod@happyman.edu','demo-only','teacher','08031234570','yellow','HOD',false,null,null],
+    ['Peter Asare','physics2@happyman.edu','demo-only','teacher','08031234583','green','Subject Teacher',false,null,null],
+    ['Nii Tetteh','science2@happyman.edu','demo-only','teacher','08031234573','green','Class Teacher',true,'Health Education','Class teacher of Grade 10 Science and mentor to senior students.'],
     // commercial
-    ['Fatima Bello','commercial@happyman.edu','happyman123','teacher','08031234571','coral','HOD',false,null,null],
-    ['Clement Anane','commerce2@happyman.edu','happyman123','teacher','08031234584','blue','Subject Teacher',false,null,null],
+    ['Fatima Bello','commercial@happyman.edu','demo-only','teacher','08031234571','coral','HOD',false,null,null],
+    ['Clement Anane','commerce2@happyman.edu','demo-only','teacher','08031234584','blue','Subject Teacher',false,null,null],
     // arts
-    ['Emeka Obi','arts@happyman.edu','happyman123','teacher','08031234572','blue','HOD',false,null,null],
-    ['Ruth Opoku','arts2@happyman.edu','happyman123','teacher','08031234585','coral','Subject Teacher',false,null,null],
+    ['Emeka Obi','arts@happyman.edu','demo-only','teacher','08031234572','blue','HOD',false,null,null],
+    ['Ruth Opoku','arts2@happyman.edu','demo-only','teacher','08031234585','coral','Subject Teacher',false,null,null],
     ['Demo Security Guard','security@happyman.edu','HMA_Demo_2026!','security_guard','08031234588','blue',null,false,null,null],
     ['Demo Hostel Supervisor','hostel@happyman.edu','HMA_Demo_2026!','hostel_staff','08031234589','green',null,false,null,null]
   ];
@@ -2122,7 +2122,7 @@ const Data = {
   getAccessToken: async () => _demoMode ? null : (await _sb.auth.getSession()).data?.session?.access_token || null,
   lastDailySaveQueued: () => _attendanceSaveQueued,
 
-  async addStudent({ name, classId, gender = 'M', admissionNo, email, password = 'student123', phone = null, mentorId = null }) {
+  async addStudent({ name, classId, gender = 'M', admissionNo, email, password = 'demo-only', phone = null, mentorId = null }) {
     let classIdNum = Number(classId);
     if (!Number.isFinite(classIdNum)) {
       const { data } = await _sb.from('classes').select('id').eq('class_name', classId).maybeSingle();
